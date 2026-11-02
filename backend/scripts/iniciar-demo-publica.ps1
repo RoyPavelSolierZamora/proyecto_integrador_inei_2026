@@ -1,21 +1,24 @@
 <#
 .SYNOPSIS
-    Arranca el dashboard EPEN en modo demostracion publica por un tunel HTTPS.
+    Arranca el dashboard EPEN en modo demostracion publica con un solo comando.
 
 .DESCRIPTION
-    No modifica el lanzador local ni la configuracion existente: solo agrega las
-    tres variables que un tunel necesita.
+    Hace todo el trabajo en orden:
 
-      APP_ORIGIN  = dominio publico (el backend rechaza cualquier otro origen)
-      TRUST_PROXY = 1 (la IP real del visitante, no la del tunel)
-      NODE_ENV    = production (cookie Secure; el navegador ya ve HTTPS)
+      1. Levanta Ollama y la API R3 si no estan corriendo.
+      2. Pide una sola vez la contrasena de PostgreSQL (solo en memoria).
+      3. Crea o renueva la cuenta demo de solo lectura con una clave nueva.
+      4. Abre el tunel HTTPS con Cloudflare y obtiene la URL publica.
+      5. Arranca el frontend aceptando ese dominio y comprueba que el link responda.
+      6. Arranca el backend con APP_ORIGIN, TRUST_PROXY=1 y NODE_ENV=production.
+
+    Al final imprime el link y las credenciales para compartir.
 
     Ollama (11434), R3 (8000) y PostgreSQL (5432) siguen escuchando solo en
     127.0.0.1, asi que nunca quedan publicados.
 
 .PARAMETER Tunel
-    Abre el tunel con cloudflared automaticamente y usa la URL que devuelve.
-    Es la forma recomendada: no hay que copiar y pegar ningun dominio.
+    Abre el tunel automaticamente. Es la forma recomendada.
 
 .PARAMETER Dominio
     URL de un tunel que ya tengas abierto, por ejemplo
@@ -30,15 +33,15 @@
 
 .EXAMPLE
     .\iniciar-demo-publica.ps1 -Tunel
-
-.EXAMPLE
-    .\iniciar-demo-publica.ps1 -Dominio https://algo-random.trycloudflare.com
 #>
 param(
     [string]$Dominio,
 
     [ValidateSet('demo', 'real')]
     [string]$QwenMode = 'demo',
+
+    [ValidateSet('auditor', 'analista', 'supervisor', 'admin')]
+    [string]$RolDemo = 'auditor',
 
     [switch]$SinFrontend,
 
@@ -128,12 +131,29 @@ function Get-PublicStatus([string]$Url, [int]$Attempts = 20) {
     return 0
 }
 
+function New-DemoPassword {
+    $alphabet = (48..57) + (65..90) + (97..122)
+    $suffix = -join ($alphabet | Get-Random -Count 10 | ForEach-Object { [char]$_ })
+    return "Demo-$suffix"
+}
+
 $projectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
 $workspaceRoot = [IO.Path]::GetFullPath((Join-Path $projectRoot '..'))
 $r3Root = Join-Path $workspaceRoot 'Codigos\pipeline_llm'
 
 if (-not $Tunel -and -not $Dominio) {
     throw 'Indica -Tunel para abrir el tunel automaticamente, o -Dominio https://tu-tunel para reutilizar uno abierto.'
+}
+
+if ($RolDemo -eq 'admin') {
+    Write-Host ''
+    Write-Host 'AVISO: vas a compartir una cuenta ADMINISTRADORA por un link publico.' -ForegroundColor Red
+    Write-Host 'Un invitado podria desactivar o retirar cuentas (incluida haadmin),' -ForegroundColor Red
+    Write-Host 'importar bases y ver el estado tecnico. Solo para una demo vigilada.' -ForegroundColor Red
+    $confirmation = Read-Host 'Escribe SI para continuar'
+    if ($confirmation -ne 'SI') {
+        throw 'Cancelado. Usa -RolDemo supervisor para mostrar el flujo sin permisos de administracion.'
+    }
 }
 
 if (-not (Test-LocalEndpoint 'http://127.0.0.1:11434/api/tags')) {
@@ -157,8 +177,44 @@ if (-not (Test-LocalEndpoint 'http://127.0.0.1:8000/salud')) {
     Write-Host 'API R3 local iniciada.' -ForegroundColor Green
 }
 
+$databaseSecret = Read-Host 'Contrasena de PostgreSQL para epen_app' -AsSecureString
+$databasePassword = ConvertFrom-SecureValue $databaseSecret
+if (-not $databasePassword) {
+    throw 'No escribiste la contrasena de PostgreSQL. Es la del usuario epen_app que definiste al configurar la base.'
+}
+
+$demoUser = 'demo'
+$demoPassword = New-DemoPassword
 $tunnel = $null
+
 try {
+    $env:PGHOST = '127.0.0.1'
+    $env:PGPORT = '5432'
+    $env:PGDATABASE = 'epen_codificacion'
+    $env:PGUSER = 'epen_app'
+    $env:PGPASSWORD = $databasePassword
+    $env:NODE_ENV = 'production'
+    $env:QWEN_MODE = $QwenMode
+    $env:R3_BASE_URL = 'http://127.0.0.1:8000'
+    $env:DEMO_USERNAME = $demoUser
+    $env:DEMO_FULL_NAME = 'Invitado de demostracion'
+    $env:DEMO_ROLE = $RolDemo
+    $env:DEMO_PASSWORD = $demoPassword
+    $env:DEMO_RESET_PASSWORD = '1'
+    if ($RolDemo -eq 'admin') { $env:DEMO_ALLOW_ADMIN = '1' }
+
+    Write-Host 'Preparando la cuenta demo de solo lectura...' -ForegroundColor Cyan
+    Push-Location $projectRoot
+    try {
+        & node 'backend/scripts/create-demo-user.js'
+        if ($LASTEXITCODE -ne 0) {
+            throw 'No se pudo preparar la cuenta demo. Revisa la contrasena de PostgreSQL.'
+        }
+    }
+    finally {
+        Pop-Location
+    }
+
     if ($Tunel) {
         $cloudflared = Find-Cloudflared
         if (-not $cloudflared) {
@@ -167,7 +223,6 @@ try {
         Write-Host 'Abriendo tunel HTTPS con Cloudflare...' -ForegroundColor Cyan
         $tunnel = Start-QuickTunnel $cloudflared 'http://127.0.0.1:5174'
         $Dominio = $tunnel.Url
-        Write-Host "Tunel creado: $Dominio" -ForegroundColor Green
     }
 
     $Dominio = $Dominio.Trim().TrimEnd('/')
@@ -175,6 +230,8 @@ try {
         throw 'El dominio debe tener la forma https://mi-dominio.trycloudflare.com (sin ruta ni barra final).'
     }
     $demoHost = ([Uri]$Dominio).Host
+    $env:APP_ORIGIN = $Dominio
+    $env:TRUST_PROXY = '1'
 
     if (-not $SinFrontend) {
         $env:DEMO_HOST = $demoHost
@@ -188,8 +245,8 @@ try {
             if (-not (Wait-LocalEndpoint 'http://127.0.0.1:5174/')) {
                 throw 'El frontend no respondio en http://127.0.0.1:5174.'
             }
-            Write-Host "Frontend iniciado en otra ventana (DEMO_HOST=$demoHost)." -ForegroundColor Green
         }
+        Write-Host "Frontend listo para $demoHost." -ForegroundColor Green
     }
 
     Write-Host 'Comprobando que el link publico responda...' -ForegroundColor Cyan
@@ -201,50 +258,33 @@ try {
         throw 'El link responde 403: Vite no acepto el dominio. Cierra la ventana del frontend y vuelve a ejecutar este script.'
     }
     else {
-        Write-Host "El link aun no responde (estado $status). Cloudflare puede tardar unos segundos; vuelve a probarlo en el navegador." -ForegroundColor Yellow
+        Write-Host "El link aun no responde (estado $status). Cloudflare puede tardar unos segundos." -ForegroundColor Yellow
     }
 
-    $databaseSecret = Read-Host 'Contrasena de PostgreSQL para epen_app' -AsSecureString
-    $databasePassword = ConvertFrom-SecureValue $databaseSecret
+    Write-Host ''
+    Write-Host '==========================================================' -ForegroundColor Cyan
+    Write-Host "  LINK PARA COMPARTIR: $Dominio" -ForegroundColor Cyan
+    Write-Host "  Usuario: $demoUser" -ForegroundColor Cyan
+    Write-Host "  Clave:   $demoPassword" -ForegroundColor Cyan
+    Write-Host "  Rol:     $RolDemo" -ForegroundColor Cyan
+    Write-Host '==========================================================' -ForegroundColor Cyan
+    Write-Host '  Deja esta ventana abierta: aqui viven el backend y el tunel.'
+    Write-Host '  Ctrl+C cierra ambos. El frontend queda en su propia ventana.'
+    Write-Host ''
 
+    Push-Location $projectRoot
     try {
-        $env:PGHOST = '127.0.0.1'
-        $env:PGPORT = '5432'
-        $env:PGDATABASE = 'epen_codificacion'
-        $env:PGUSER = 'epen_app'
-        $env:PGPASSWORD = $databasePassword
-        $env:NODE_ENV = 'production'
-        $env:APP_ORIGIN = $Dominio
-        $env:TRUST_PROXY = '1'
-        $env:QWEN_MODE = $QwenMode
-        $env:R3_BASE_URL = 'http://127.0.0.1:8000'
-
-        Write-Host ''
-        Write-Host '==========================================================' -ForegroundColor Cyan
-        Write-Host " LINK PARA COMPARTIR: $Dominio" -ForegroundColor Cyan
-        Write-Host " Motor Qwen: $QwenMode" -ForegroundColor Cyan
-        Write-Host '==========================================================' -ForegroundColor Cyan
-        Write-Host '  Entra siempre por el link, no por 127.0.0.1.'
-        Write-Host '  Comparte solo la cuenta demo, nunca la de administrador.'
-        Write-Host '  Ctrl+C apaga el backend y el tunel; el frontend queda en su ventana.'
-        Write-Host ''
-
-        Push-Location $projectRoot
-        try {
-            & node 'backend/src/server.js'
-        }
-        finally {
-            Pop-Location
-        }
+        & node 'backend/src/server.js'
     }
     finally {
-        Remove-Item Env:PGHOST, Env:PGPORT, Env:PGDATABASE, Env:PGUSER, Env:PGPASSWORD -ErrorAction SilentlyContinue
-        Remove-Item Env:NODE_ENV, Env:APP_ORIGIN, Env:TRUST_PROXY, Env:QWEN_MODE, Env:R3_BASE_URL -ErrorAction SilentlyContinue
-        $databasePassword = $null
+        Pop-Location
     }
 }
 finally {
-    Remove-Item Env:DEMO_HOST -ErrorAction SilentlyContinue
+    Remove-Item Env:PGHOST, Env:PGPORT, Env:PGDATABASE, Env:PGUSER, Env:PGPASSWORD -ErrorAction SilentlyContinue
+    Remove-Item Env:NODE_ENV, Env:APP_ORIGIN, Env:TRUST_PROXY, Env:QWEN_MODE, Env:R3_BASE_URL -ErrorAction SilentlyContinue
+    Remove-Item Env:DEMO_HOST, Env:DEMO_USERNAME, Env:DEMO_FULL_NAME, Env:DEMO_ROLE, Env:DEMO_PASSWORD, Env:DEMO_RESET_PASSWORD, Env:DEMO_ALLOW_ADMIN -ErrorAction SilentlyContinue
+    $databasePassword = $null
     if ($tunnel -and $tunnel.Process -and -not $tunnel.Process.HasExited) {
         Stop-Process -Id $tunnel.Process.Id -Force -ErrorAction SilentlyContinue
         Write-Host 'Tunel cerrado.' -ForegroundColor Yellow

@@ -7,24 +7,30 @@
     La clave de la cuenta demo se genera aleatoriamente y se imprime una unica vez
     en esta ventana.
 
-    Roles permitidos: auditor (solo lectura) o analista (puede codificar).
-    Nunca crea supervisor ni admin, para que un invitado no pueda importar bases,
-    simular umbrales ni administrar credenciales.
+    Roles permitidos: auditor (solo lectura), analista (puede codificar) y
+    supervisor (codifica y revisa). El rol admin solo se crea con -PermitirAdmin,
+    porque un invitado con ese rol puede desactivar o retirar cuentas.
 
 .EXAMPLE
     .\crear-usuario-demo-seguro.ps1
     .\crear-usuario-demo-seguro.ps1 -Rol analista
 #>
 param(
-    [ValidateSet('auditor', 'analista')]
+    [ValidateSet('auditor', 'analista', 'supervisor', 'admin')]
     [string]$Rol = 'auditor',
 
     [string]$Usuario = 'demo',
 
-    [string]$Nombre = 'Invitado de demostracion'
+    [string]$Nombre = 'Invitado de demostracion',
+
+    [switch]$PermitirAdmin
 )
 
 $ErrorActionPreference = 'Stop'
+
+if ($Rol -eq 'admin' -and -not $PermitirAdmin) {
+    throw 'El rol admin puede desactivar o retirar cuentas. Repite con -PermitirAdmin si es una demo vigilada.'
+}
 
 function ConvertFrom-SecureValue([Security.SecureString]$Value) {
     $pointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($Value)
@@ -49,6 +55,7 @@ try {
     $env:DEMO_USERNAME = $Usuario
     $env:DEMO_FULL_NAME = $Nombre
     $env:DEMO_ROLE = $Rol
+    if ($Rol -eq 'admin') { $env:DEMO_ALLOW_ADMIN = '1' }
 
     Push-Location $projectRoot
     try {
@@ -65,6 +72,6 @@ try {
 }
 finally {
     Remove-Item Env:PGHOST, Env:PGPORT, Env:PGDATABASE, Env:PGUSER, Env:PGPASSWORD -ErrorAction SilentlyContinue
-    Remove-Item Env:DEMO_USERNAME, Env:DEMO_FULL_NAME, Env:DEMO_ROLE -ErrorAction SilentlyContinue
+    Remove-Item Env:DEMO_USERNAME, Env:DEMO_FULL_NAME, Env:DEMO_ROLE, Env:DEMO_ALLOW_ADMIN -ErrorAction SilentlyContinue
     $databasePassword = $null
 }

@@ -78,6 +78,13 @@ El script abre cloudflared, detecta la URL, la usa como `APP_ORIGIN` y `DEMO_HOS
 que el link responda y la imprime como **LINK PARA COMPARTIR**. Si ya tienes un túnel abierto,
 usa `-Dominio https://tu-tunel` en lugar de `-Tunel`.
 
+El rol de la cuenta demo es `auditor` (solo lectura) por defecto. Con `-RolDemo analista` el
+invitado puede codificar; con `-RolDemo supervisor` añade revisión, historial y métricas; y con
+`-RolDemo admin` obtiene acceso total. Este último pide una confirmación explícita porque un
+invitado podría desactivar cuentas (incluida `haadmin`) o importar bases. La clave demo se
+renueva en cada arranque, así que volver a lanzar sin `-RolDemo admin` devuelve la cuenta a
+`auditor`.
+
 El lanzador configura `APP_ORIGIN`, `TRUST_PROXY=1` y `NODE_ENV=production` solo para esa
 ejecución, y por defecto arranca Vite con `DEMO_HOST` para que acepte el dominio del túnel.
 Con `-QwenMode real` usa el motor Qwen real (20-50 s por caso en CPU); sin ese parámetro
