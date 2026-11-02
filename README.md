@@ -50,6 +50,40 @@ El backend real se encuentra en `backend/`. Incluye el esquema de usuarios, sesi
 
 La SPA conserva `VITE_AUTH_MODE=demo` mientras PostgreSQL no esté configurado. Al cambiarlo a `real`, deja de leer credenciales del navegador y utiliza exclusivamente la API del backend.
 
+## Compartir una demo pública (túnel)
+
+Sirve para que otras personas vean el dashboard sin instalar nada y sin abrir puertos en el
+router. El túnel publica **un solo puerto** (el 5174 del frontend) y Vite reenvía `/api/*` al
+backend; PostgreSQL (5432), Ollama (11434) y R3 (8000) nunca se exponen.
+
+1. Abre el túnel y copia la URL que imprime:
+
+```powershell
+winget install --id Cloudflare.cloudflared   # solo la primera vez
+cloudflared tunnel --url http://127.0.0.1:5174
+```
+
+2. Crea la cuenta de invitado (solo lectura) en otra ventana:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\backend\scripts\crear-usuario-demo-seguro.ps1"
+```
+
+3. Arranca el dashboard apuntando al dominio del túnel:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\backend\scripts\iniciar-demo-publica.ps1" -Dominio https://algo-random.trycloudflare.com
+```
+
+El lanzador configura `APP_ORIGIN`, `TRUST_PROXY=1` y `NODE_ENV=production` solo para esa
+ejecución, y por defecto arranca Vite con `DEMO_HOST` para que acepte el dominio del túnel.
+Con `-QwenMode real` usa el motor Qwen real (20-50 s por caso en CPU); sin ese parámetro
+responde en modo demo, que es lo recomendable cuando hay varios invitados.
+
+Notas de seguridad: entra siempre por la URL del túnel, comparte **solo** la cuenta `demo`
+(nunca `haadmin`) y desactívala al terminar. El dominio gratuito cambia en cada arranque del
+túnel; si eso molesta, reserva un dominio estático.
+
 ## Actualizar la base
 
 El administrador puede entrar a **Bases de datos**, descargar la plantilla e importar una nueva versión. El CSV respeta el contrato R2 → R3 y requiere `id_registro`, `p309` y `candidatos`; esta última columna contiene un arreglo JSON de 1 a 5 códigos CIIU. Cada carga conserva su nombre y periodo y puede activarse sin borrar las anteriores.
