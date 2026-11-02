@@ -131,6 +131,18 @@ function Get-PublicStatus([string]$Url, [int]$Attempts = 20) {
     return 0
 }
 
+function Get-LocalHostStatus([string]$Url, [string]$HostHeader) {
+    try {
+        $response = Invoke-WebRequest -Uri $Url -Headers @{ Host = $HostHeader } -UseBasicParsing -TimeoutSec 5
+        return [int]$response.StatusCode
+    }
+    catch {
+        $response = $_.Exception.Response
+        if ($response -and $response.StatusCode) { return [int]$response.StatusCode }
+        return 0
+    }
+}
+
 function New-DemoPassword {
     $alphabet = (48..57) + (65..90) + (97..122)
     $suffix = -join ($alphabet | Get-Random -Count 10 | ForEach-Object { [char]$_ })
@@ -236,7 +248,7 @@ try {
     if (-not $SinFrontend) {
         $env:DEMO_HOST = $demoHost
         if (Test-LocalEndpoint 'http://127.0.0.1:5174/') {
-            Write-Host "El frontend ya estaba corriendo. Si rechaza el dominio, cierralo y vuelve a lanzar este script para que herede DEMO_HOST=$demoHost." -ForegroundColor Yellow
+            Write-Host 'Hay un frontend ya corriendo; comprobando si acepta el dominio...' -ForegroundColor Yellow
         }
         else {
             $npm = (Get-Command 'npm.cmd' -ErrorAction SilentlyContinue).Source
@@ -245,6 +257,16 @@ try {
             if (-not (Wait-LocalEndpoint 'http://127.0.0.1:5174/')) {
                 throw 'El frontend no respondio en http://127.0.0.1:5174.'
             }
+        }
+
+        $localStatus = Get-LocalHostStatus 'http://127.0.0.1:5174/' $demoHost
+        if ($localStatus -ne 200) {
+            throw @"
+El frontend en 5174 no acepta el dominio $demoHost (respondio $localStatus).
+Casi siempre es una ventana vieja de Vite abierta antes de este arranque.
+Cierrala y vuelve a ejecutar el script. Para cerrarla desde aqui:
+  Get-NetTCPConnection -LocalPort 5174 -State Listen | ForEach-Object { Stop-Process -Id `$_.OwningProcess -Force }
+"@
         }
         Write-Host "Frontend listo para $demoHost." -ForegroundColor Green
     }

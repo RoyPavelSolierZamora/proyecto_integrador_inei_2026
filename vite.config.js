@@ -25,6 +25,9 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5174,
+    // Si el 5174 esta ocupado, fallar en vez de saltar a 5175: el tunel siempre
+    // apunta al 5174 y un cambio silencioso de puerto rompe la demo.
+    strictPort: true,
     allowedHosts: demoHost ? [demoHost, '127.0.0.1', 'localhost'] : undefined,
     // El websocket de recarga en caliente no atraviesa bien un túnel HTTPS.
     hmr: demoHost ? false : undefined,
