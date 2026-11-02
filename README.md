@@ -56,24 +56,27 @@ Sirve para que otras personas vean el dashboard sin instalar nada y sin abrir pu
 router. El túnel publica **un solo puerto** (el 5174 del frontend) y Vite reenvía `/api/*` al
 backend; PostgreSQL (5432), Ollama (11434) y R3 (8000) nunca se exponen.
 
-1. Abre el túnel y copia la URL que imprime:
+1. Instala el túnel (solo la primera vez):
 
 ```powershell
-winget install --id Cloudflare.cloudflared   # solo la primera vez
-cloudflared tunnel --url http://127.0.0.1:5174
+winget install --id Cloudflare.cloudflared
 ```
 
-2. Crea la cuenta de invitado (solo lectura) en otra ventana:
+2. Crea la cuenta de invitado (solo lectura):
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\backend\scripts\crear-usuario-demo-seguro.ps1"
 ```
 
-3. Arranca el dashboard apuntando al dominio del túnel:
+3. Arranca todo y abre el túnel en un solo paso:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\backend\scripts\iniciar-demo-publica.ps1" -Dominio https://algo-random.trycloudflare.com
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\backend\scripts\iniciar-demo-publica.ps1" -Tunel
 ```
+
+El script abre cloudflared, detecta la URL, la usa como `APP_ORIGIN` y `DEMO_HOST`, comprueba
+que el link responda y la imprime como **LINK PARA COMPARTIR**. Si ya tienes un túnel abierto,
+usa `-Dominio https://tu-tunel` en lugar de `-Tunel`.
 
 El lanzador configura `APP_ORIGIN`, `TRUST_PROXY=1` y `NODE_ENV=production` solo para esa
 ejecución, y por defecto arranca Vite con `DEMO_HOST` para que acepte el dominio del túnel.
