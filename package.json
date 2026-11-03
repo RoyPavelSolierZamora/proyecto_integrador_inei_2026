@@ -3,8 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "vite --host 127.0.0.1",
+    "demo": "vite --host 127.0.0.1 --open",
     "backend": "node backend/src/server.js",
     "db:migrate": "node backend/scripts/migrate.js",
     "db:create-admin": "node backend/scripts/create-admin.js",

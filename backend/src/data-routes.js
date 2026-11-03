@@ -2,6 +2,11 @@ import express from 'express';
 import { audit } from './audit.js';
 import { getPool, transaction } from './db.js';
 import { requireAuth, requireCsrf, requireRole } from './middleware.js';
+import { r2Health } from './r2-client.js';
+import { enqueueR2Job, listR2Jobs } from './r2-jobs.js';
+import { parseRawEpenCsv } from './raw-csv.js';
+import { classifyWithQwen } from './qwen-client.js';
+import { buildCsv, RESULT_HEADERS } from './csv-export.js';
 
 const CASE_SELECT = `
   SELECT c.id, c.dataset_id, c.external_id, c.p309, c.p308, c.p308a,
@@ -32,7 +37,7 @@ function mapDataset(row) {
     id: Number(row.id), code: row.code, name: row.name, period: row.period,
     version: row.version, fileName: row.source_filename || '—', records: row.record_count,
     importedAt: row.imported_at, importedBy: row.imported_by_name || 'Sistema',
-    active: row.status === 'active', synthetic: row.is_synthetic, notes: row.notes,
+    active: row.status === 'active', status: row.status, synthetic: row.is_synthetic, notes: row.notes,
   };
 }
 
@@ -49,7 +54,7 @@ function mapCase(row) {
   return {
     id: Number(row.id), dataset_id: Number(row.dataset_id), id_registro: row.external_id,
     p309: row.p309, p308: row.p308 || '', p308a: row.p308a || '',
-    candidatos: row.candidates, confianza_ml: row.confianza_ml === null ? 0 : Number(row.confianza_ml),
+    candidatos: Array.isArray(row.candidates) ? row.candidates : [], confianza_ml: row.confianza_ml === null ? 0 : Number(row.confianza_ml),
     estado, codigo_final: row.final_code, qwen, updated_at: row.updated_at,
   };
 }
@@ -136,6 +141,55 @@ export function createDataRouter(config) {
     }
   });
 
+  router.get('/api/system/r2-health', requireRole('operador', 'admin'), async (_req, res) => {
+    res.json(await r2Health(config));
+  });
+
+  router.get('/api/r2/jobs', requireRole('operador', 'admin'), async (_req, res) => {
+    res.json({ jobs: await listR2Jobs() });
+  });
+
+  router.post('/api/r2/jobs', requireRole('operador', 'admin'), requireCsrf,
+    express.text({ type: ['text/csv', 'text/plain'], limit: '25mb' }), async (req, res) => {
+      const name = String(req.query.name || '').trim();
+      const period = String(req.query.period || '').trim();
+      const fileName = String(req.query.fileName || 'base-epen.csv').trim();
+      const threshold = Number(req.query.threshold);
+      const synthetic = String(req.query.synthetic || 'false') === 'true';
+      const qwenMode = String(req.query.qwenMode || 'manual');
+      if (!name || name.length > 160 || !period || period.length > 40) throw httpError(400, 'Nombre y periodo son obligatorios.');
+      if (!Number.isFinite(threshold) || threshold < 0 || threshold > 1) throw httpError(400, 'El umbral R2 debe estar entre 0 y 1.');
+      if (!['manual', 'automatic'].includes(qwenMode)) throw httpError(400, 'El modo Qwen debe ser manual o automático.');
+      if (qwenMode === 'automatic' && config.qwenMode !== 'real') throw httpError(409, 'El procesamiento automático requiere Qwen real.');
+      let records;
+      try { records = parseRawEpenCsv(req.body); }
+      catch (cause) { throw httpError(400, cause.message); }
+      const created = await transaction(async client => {
+        const versionResult = await client.query('SELECT COALESCE(max(version), 0)::int + 1 AS next FROM epen.datasets WHERE name = $1 AND period = $2', [name, period]);
+        const code = `R2-${Date.now()}`;
+        const dataset = await client.query(`
+          INSERT INTO epen.datasets (code, name, period, version, source_filename, status, record_count, imported_by, is_synthetic, notes)
+          VALUES ($1, $2, $3, $4, $5, 'staging', $6, $7, $8, 'Pendiente de procesamiento por microservicio R2')
+          RETURNING id
+        `, [code, name, period, versionResult.rows[0].next, fileName.slice(0, 500), records.length, req.auth.user.id, synthetic]);
+        const datasetId = dataset.rows[0].id;
+        for (const row of records) {
+          await client.query(`
+            INSERT INTO epen.survey_cases (dataset_id, external_id, p309, p308, p308a, candidates)
+            VALUES ($1, $2, $3, $4, $5, NULL)
+          `, [datasetId, row.id_registro, row.p309, row.p308 || null, row.p308a || null]);
+        }
+        const job = await client.query(`
+          INSERT INTO epen.processing_jobs (dataset_id, threshold, total_records, created_by, qwen_mode)
+          VALUES ($1, $2, $3, $4, $5) RETURNING id
+        `, [datasetId, threshold, records.length, req.auth.user.id, qwenMode]);
+        await audit(client, req, 'r2.job_created', 'processing_job', job.rows[0].id, { datasetId: Number(datasetId), records: records.length, threshold, fileName, synthetic, qwenMode });
+        return { jobId: Number(job.rows[0].id), datasetId: Number(datasetId), records: records.length };
+      });
+      enqueueR2Job(created.jobId, config);
+      res.status(202).json(created);
+    });
+
   router.get('/api/data/bootstrap', requireAuth, async (_req, res) => {
     const pool = getPool();
     const active = await activeDataset(pool);
@@ -145,6 +199,47 @@ export function createDataRouter(config) {
       cases: active ? await casesForDataset(pool, active.id) : [],
       events: active ? await eventsForDataset(pool, active.id) : [],
     });
+  });
+
+  router.get('/api/datasets/:id/export', requireRole('operador', 'supervisor', 'auditor', 'admin'), async (req, res) => {
+    const datasetId = Number(req.params.id);
+    if (!Number.isSafeInteger(datasetId) || datasetId < 1) throw httpError(400, 'La base solicitada no es válida.');
+    const exported = await transaction(async client => {
+      const dataset = await client.query('SELECT id, name, period, status FROM epen.datasets WHERE id = $1', [datasetId]);
+      if (!dataset.rowCount) throw httpError(404, 'Base no encontrada.');
+      const result = await client.query(`
+        SELECT c.external_id AS id_registro, c.p309, COALESCE(c.p308, '') AS p308,
+               COALESCE(c.p308a, '') AS p308a, COALESCE(c.final_code, '') AS codigo_ciiu_final,
+               COALESCE(cat.description, '') AS descripcion_ciiu,
+               CASE c.status WHEN 'resolved' THEN 'codificado' WHEN 'review' THEN 'revision_humana'
+                 WHEN 'processing' THEN 'procesando' WHEN 'error' THEN 'error' ELSE 'pendiente' END AS estado,
+               CASE latest.source WHEN 'ml' THEN 'R2' WHEN 'llm' THEN 'Qwen' WHEN 'human' THEN 'humano' ELSE '' END AS origen_decision,
+               COALESCE(latest.decision, '') AS decision,
+               COALESCE(c.confianza_ml::text, '') AS confianza_r2,
+               COALESCE(c.candidates::text, '[]') AS candidatos_r2,
+               COALESCE(latest.model, '') AS modelo,
+               COALESCE(latest.justification, '') AS justificacion,
+               c.updated_at::text AS actualizado_en
+        FROM epen.survey_cases c
+        LEFT JOIN epen.ciiu_catalog cat ON cat.code = c.final_code
+        LEFT JOIN LATERAL (
+          SELECT d.source, d.decision, d.model, d.justification
+          FROM epen.decisions d WHERE d.case_id = c.id
+          ORDER BY d.created_at DESC, d.id DESC LIMIT 1
+        ) latest ON true
+        WHERE c.dataset_id = $1 ORDER BY c.id
+      `, [datasetId]);
+      await audit(client, req, 'dataset.exported', 'dataset', datasetId, { records: result.rowCount, format: 'csv', includesPending: true });
+      return { dataset: dataset.rows[0], rows: result.rows };
+    });
+    const csv = buildCsv(RESULT_HEADERS, exported.rows);
+    res.set({
+      'Content-Type': 'text/csv; charset=utf-8',
+      'Content-Disposition': `attachment; filename="epen_resultados_${datasetId}.csv"`,
+      'Cache-Control': 'no-store',
+      'X-Content-Type-Options': 'nosniff',
+    });
+    res.send(csv);
   });
 
   router.get('/api/catalog', requireAuth, async (req, res) => {
@@ -182,29 +277,7 @@ export function createDataRouter(config) {
     const raw = await pool.query('SELECT * FROM epen.survey_cases WHERE dataset_id = $1 AND external_id = $2', [active.id, req.params.externalId]);
     if (!raw.rowCount) throw httpError(404, 'Registro no encontrado.');
     const item = raw.rows[0];
-    let result;
-    if (config.qwenMode === 'demo') {
-      if (!item.demo_qwen) throw httpError(409, 'Este registro no tiene una respuesta Qwen sintética preparada.');
-      result = item.demo_qwen;
-    } else {
-      let response;
-      try {
-        response = await fetch(`${config.r3BaseUrl}/codificar`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-          body: JSON.stringify({ id_registro: item.external_id, p309: item.p309, candidatos: item.candidates, confianza_ml: item.confianza_ml }),
-          signal: AbortSignal.timeout(90_000),
-        });
-      } catch (cause) {
-        throw httpError(503, cause.name === 'TimeoutError'
-          ? 'La capa R3 no respondió dentro de 90 segundos.'
-          : 'No se pudo conectar con la capa R3 local.');
-      }
-      if (!response.ok) throw httpError(503, `La capa R3 respondió ${response.status}.`);
-      result = await response.json();
-    }
-    const review = result.decision === 'revision_humana' || result.requiere_revision === 1;
-    const code = review ? null : String(result.codigo || '');
-    if (!review && !item.candidates.some(candidate => candidate.codigo === code)) throw httpError(422, 'Qwen devolvió un código fuera de los candidatos de R2.');
+    const { result, review, code } = await classifyWithQwen(config, item);
     await transaction(async client => {
       await client.query('INSERT INTO epen.decisions (case_id, source, decision, code, justification, model, latency_seconds) VALUES ($1, $2, $3, $4, $5, $6, $7)', [item.id, 'llm', review ? 'revision' : 'selection', code, result.justificacion || null, result.modelo || (config.qwenMode === 'demo' ? 'qwen-demo' : null), result.latencia_s || null]);
       if (review) await client.query("UPDATE epen.survey_cases SET status = 'review', updated_at = now() WHERE id = $1", [item.id]);

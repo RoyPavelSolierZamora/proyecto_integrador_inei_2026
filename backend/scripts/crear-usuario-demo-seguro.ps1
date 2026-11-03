@@ -7,7 +7,7 @@
     La clave de la cuenta demo se genera aleatoriamente y se imprime una unica vez
     en esta ventana.
 
-    Roles permitidos: auditor (solo lectura), analista (puede codificar) y
+    Roles permitidos: operador (carga bases), auditor (solo lectura), analista (puede codificar) y
     supervisor (codifica y revisa). El rol admin solo se crea con -PermitirAdmin,
     porque un invitado con ese rol puede desactivar o retirar cuentas.
 
@@ -16,7 +16,7 @@
     .\crear-usuario-demo-seguro.ps1 -Rol analista
 #>
 param(
-    [ValidateSet('auditor', 'analista', 'supervisor', 'admin')]
+    [ValidateSet('operador', 'auditor', 'analista', 'supervisor', 'admin')]
     [string]$Rol = 'auditor',
 
     [string]$Usuario = 'demo',

@@ -33,6 +33,9 @@ export function getConfig() {
     cookieName: 'epen_session',
     qwenMode,
     r3BaseUrl: process.env.R3_BASE_URL || 'http://127.0.0.1:8000',
+    r2BaseUrl: process.env.R2_BASE_URL || 'http://127.0.0.1:8100',
+    r2BatchSize: integer('R2_BATCH_SIZE', 100, 1, 500),
+    r2TimeoutSeconds: integer('R2_TIMEOUT_SECONDS', 120, 5, 900),
   };
 }
 

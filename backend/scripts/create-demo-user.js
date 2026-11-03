@@ -5,7 +5,7 @@ import { hashPassword, normalizeUsername, validUsername, validatePassword } from
 /**
  * Crea o actualiza la cuenta para la demostración pública.
  *
- * Deliberadamente NO acepta los roles supervisor/admin: la idea es que los
+ * Deliberadamente NO acepta el rol admin: la idea es que los
  * invitados puedan mirar el dashboard (auditor) o probar la codificación
  * (analista), sin poder importar bases, simular umbrales ni tocar usuarios.
  *
@@ -23,8 +23,8 @@ const provided = process.env.DEMO_PASSWORD || '';
 const reset = process.env.DEMO_RESET_PASSWORD === '1';
 const allowAdmin = process.env.DEMO_ALLOW_ADMIN === '1';
 const allowedRoles = allowAdmin
-  ? ['auditor', 'analista', 'supervisor', 'admin']
-  : ['auditor', 'analista', 'supervisor'];
+  ? ['operador', 'auditor', 'analista', 'supervisor', 'admin']
+  : ['operador', 'auditor', 'analista', 'supervisor'];
 const generated = !provided;
 const password = provided || `Demo-${randomBytes(9).toString('base64url')}`;
 

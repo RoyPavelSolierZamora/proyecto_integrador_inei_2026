@@ -7,6 +7,7 @@ import { closePool, getPool, transaction } from './db.js';
 import { loadSession, requireAuth, requireCsrf, requireRole, requireTrustedOrigin } from './middleware.js';
 import { createCsrfToken, createSessionToken, hashPassword, hashToken, normalizeUsername, validUsername, validatePassword, verifyPassword } from './security.js';
 import { createDataRouter } from './data-routes.js';
+import { resumeR2Jobs } from './r2-jobs.js';
 
 const config = getConfig();
 const app = express();
@@ -162,7 +163,7 @@ app.post('/api/admin/users', requireRole('admin'), requireCsrf, async (req, res)
   const password = String(req.body?.password || '');
   if (!validUsername(username)) throw error(400, 'El nombre de usuario no es válido.');
   if (!fullName || fullName.length > 120) throw error(400, 'El nombre completo es obligatorio y no debe superar 120 caracteres.');
-  if (!['analista', 'supervisor', 'auditor', 'admin'].includes(role)) throw error(400, 'El rol no es válido.');
+  if (!['operador', 'analista', 'supervisor', 'auditor', 'admin'].includes(role)) throw error(400, 'El rol no es válido.');
   const passwordError = validatePassword(password);
   if (passwordError) throw error(400, passwordError);
   const passwordHash = await hashPassword(password);
@@ -217,6 +218,8 @@ const server = app.listen(config.port, '127.0.0.1', async () => {
   try {
     await getPool().query('SELECT 1');
     console.log(`Backend EPEN listo en http://127.0.0.1:${config.port}`);
+    const resumed = await resumeR2Jobs(config);
+    if (resumed) console.log(`Cola R2 reanudada: ${resumed} trabajo(s).`);
   } catch (error) {
     console.error('No se pudo conectar con PostgreSQL:', error.message);
     server.close();
