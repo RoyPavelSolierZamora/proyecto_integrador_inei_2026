@@ -337,9 +337,9 @@ $do$;
     Write-Paso '5/7 Aplicando migraciones y datos iniciales'
     & $node.Source 'backend/scripts/migrate.js'
     if ($LASTEXITCODE -ne 0) { throw 'No se pudieron aplicar las migraciones.' }
-    & $node.Source 'backend/scripts/seed-demo.js'
+    & $node.Source 'backend/scripts/seed-demo.js' '--si-vacio'
     if ($LASTEXITCODE -ne 0) { throw 'No se pudieron instalar los datos sinteticos.' }
-    Write-Ok 'Esquema, catalogo CIIU y 6 casos sinteticos instalados'
+    Write-Ok 'Esquema y catalogo CIIU listos; semilla sintetica instalada si la base estaba vacia'
 
     # ------------------------------------------------------------------ 6. administrador
     Write-Paso '6/7 Creando la cuenta administradora'

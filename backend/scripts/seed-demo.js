@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { closePool, transaction } from '../src/db.js';
+import { closePool, getPool, transaction } from '../src/db.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const seed = JSON.parse(await readFile(join(here, '..', 'seeds', 'epen-demo-2026.json'), 'utf8'));
@@ -37,8 +37,21 @@ function parseCatalog(text) {
 }
 
 try {
-  const catalog = parseCatalog(await readCatalog());
-  await transaction(async client => {
+  // --si-vacio protege una instalacion que ya tiene bases: nunca archiva ni
+  // reactiva datasets existentes. Es el modo que usa instalar.ps1.
+  const onlyIfEmpty = process.argv.includes('--si-vacio');
+  let skip = false;
+  if (onlyIfEmpty) {
+    const { rows } = await getPool().query('SELECT count(*)::int AS total FROM epen.datasets');
+    skip = rows[0].total > 0;
+    if (skip) {
+      console.log('La base ya contiene datasets: se conserva la informacion y se omite la semilla inicial.');
+    }
+  }
+
+  if (!skip) {
+    const catalog = parseCatalog(await readCatalog());
+    await transaction(async client => {
     await client.query(`
       INSERT INTO epen.ciiu_catalog (code, description)
       SELECT code, description FROM unnest($1::text[], $2::text[]) AS rows(code, description)
@@ -76,9 +89,10 @@ try {
         await client.query("INSERT INTO epen.decisions (case_id, source, decision, code, justification) VALUES ($1, 'human', $2, $3, 'Decisión sintética inicial')", [caseId, decision, item.codigo_final]);
       }
     }
-    await client.query('UPDATE epen.datasets SET record_count = (SELECT count(*) FROM epen.survey_cases WHERE dataset_id = $1) WHERE id = $1', [datasetId]);
-  });
-  console.log(`Datos sinteticos instalados en PostgreSQL: ${seed.cases.length} casos y catalogo CIIU.`);
+      await client.query('UPDATE epen.datasets SET record_count = (SELECT count(*) FROM epen.survey_cases WHERE dataset_id = $1) WHERE id = $1', [datasetId]);
+    });
+    console.log(`Datos sinteticos instalados en PostgreSQL: ${seed.cases.length} casos y catalogo CIIU.`);
+  }
 } finally {
   await closePool();
 }

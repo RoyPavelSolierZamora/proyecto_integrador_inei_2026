@@ -58,8 +58,9 @@ hay que bajar Qwen.
 1. Comprueba Node.js 20+, Python 3.10+, PostgreSQL 18 y Ollama; instala lo que falte con `winget`.
 2. Crea el usuario `epen_app` y la base `epen_codificacion`.
 3. Escribe `.env` en la raíz del proyecto con toda la configuración.
-4. Aplica las migraciones `001`–`004` y carga el catálogo CIIU (417 clases) y los 6 casos
-   sintéticos.
+4. Aplica las migraciones `001`–`004` y carga el catálogo CIIU (417 clases). Los 6 casos
+   sintéticos solo se instalan si la base está vacía: una instalación que ya tiene datos nunca
+   se archiva ni se reactiva.
 5. Crea la cuenta administradora con hash scrypt.
 6. Descarga `qwen3:4b-instruct-2507-q4_K_M` si no está disponible.
 7. Arranca R3 y R2 y verifica que respondan.
