@@ -22,6 +22,7 @@ function normalizeHost(value) {
 const demoHost = normalizeHost(process.env.DEMO_HOST);
 
 export default defineConfig({
+  base: process.env.VITE_BASE_PATH || '/',
   plugins: [react()],
   server: {
     port: 5174,
@@ -39,6 +40,7 @@ export default defineConfig({
       '/api/data': { target: 'http://127.0.0.1:8080', changeOrigin: false },
       '/api/cases': { target: 'http://127.0.0.1:8080', changeOrigin: false },
       '/api/catalog': { target: 'http://127.0.0.1:8080', changeOrigin: false },
+      '/api/r2': { target: 'http://127.0.0.1:8080', changeOrigin: false },
     },
   },
 });
