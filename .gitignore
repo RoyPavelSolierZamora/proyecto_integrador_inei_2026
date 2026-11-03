@@ -3,3 +3,16 @@ dist/
 .env
 .env.*
 !.env.example
+__pycache__/
+*.pyc
+backend/config-backup/
+backend/uploads/
+backend/downloads/
+*.db
+*.sqlite
+*.sqlite3
+# Artefactos de demostracion y ejecucion local
+.preview-pages/
+demo-link.txt
+r3_local/salidas/
+r3_local/datos/*.db
