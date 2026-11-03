@@ -2,6 +2,8 @@
 
 SPA local para el flujo R2 → R3 → R4 del Proyecto Integrador PEU-CD. Esta carpeta es independiente del prototipo visual recibido en `sistema-codificacion-epen/`.
 
+**Autores:** Roy Solier, Junior Palomino, Victor Moran y Nayeli Girón.
+
 ## Instalación completa con Qwen real (para el equipo)
 
 Si necesitas probar el flujo real (cargar una base P309 → R2 → umbral τ → Qwen → decisión humana)
