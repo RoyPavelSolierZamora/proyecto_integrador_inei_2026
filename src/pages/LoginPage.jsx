@@ -37,7 +37,7 @@ export default function LoginPage() {
           <label>Clave<input type="password" autoComplete="current-password" value={password} onChange={event => setPassword(event.target.value)} /></label>
           {error && <p className="form-error" role="alert">{error}</p>}
           <button className="button button--primary button--block" type="submit" disabled={submitting || sessionLoading}>{submitting ? 'Validando…' : 'Ingresar'}</button>
-          <p className="login-help">{authMode === 'real' ? 'Usa la credencial asignada por el administrador.' : 'Usuarios: analista, supervisor, auditor o admin. Clave: demo2026.'}</p>
+          <p className="login-help">{authMode === 'real' ? 'Usa la credencial asignada por el administrador.' : 'Usuarios: operador, analista, supervisor, auditor o admin. Clave: demo2026.'}</p>
         </form>
       </section>
     </main>

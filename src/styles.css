@@ -115,6 +115,8 @@ th { color: #5d6f7c; background: var(--surface-alt); font-size: .76rem; letter-s
 tbody tr:last-child td { border-bottom: 0; }
 tbody tr:hover { background: #fafcfc; }
 td:last-child, th:last-child { text-align: right; }
+.table-action-cell { width: 1%; white-space: nowrap; }
+.table-action { width: 92px; min-height: 38px; }
 .capitalize { text-transform: capitalize; }
 
 .back-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
@@ -185,18 +187,24 @@ td:last-child, th:last-child { text-align: right; }
 .user-card__actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; }
 .access-state { display: inline-flex; padding: 5px 9px; color: #6c4a10; background: var(--warning-soft); border-radius: 999px; font-size: .75rem; font-weight: 800; }
 .access-state--active { color: var(--success); background: var(--success-soft); }
+.access-state--error { color: var(--danger); background: var(--danger-soft); }
 .dataset-card { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 15px; border: 1px solid var(--border); border-radius: 10px; }
 .dataset-card--active { border-color: #90bec6; background: #f3fafb; }
-.dataset-card > div { min-width: 0; display: grid; gap: 4px; }
+.dataset-card > div:first-child { min-width: 0; display: grid; gap: 4px; }
 .dataset-card span, .dataset-card small { color: var(--muted); overflow-wrap: anywhere; }
 .dataset-card small { font-size: .75rem; }
+.dataset-card__actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
 .helper-text { margin: -6px 0 0; color: var(--muted); font-size: .82rem; }
 .import-summary { display: grid; gap: 4px; padding: 12px; color: #145c3e; background: var(--success-soft); border-radius: 9px; }
 .import-summary span { font-size: .82rem; }
 .import-summary--error { color: #8b2d2d; background: var(--danger-soft); }
 .validation-list { margin: -4px 0 0; padding-left: 20px; color: var(--danger); font-size: .82rem; line-height: 1.5; }
 .process-panel { margin-top: 18px; }
-.process-panel ol { margin: 12px 0 0; padding-left: 22px; line-height: 1.7; }
+.process-panel ol { margin: 18px 0 0; padding-left: 22px; line-height: 1.7; }
+.process-disclosure > summary, .advanced-disclosure > summary { min-height: 48px; display: flex; align-items: center; color: var(--navy); font-weight: 750; cursor: pointer; }
+.process-disclosure > summary { padding: 16px 20px; }
+.process-disclosure[open] > summary { border-bottom: 1px solid var(--border); }
+.process-disclosure > ol { padding: 0 42px 18px; }
 .threshold-panel { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 16px 28px; margin-top: 18px; }
 .threshold-panel h2 { margin-bottom: 6px; }
 .threshold-panel p { margin: 0; color: var(--muted); line-height: 1.5; }
@@ -205,6 +213,37 @@ td:last-child, th:last-child { text-align: right; }
 .threshold-controls label { display: grid; gap: 6px; color: #354959; font-size: .82rem; font-weight: 700; }
 .threshold-controls p { align-self: center; white-space: nowrap; }
 .threshold-controls .button { grid-column: 1 / -1; justify-self: end; }
+.r2-upload-panel, .jobs-panel { margin-bottom: 18px; }
+.r2-upload-form { display: grid; grid-template-columns: minmax(220px, 1fr) 150px 130px 180px; gap: 14px; align-items: end; }
+.r2-upload-form label { display: grid; gap: 7px; color: #354959; font-size: .86rem; font-weight: 700; }
+.r2-upload-form .file-field { grid-column: 1 / 4; }
+.r2-upload-form .checkbox-field { display: flex; align-items: center; gap: 9px; min-height: 44px; }
+.r2-upload-form .checkbox-field input { width: 18px; min-height: 18px; }
+.r2-upload-form .import-summary { grid-column: 1 / -1; }
+.r2-upload-form > .button { justify-self: end; }
+.job-list { display: grid; gap: 10px; }
+.job-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 9px 16px; padding: 14px; border: 1px solid var(--border); border-radius: 10px; }
+.job-card > div:first-child { display: grid; gap: 4px; }
+.job-card > div:first-child span { color: var(--muted); font-size: .8rem; }
+.job-progress { grid-column: 1 / -1; }
+.job-progress > div { height: 9px; overflow: hidden; margin-bottom: 7px; background: #e8eef1; border-radius: 999px; }
+.job-progress > div span { display: block; height: 100%; background: var(--brand); border-radius: inherit; }
+.job-progress small { color: var(--muted); }
+.job-error { grid-column: 1 / -1; margin: 0; color: var(--danger); font-size: .82rem; }
+.jobs-toggle { margin-top: 12px; }
+.versions-panel, .advanced-tools { margin-top: 18px; }
+.version-toolbar { display: grid; grid-template-columns: minmax(220px, 1fr) 210px; gap: 14px; margin: 18px 0 14px; }
+.version-toolbar label { display: grid; gap: 7px; color: #354959; font-size: .86rem; font-weight: 700; }
+.pagination { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 16px; }
+.pagination > span { color: var(--muted); font-size: .84rem; text-align: center; }
+.advanced-tools { display: grid; gap: 0; }
+.advanced-disclosure { border-top: 1px solid var(--border); }
+.advanced-disclosure > summary { padding: 14px 2px; }
+.advanced-disclosure__body { padding: 4px 0 20px; }
+.panel-heading--compact { align-items: center; margin-bottom: 16px; }
+.panel-heading--compact > p { max-width: 650px; }
+.advanced-disclosure__body.threshold-panel { margin-top: 0; padding-top: 10px; }
+.advanced-disclosure__body.threshold-panel h3 { margin: 0 0 6px; color: var(--navy-strong); font-size: 1rem; }
 .app-shell > *, .topbar > *, .main-content > *, .page > *, .detail-grid > *, .system-grid > *, .admin-grid > * { min-width: 0; }
 .page, .panel, .section-block, .record-row, .qwen-result, td { overflow-wrap: anywhere; }
 .scrim { display: none; }
@@ -224,6 +263,9 @@ td:last-child, th:last-child { text-align: right; }
   .threshold-panel { grid-template-columns: minmax(0, 1fr); align-items: stretch; }
   .threshold-controls { grid-template-columns: 105px minmax(0, 1fr); }
   .threshold-controls .button { width: 100%; justify-self: stretch; }
+  .r2-upload-form { grid-template-columns: minmax(0, 1fr) minmax(120px, .45fr); }
+  .r2-upload-form .file-field, .r2-upload-form .import-summary { grid-column: 1 / -1; }
+  .pagination { justify-content: center; flex-wrap: wrap; }
 }
 
 @media (max-width: 680px) {
@@ -242,6 +284,14 @@ td:last-child, th:last-child { text-align: right; }
   .page-heading .button { width: 100%; }
   .stats-grid { grid-template-columns: 1fr; }
   .record-row { flex-direction: column; gap: 12px; padding: 16px; }
+  .dataset-card { align-items: stretch; flex-direction: column; }
+  .dataset-card__actions { justify-content: stretch; }
+  .dataset-card__actions .button { flex: 1 1 150px; }
+  .version-toolbar { grid-template-columns: minmax(0, 1fr); }
+  .pagination > span { width: 100%; order: -1; }
+  .pagination .button { flex: 1 1 120px; }
+  .process-disclosure > ol { padding: 0 28px 16px; }
+  .advanced-disclosure > summary { align-items: flex-start; line-height: 1.4; }
   .record-meta { justify-content: space-between; }
   .filter-bar { grid-template-columns: 1fr; }
   .filter-count { justify-content: flex-start; min-height: 24px; }
@@ -255,6 +305,7 @@ td:last-child, th:last-child { text-align: right; }
   td::before { content: attr(data-label); color: var(--muted); font-size: .75rem; font-weight: 750; }
   td:last-child { display: block; padding-top: 11px; }
   td:last-child .button { width: 100%; }
+  .table-action-cell { width: auto; white-space: normal; }
   .candidate { grid-template-columns: auto 48px minmax(0, 1fr); }
   .candidate > strong { grid-column: 2 / -1; }
   .decision-actions { display: grid; grid-template-columns: 1fr; }
@@ -274,6 +325,11 @@ td:last-child, th:last-child { text-align: right; }
   .user-card__actions .button, .stack-form > .button { width: 100%; }
   .threshold-controls { grid-template-columns: minmax(0, 1fr); }
   .threshold-controls p, .threshold-controls .button { grid-column: auto; white-space: normal; }
+  .r2-upload-form { grid-template-columns: minmax(0, 1fr); }
+  .r2-upload-form .file-field, .r2-upload-form .import-summary { grid-column: auto; }
+  .r2-upload-form > .button { width: 100%; justify-self: stretch; }
+  .job-card { grid-template-columns: minmax(0, 1fr); }
+  .job-card .access-state { justify-self: start; }
 }
 
 @media (max-width: 380px) {

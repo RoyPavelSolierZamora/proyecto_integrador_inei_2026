@@ -6,12 +6,12 @@ import { useAuth } from '../state/AuthContext';
 import { useData } from '../state/DataContext';
 
 const allItems = [
-  { to: '/', label: 'Inicio', end: true, roles: ['analista', 'supervisor', 'auditor', 'admin'] },
+  { to: '/', label: 'Inicio', end: true, roles: ['operador', 'analista', 'supervisor', 'auditor', 'admin'] },
   { to: '/casos', label: 'Codificación', roles: ['analista', 'supervisor', 'admin'] },
   { to: '/revision', label: 'Revisión', roles: ['supervisor', 'admin'] },
   { to: '/historial', label: 'Historial', roles: ['supervisor', 'auditor', 'admin'] },
   { to: '/metricas', label: 'Métricas', roles: ['supervisor', 'auditor', 'admin'] },
-  { to: '/bases', label: 'Bases de datos', roles: ['admin'] },
+  { to: '/bases', label: 'Bases de datos', roles: ['operador', 'admin'] },
   { to: '/usuarios', label: 'Usuarios', roles: ['admin'] },
   { to: '/sistema', label: 'Estado técnico', roles: ['admin'] },
 ];

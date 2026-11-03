@@ -10,7 +10,7 @@ export default function CaseDetailPage() {
   const { user } = useAuth();
   const { cases, decide, consultQwen, searchCatalog } = useData();
   const item = cases.find(entry => entry.id_registro === id);
-  const [selected, setSelected] = useState(item?.codigo_final || item?.candidatos[0]?.codigo || '');
+  const [selected, setSelected] = useState(item?.codigo_final || item?.candidatos?.[0]?.codigo || '');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -75,9 +75,10 @@ export default function CaseDetailPage() {
           <div className="candidate-list" role="radiogroup" aria-label="Códigos candidatos">
             {item.candidatos.map(candidate => <label className={`candidate ${selected === candidate.codigo ? 'candidate--selected' : ''}`} key={candidate.codigo}><input type="radio" name="candidate" value={candidate.codigo} checked={selected === candidate.codigo} onChange={() => setSelected(candidate.codigo)} /><span className="candidate-code">{candidate.codigo}</span><span className="candidate-description">{candidate.descripcion}</span><strong>{Math.round(candidate.prob * 100)} %</strong></label>)}
           </div>
+          {!item.candidatos.length && <p className="empty-state empty-state--compact">R2 no produjo candidatos. Este caso requiere selección manual desde el catálogo.</p>}
         </section>
         <section className="panel">
-          <div className="panel-heading"><div><p className="eyebrow">Segunda capa R3</p><h2>Asistencia Qwen3</h2></div><button className="button button--secondary" type="button" onClick={runQwen} disabled={loading}>{loading ? 'Procesando…' : item.qwen ? 'Consultar nuevamente' : 'Consultar Qwen'}</button></div>
+          <div className="panel-heading"><div><p className="eyebrow">Segunda capa R3</p><h2>Asistencia Qwen3</h2></div><button className="button button--secondary" type="button" onClick={runQwen} disabled={loading || !item.candidatos.length}>{loading ? 'Procesando…' : item.qwen ? 'Consultar nuevamente' : 'Consultar Qwen'}</button></div>
           {item.qwen ? <div className="qwen-result"><div className="qwen-code"><span>Código sugerido</span><strong>{item.qwen.codigo || 'Revisión'}</strong></div><p>{item.qwen.justificacion}</p><small>Latencia: {item.qwen.latencia_s?.toFixed?.(1) || item.qwen.latencia_s} s · La confianza del LLM no define el umbral operativo.</small></div> : <p className="empty-state empty-state--compact">Todavía no se consultó Qwen para este registro.</p>}
         </section>
       </div>

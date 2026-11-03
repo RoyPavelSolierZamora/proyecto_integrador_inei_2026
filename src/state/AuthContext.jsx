@@ -107,7 +107,7 @@ export function AuthProvider({ children }) {
     if (!name) return { ok: false, error: 'Ingresa el nombre completo.' };
     if (!/^[a-z0-9._-]{3,30}$/.test(username)) return { ok: false, error: 'El usuario debe tener entre 3 y 30 caracteres: letras, números, punto, guion o guion bajo.' };
     if (users.some(item => item.username === username)) return { ok: false, error: 'Ese nombre de usuario ya existe.' };
-    if (!['analista', 'supervisor', 'auditor', 'admin'].includes(input.role)) return { ok: false, error: 'Selecciona un rol válido.' };
+    if (!['operador', 'analista', 'supervisor', 'auditor', 'admin'].includes(input.role)) return { ok: false, error: 'Selecciona un rol válido.' };
     if (password.length < 8) return { ok: false, error: 'La clave temporal debe tener al menos 8 caracteres.' };
     setUsers(current => [...current, { id: Date.now(), username, name, password, role: input.role, active: true, createdAt: new Date().toISOString() }]);
     return { ok: true };

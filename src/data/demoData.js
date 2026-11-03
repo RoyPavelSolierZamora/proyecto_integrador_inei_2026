@@ -1,4 +1,5 @@
 export const ROLE_LABELS = {
+  operador: 'Operador de carga',
   analista: 'Analista codificador',
   supervisor: 'Supervisor',
   auditor: 'Auditor de consulta',
@@ -6,6 +7,7 @@ export const ROLE_LABELS = {
 };
 
 export const DEMO_USERS = [
+  { username: 'operador', password: 'demo2026', name: 'Mario Salazar', role: 'operador' },
   { username: 'analista', password: 'demo2026', name: 'Ana Torres', role: 'analista' },
   { username: 'supervisor', password: 'demo2026', name: 'Carlos Medina', role: 'supervisor' },
   { username: 'auditor', password: 'demo2026', name: 'Lucía Ramos', role: 'auditor' },

@@ -8,10 +8,11 @@ export default function HomePage() {
   const { cases, metrics, activeDataset } = useData();
   const actionable = cases.filter(item => ['pendiente', 'revision'].includes(item.estado)).slice(0, 4);
   const canCode = ['analista', 'supervisor', 'admin'].includes(user.role);
+  const canLoad = ['operador', 'admin'].includes(user.role);
 
   return (
     <div className="page">
-      <div className="page-heading"><div><p className="eyebrow">Resumen operativo</p><h1>Buenos días, {user.name.split(' ')[0]}</h1><p>Base activa: <strong>{activeDataset?.name}</strong> · {activeDataset?.period}.</p></div>{canCode && <Link className="button button--primary" to="/casos">Continuar codificando</Link>}</div>
+      <div className="page-heading"><div><p className="eyebrow">Resumen operativo</p><h1>Buenos días, {user.name.split(' ')[0]}</h1><p>Base activa: <strong>{activeDataset?.name}</strong> · {activeDataset?.period}.</p></div>{canCode ? <Link className="button button--primary" to="/casos">Continuar codificando</Link> : canLoad ? <Link className="button button--primary" to="/bases">Procesar nueva base</Link> : null}</div>
       <section className="stats-grid" aria-label="Indicadores principales">
         <article className="stat"><span>Pendientes</span><strong>{metrics.pending}</strong><small>Requieren una decisión</small></article>
         <article className="stat"><span>En revisión</span><strong>{metrics.review}</strong><small>Casos derivados</small></article>

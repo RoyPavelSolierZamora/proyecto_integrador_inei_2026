@@ -10,13 +10,15 @@ class ApiError extends Error {
 
 export async function apiRequest(path, options = {}) {
   const headers = { Accept: 'application/json', ...options.headers };
+  const hasRawBody = options.rawBody !== undefined;
   if (options.body !== undefined) headers['Content-Type'] = 'application/json';
+  if (hasRawBody && options.contentType) headers['Content-Type'] = options.contentType;
   if (options.mutation && csrfToken) headers['X-CSRF-Token'] = csrfToken;
   const response = await fetch(path, {
     method: options.method || 'GET',
     credentials: 'include',
     headers,
-    body: options.body === undefined ? undefined : JSON.stringify(options.body),
+    body: hasRawBody ? options.rawBody : options.body === undefined ? undefined : JSON.stringify(options.body),
   });
   if (response.status === 204) return null;
   const data = await response.json().catch(() => ({}));

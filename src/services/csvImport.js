@@ -84,3 +84,25 @@ export function parseR2Csv(text) {
   });
   return { rows: parsedRows, errors };
 }
+
+export function parseRawEpenCsv(text, { maxRows = 50_000 } = {}) {
+  const matrix = parseMatrix(text);
+  if (matrix.length < 2) return { rows: [], errors: ['El archivo no contiene registros.'] };
+  const headers = matrix[0].map(value => value.trim().toLowerCase());
+  const missing = ['id_registro', 'p309'].filter(name => !headers.includes(name));
+  if (missing.length) return { rows: [], errors: [`Faltan columnas obligatorias: ${missing.join(', ')}.`] };
+  if (matrix.length - 1 > maxRows) return { rows: [], errors: [`El archivo supera el máximo de ${maxRows} registros por trabajo.`] };
+  const rows = [];
+  const errors = [];
+  const seen = new Set();
+  matrix.slice(1).forEach((values, offset) => {
+    const line = offset + 2;
+    const record = Object.fromEntries(headers.map((header, index) => [header, (values[index] || '').trim()]));
+    if (!record.id_registro || !record.p309) { errors.push(`Fila ${line}: id_registro y p309 son obligatorios.`); return; }
+    if (record.id_registro.length > 120) { errors.push(`Fila ${line}: id_registro supera 120 caracteres.`); return; }
+    if (seen.has(record.id_registro)) { errors.push(`Fila ${line}: id_registro duplicado.`); return; }
+    seen.add(record.id_registro);
+    rows.push({ id_registro: record.id_registro, p309: record.p309, p308: record.p308 || '', p308a: record.p308a || '' });
+  });
+  return { rows, errors };
+}

@@ -30,8 +30,10 @@ export default function App() {
             <Route path="historial" element={<HistoryPage />} />
             <Route path="metricas" element={<MetricsPage />} />
           </Route>
-          <Route element={<ProtectedRoute roles={['admin']} />}>
+          <Route element={<ProtectedRoute roles={['operador', 'admin']} />}>
             <Route path="bases" element={<DatasetsPage />} />
+          </Route>
+          <Route element={<ProtectedRoute roles={['admin']} />}>
             <Route path="usuarios" element={<UsersPage />} />
             <Route path="sistema" element={<SystemPage />} />
           </Route>
