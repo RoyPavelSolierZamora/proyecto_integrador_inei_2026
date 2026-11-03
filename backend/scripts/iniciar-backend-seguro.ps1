@@ -30,7 +30,12 @@ function Wait-LocalEndpoint([string]$Uri, [int]$Attempts = 30) {
 
 $projectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
 $workspaceRoot = [IO.Path]::GetFullPath((Join-Path $projectRoot '..'))
-$r3Root = Join-Path $workspaceRoot 'Codigos\pipeline_llm'
+# La capa R3 viaja dentro del repositorio; la copia del workspace queda como respaldo.
+$r3Local = Join-Path $projectRoot 'r3_local'
+$r3Legacy = Join-Path $workspaceRoot 'Codigos\pipeline_llm'
+$r3Root = if (Test-Path -LiteralPath (Join-Path $r3Local 'servicio.py')) { $r3Local } else { $r3Legacy }
+$r2Mock = Join-Path $projectRoot 'backend\r2_mock\servicio_r2.py'
+$r2BaseUrl = if ($env:R2_BASE_URL) { $env:R2_BASE_URL.TrimEnd('/') } else { 'http://127.0.0.1:8100' }
 
 if (-not (Test-LocalEndpoint 'http://127.0.0.1:11434/api/tags')) {
     $ollama = Get-Command 'ollama.exe' -ErrorAction Stop
@@ -53,6 +58,17 @@ if (-not (Test-LocalEndpoint 'http://127.0.0.1:8000/salud')) {
     Write-Host 'API R3 local iniciada.'
 }
 
+if (-not (Test-LocalEndpoint "$r2BaseUrl/salud") -and $r2BaseUrl -eq 'http://127.0.0.1:8100') {
+    if (-not (Test-Path -LiteralPath $r2Mock)) { throw "No se encontro el simulador contractual R2 en $r2Mock" }
+    $python = Get-Command 'python.exe' -ErrorAction Stop
+    Start-Process -FilePath $python.Source -ArgumentList @('servicio_r2.py') -WorkingDirectory (Split-Path -Parent $r2Mock) -WindowStyle Hidden
+    if (-not (Wait-LocalEndpoint "$r2BaseUrl/salud")) {
+        throw 'El microservicio R2 simulado no quedo disponible en http://127.0.0.1:8100.'
+    }
+    Write-Host 'Microservicio R2 simulado iniciado.'
+}
+if (-not (Test-LocalEndpoint "$r2BaseUrl/salud")) { throw "El microservicio R2 no responde en $r2BaseUrl." }
+
 $databaseSecret = Read-Host 'Contrasena de PostgreSQL para epen_app' -AsSecureString
 $databasePassword = ConvertFrom-SecureValue $databaseSecret
 
@@ -66,8 +82,11 @@ try {
     $env:APP_ORIGIN = 'http://127.0.0.1:5174'
     $env:QWEN_MODE = 'real'
     $env:R3_BASE_URL = 'http://127.0.0.1:8000'
+    $env:R2_BASE_URL = $r2BaseUrl
     Push-Location $projectRoot
     try {
+        & node 'backend/scripts/migrate.js'
+        if ($LASTEXITCODE -ne 0) { throw 'No se pudieron aplicar las migraciones pendientes.' }
         & node 'backend/src/server.js'
     }
     finally {
@@ -84,6 +103,7 @@ finally {
     Remove-Item Env:APP_ORIGIN -ErrorAction SilentlyContinue
     Remove-Item Env:QWEN_MODE -ErrorAction SilentlyContinue
     Remove-Item Env:R3_BASE_URL -ErrorAction SilentlyContinue
+    Remove-Item Env:R2_BASE_URL -ErrorAction SilentlyContinue
     $databasePassword = $null
 }
 

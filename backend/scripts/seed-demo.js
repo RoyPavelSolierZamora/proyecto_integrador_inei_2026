@@ -5,7 +5,27 @@ import { closePool, transaction } from '../src/db.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const seed = JSON.parse(await readFile(join(here, '..', 'seeds', 'epen-demo-2026.json'), 'utf8'));
-const catalogPath = resolve(here, '..', '..', '..', 'Codigos', 'pipeline_llm', 'datos', 'catalogo_ciiu.csv');
+
+/**
+ * Catalogo CIIU. La copia canonica viaja dentro del repositorio (r3_local); la
+ * ruta del workspace original queda solo como respaldo para el equipo de R3.
+ */
+const catalogCandidates = [
+  join(here, '..', 'seeds', 'catalogo_ciiu.csv'),
+  resolve(here, '..', '..', 'r3_local', 'datos', 'catalogo_ciiu.csv'),
+  resolve(here, '..', '..', '..', 'Codigos', 'pipeline_llm', 'datos', 'catalogo_ciiu.csv'),
+];
+
+async function readCatalog() {
+  for (const candidate of catalogCandidates) {
+    try {
+      return await readFile(candidate, 'utf8');
+    } catch { /* se prueba la siguiente ubicacion */ }
+  }
+  throw new Error(
+    'No se encontro catalogo_ciiu.csv. Ejecuta instalar.ps1 o coloca el archivo en backend/seeds/.',
+  );
+}
 
 function parseCatalog(text) {
   return text.replace(/^\uFEFF/, '').split(/\r?\n/).slice(1).filter(Boolean).map(line => {
@@ -17,7 +37,7 @@ function parseCatalog(text) {
 }
 
 try {
-  const catalog = parseCatalog(await readFile(catalogPath, 'utf8'));
+  const catalog = parseCatalog(await readCatalog());
   await transaction(async client => {
     await client.query(`
       INSERT INTO epen.ciiu_catalog (code, description)

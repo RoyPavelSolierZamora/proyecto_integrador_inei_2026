@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Panel R3 · Codificación P309 → CIIU</title>
+<style>
+  :root{
+    --bg:#f6f7f9; --card:#fff; --ink:#1b2330; --muted:#68738a; --line:#e3e7ee;
+    --brand:#2f5fd0; --ok:#178a5b; --warn:#b26a00; --bad:#c0392b;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+       background:var(--bg);color:var(--ink)}
+  header{background:#fff;border-bottom:1px solid var(--line);padding:14px 22px;
+         display:flex;align-items:center;gap:14px;flex-wrap:wrap;position:sticky;top:0;z-index:5}
+  header h1{font-size:17px;margin:0;font-weight:650;letter-spacing:-.2px}
+  header .sub{color:var(--muted);font-size:13px}
+  .pill{margin-left:auto;font-size:12.5px;font-weight:600;padding:6px 12px;border-radius:99px;
+        background:#eef1f6;color:var(--muted);display:flex;align-items:center;gap:7px}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--muted)}
+  .pill.ok{background:#e7f6ee;color:var(--ok)} .pill.ok .dot{background:var(--ok)}
+  .pill.bad{background:#fdecea;color:var(--bad)} .pill.bad .dot{background:var(--bad)}
+  .pill.warn{background:#fdf1e0;color:var(--warn)} .pill.warn .dot{background:var(--warn)}
+  main{max-width:1080px;margin:22px auto 60px;padding:0 18px;display:grid;gap:18px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px 20px}
+  .card h2{font-size:14px;margin:0 0 14px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted)}
+  label{display:block;font-size:13px;font-weight:600;margin:0 0 6px}
+  textarea,input[type=text],select{width:100%;font:inherit;padding:9px 11px;border:1px solid var(--line);
+       border-radius:8px;background:#fcfcfd;resize:vertical}
+  textarea:focus,input:focus,select:focus{outline:2px solid #cfdcf7;border-color:var(--brand)}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:12px}
+  button{font:inherit;font-weight:600;padding:9px 16px;border-radius:8px;border:1px solid transparent;
+         background:var(--brand);color:#fff;cursor:pointer}
+  button.ghost{background:#fff;color:var(--ink);border-color:var(--line)}
+  button:disabled{opacity:.55;cursor:progress}
+  button.mini{padding:6px 11px;font-size:13px}
+  .hint{color:var(--muted);font-size:12.5px;margin-top:8px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+  .kpi{background:#fbfcfe;border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+  .kpi b{display:block;font-size:24px;line-height:1.2;letter-spacing:-.5px}
+  .kpi span{color:var(--muted);font-size:12.5px}
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  th{text-align:left;color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;
+     letter-spacing:.4px;padding:8px 10px;border-bottom:1px solid var(--line)}
+  td{padding:9px 10px;border-bottom:1px solid #f0f2f6;vertical-align:top}
+  tr:last-child td{border-bottom:none}
+  .code{font-family:ui-monospace,Consolas,monospace;font-weight:700;font-size:14px}
+  .tag{display:inline-block;font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:99px}
+  .tag.llm{background:#e7f6ee;color:var(--ok)} .tag.rev{background:#fdf1e0;color:var(--warn)}
+  .tag.hum{background:#e8eefc;color:var(--brand)}
+  .resultado{margin-top:14px;border-left:3px solid var(--ok);background:#f7fbf9;
+             border-radius:8px;padding:12px 14px;display:none}
+  .resultado.rev{border-color:var(--warn);background:#fdfaf4}
+  .resultado.bad{border-color:var(--bad);background:#fdf5f4}
+  .resultado code{font-size:18px;font-weight:700}
+  .vacio{color:var(--muted);font-size:13px;padding:10px 0}
+  .spin{display:inline-block;width:13px;height:13px;border:2px solid #ffffff66;
+        border-top-color:#fff;border-radius:50%;animation:s .8s linear infinite;vertical-align:-2px}
+  @keyframes s{to{transform:rotate(360deg)}}
+  .cand{font-family:ui-monospace,monospace;font-size:12px;color:var(--muted)}
+  .hit{display:flex;gap:8px;align-items:center;padding:7px 9px;border:1px solid var(--line);
+       border-radius:8px;margin-top:6px;background:#fff;cursor:pointer}
+  .hit:hover{border-color:var(--brand);background:#f7faff}
+  .hit .d{color:var(--muted);font-size:12.5px;flex:1}
+  .hot{font-size:11.5px;color:var(--muted);margin-top:6px}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Panel R3 · Codificación P309 → CIIU Rev.4</h1>
+    <div class="sub">Herramienta interna de prueba · el dashboard del proyecto es de R4</div>
+  </div>
+  <div class="pill" id="salud"><span class="dot"></span><span id="saludTxt">comprobando…</span></div>
+</header>
+
+<main>
+
+  <div id="avisoArchivo" class="card" style="display:none;border-left:4px solid var(--bad)">
+    <h2>Falta un paso</h2>
+    <p style="margin:0 0 10px">
+      Abriste <code>ui/panel.html</code> directamente. Esta página es solo la parte visual:
+      necesita el servicio para pedir los datos, y sin él no puede mostrar ni un caso.
+    </p>
+    <p style="margin:0 0 6px">Cierra esta pestaña y ejecuta en PowerShell:</p>
+    <pre style="background:#f4f6fa;border:1px solid var(--line);border-radius:8px;padding:10px;margin:0 0 10px">cd "Codigos\pipeline_llm"
+python panel.py</pre>
+    <p style="margin:0">
+      O haz doble clic en <code>iniciar_panel.bat</code>. Se abrirá solo en
+      <code>http://127.0.0.1:8000/panel</code>.
+    </p>
+  </div>
+
+  <section class="card">
+    <h2>1 · Codificar un caso</h2>
+
+    <label for="ejemplo">Caso de ejemplo</label>
+    <select id="ejemplo"><option value="">— elegir un caso para cargar sus datos —</option></select>
+
+    <div style="margin-top:14px">
+      <label for="p309">Respuesta abierta de la P309</label>
+      <textarea id="p309" rows="2" placeholder="Ej.: Crio pollos para venderlos."></textarea>
+    </div>
+
+    <div class="row">
+      <div style="flex:1;min-width:260px">
+        <label for="cands">Candidatos (códigos CIIU de 4 dígitos, separados por coma)</label>
+        <input type="text" id="cands" placeholder="0146, 0150, 0141">
+      </div>
+      <button id="btnCodificar">Codificar</button>
+    </div>
+
+    <div class="row">
+      <div style="flex:1;min-width:260px">
+        <label for="q">Buscar un código en el catálogo oficial (417 clases)</label>
+        <input type="text" id="q" placeholder="Ej.: aves de corral · taxi · prendas de vestir">
+      </div>
+      <button class="ghost" id="btnBuscar">Buscar</button>
+    </div>
+    <div id="hits"></div>
+    <div class="hot">Haz clic en un resultado para añadirlo como candidato.</div>
+
+    <div class="resultado" id="res"></div>
+  </section>
+
+  <section class="card">
+    <h2>2 · Métricas de la corrida</h2>
+    <div class="grid" id="kpis"></div>
+    <div class="hint" id="kpiNota"></div>
+  </section>
+
+  <section class="card">
+    <h2>3 · Cola de revisión humana</h2>
+    <div id="cola"></div>
+  </section>
+
+  <section class="card">
+    <h2>4 · Últimas decisiones</h2>
+    <div id="ultimas"></div>
+    <div class="row"><button class="ghost mini" id="btnRecargar">Actualizar</button></div>
+  </section>
+
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+let RUN_ID = "panel";
+let OLLAMA_OK = null;      // true / false segun /salud
+
+async function api(ruta, opciones) {
+  const r = await fetch(ruta, opciones);
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  return r.json();
+}
+
+function esc(s) {
+  return (s ?? "").toString().replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+}
+
+function tag(origen) {
+  const m = {llm:["llm","LLM"], revision_humana:["rev","derivado"], humano:["hum","humano"]};
+  const [c, t] = m[origen] || ["", origen || "—"];
+  return `<span class="tag ${c}">${t}</span>`;
+}
+
+async function salud() {
+  const p = $("salud");
+  try {
+    const s = await api("/salud");
+    OLLAMA_OK = s.estado === "ok";
+    if (OLLAMA_OK) {
+      p.className = "pill ok";
+      $("saludTxt").textContent = `operativo · ${s.catalogo_clases} clases · contrato v${s.contrato_version}`;
+      p.title = s.ollama || "";
+    } else {
+      p.className = "pill warn";
+      $("saludTxt").textContent = "Ollama apagado";
+      p.title = s.ollama || "Ollama no responde en 127.0.0.1:11434";
+    }
+  } catch (e) {
+    OLLAMA_OK = false;
+    p.className = "pill bad";
+    $("saludTxt").textContent = "sin conexión";
+    p.title = "No se pudo contactar al servicio. Ejecuta: python panel.py";
+  }
+}
+
+async function metricas() {
+  const m = await api("/metricas?run_id=" + encodeURIComponent(RUN_ID));
+  if (!m.total) {
+    $("kpis").innerHTML = `<div class="vacio">Todavía no hay registros en esta corrida.</div>`;
+    return;
+  }
+  $("kpis").innerHTML = [
+    ["Registros", m.total],
+    ["Automáticos", m.automaticos],
+    ["Pendientes", m.pendientes],
+    ["Revisados a mano", m.humanos],
+    ["Latencia media", m.latencia_media_s + " s"],
+  ].map(([k,v]) => `<div class="kpi"><b>${v}</b><span>${k}</span></div>`).join("");
+  $("kpiNota").textContent = "corrida: " + RUN_ID;
+}
+
+async function cola() {
+  const r = await api("/pendientes?limite=20");
+  if (!r.pendientes.length) {
+    $("cola").innerHTML = `<div class="vacio">No hay casos pendientes.</div>`;
+    return;
+  }
+  $("cola").innerHTML = `
+    <table>
+      <thead><tr><th>Registro</th><th>P309</th><th>Candidatos</th><th>Asignar código</th></tr></thead>
+      <tbody>${r.pendientes.map(p => `
+        <tr>
+          <td class="code">${esc(p.id_registro)}</td>
+          <td>${esc(p.p309)}<div class="cand">${esc(p.motivo || "")}</div></td>
+          <td class="cand">${esc(p.candidatos || "—")}</td>
+          <td><input type="text" id="rev-${p.id}" placeholder="ej. 5610" style="width:104px">
+              <button class="mini" onclick="revisar(${p.id})">Guardar</button></td>
+        </tr>`).join("")}</tbody>
+    </table>`;
+}
+
+async function revisar(id) {
+  const cod = $("rev-" + id).value.trim();
+  if (!/^\d{4}$/.test(cod)) { alert("El código debe tener 4 dígitos."); return; }
+  try {
+    await api("/revisar", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({id, codigo: cod, analista: "panel"})
+    });
+    await refrescar();
+  } catch (e) { alert("No se pudo guardar: " + e.message); }
+}
+
+async function ultimas() {
+  const m = await api("/decisiones?limite=12&run_id=" + encodeURIComponent(RUN_ID));
+  if (!m.decisiones.length) {
+    $("ultimas").innerHTML = `<div class="vacio">Sin decisiones todavía en esta corrida.</div>`;
+    return;
+  }
+  $("ultimas").innerHTML = `
+    <table>
+      <thead><tr><th>Registro</th><th>P309</th><th>Código</th><th>Origen</th><th>Latencia</th></tr></thead>
+      <tbody>${m.decisiones.map(d => `
+        <tr>
+          <td class="code">${esc(d.id_registro)}</td>
+          <td>${esc(d.p309)}</td>
+          <td class="code">${esc(d.codigo_final || d.codigo_llm || "—")}</td>
+          <td>${tag(d.origen)}</td>
+          <td>${d.latencia_s ?? "—"} s</td>
+        </tr>`).join("")}</tbody>
+    </table>`;
+}
+
+async function refrescar() {
+  await salud();
+  await Promise.all([metricas(), cola(), ultimas()]);
+}
+
+async function cargarCasos() {
+  try {
+    const r = await api("/casos");
+    $("ejemplo").innerHTML = `<option value="">— elegir un caso para cargar sus datos —</option>` +
+      r.casos.map((c, i) => `<option value="${i}">${esc(c.etiqueta)} · ${esc(c.p309.slice(0, 48))}</option>`).join("");
+    window.__casos = r.casos;
+  } catch (e) { /* silencioso */ }
+}
+
+$("ejemplo").onchange = e => {
+  const c = (window.__casos || [])[e.target.value];
+  if (!c) return;
+  $("p309").value = c.p309;
+  $("cands").value = c.candidatos.map(x => x.codigo).join(", ");
+  $("res").style.display = "none";
+};
+
+$("btnBuscar").onclick = async () => {
+  const texto = $("q").value.trim();
+  if (!texto) return;
+  try {
+    const r = await api("/buscar?texto=" + encodeURIComponent(texto));
+    if (!r.resultados.length) {
+      $("hits").innerHTML = `<div class="vacio">Sin coincidencias. Prueba otras palabras.</div>`;
+      return;
+    }
+    $("hits").innerHTML = r.resultados.map(x =>
+      `<div class="hit" onclick="agregar('${x.codigo}')">
+         <span class="code">${x.codigo}</span><span class="d">${esc(x.descripcion)}</span>
+       </div>`).join("");
+  } catch (e) { alert("Error: " + e.message); }
+};
+
+$("q").addEventListener("keydown", e => { if (e.key === "Enter") $("btnBuscar").click(); });
+
+function agregar(cod) {
+  const actuales = $("cands").value.split(",").map(s => s.trim()).filter(Boolean);
+  if (!actuales.includes(cod)) actuales.push(cod);
+  $("cands").value = actuales.slice(0, 5).join(", ");
+}
+
+$("btnCodificar").onclick = async () => {
+  const p309 = $("p309").value.trim();
+  const cods = $("cands").value.split(",").map(s => s.trim()).filter(Boolean);
+  if (OLLAMA_OK !== true) {
+    alert("El sistema no está operativo.\n\n" +
+          "· Si arriba dice «Ollama apagado» → ejecuta:  ollama serve\n" +
+          "· Si dice «sin conexión»          → ejecuta:  python panel.py");
+    return;
+  }
+  if (!p309) { alert("Escribe la respuesta P309."); return; }
+  if (!cods.length) { alert("Indica al menos un candidato."); return; }
+  if (cods.length > 5) { alert("Máximo 5 candidatos."); return; }
+
+  const b = $("btnCodificar");
+  b.disabled = true; b.innerHTML = '<span class="spin"></span> Codificando…';
+  const caja = $("res"); caja.style.display = "none";
+  try {
+    const r = await api("/codificar", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
+        run_id: RUN_ID,
+        registro: {id_registro: "panel-" + Date.now(), p309,
+                   candidatos: cods.map(c => ({codigo: c}))}
+      })
+    });
+    const derivado = r.requiere_revision === 1;
+    caja.className = "resultado" + (derivado ? " rev" : "");
+    caja.style.display = "block";
+    caja.innerHTML = derivado
+      ? `<b>Derivado a revisión humana</b>${r.motivo ? " · " + esc(r.motivo) : ""}
+         <div class="hint">${esc(r.justificacion || "")} · ${r.latencia_s} s</div>`
+      : `<code>${esc(r.codigo)}</code> · ${tag(r.origen)}
+         <div class="hint">${esc(r.justificacion || "")} · ${r.latencia_s} s</div>`;
+    await refrescar();
+  } catch (e) {
+    caja.className = "resultado bad"; caja.style.display = "block";
+    caja.innerHTML = `<b>Error:</b> ${esc(e.message)}`;
+  } finally {
+    b.disabled = false; b.textContent = "Codificar";
+  }
+};
+
+$("btnRecargar").onclick = refrescar;
+
+// Abrir el HTML como archivo (file://) no puede funcionar: no hay servicio al que preguntar.
+// Mejor decirlo claro que mostrar una pagina muerta.
+if (location.protocol === "file:") {
+  $("avisoArchivo").style.display = "block";
+  $("salud").className = "pill bad";
+  $("saludTxt").textContent = "falta iniciar el servicio";
+  document.querySelectorAll("main button, main input, main select, main textarea")
+          .forEach(el => { el.disabled = true; });
+  $("btnCodificar").textContent = "Codificar";
+} else {
+  cargarCasos();
+  refrescar();
+}
+</script>
+</body>
+</html>

@@ -49,6 +49,10 @@ cd "..\Codigos\pipeline_llm"
 python servicio.py --puerto 8000
 ```
 
+El lanzador también inicia el simulador contractual R2 en `127.0.0.1:8100`, aplica migraciones
+pendientes y reanuda trabajos interrumpidos. Para sustituirlo por el modelo estadístico real,
+configura `R2_BASE_URL` y respeta [`../docs/INTEGRACION_R2_DASHBOARD.md`](../docs/INTEGRACION_R2_DASHBOARD.md).
+
 Para iniciar el backend con el mismo criterio (PostgreSQL seguro y Qwen real mediante R3):
 
 ```powershell

@@ -40,7 +40,7 @@ param(
     [ValidateSet('demo', 'real')]
     [string]$QwenMode = 'demo',
 
-    [ValidateSet('auditor', 'analista', 'supervisor', 'admin')]
+    [ValidateSet('operador', 'auditor', 'analista', 'supervisor', 'admin')]
     [string]$RolDemo = 'auditor',
 
     [switch]$SinFrontend,
@@ -151,7 +151,12 @@ function New-DemoPassword {
 
 $projectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
 $workspaceRoot = [IO.Path]::GetFullPath((Join-Path $projectRoot '..'))
-$r3Root = Join-Path $workspaceRoot 'Codigos\pipeline_llm'
+# La capa R3 viaja dentro del repositorio; la copia del workspace queda como respaldo.
+$r3Local = Join-Path $projectRoot 'r3_local'
+$r3Legacy = Join-Path $workspaceRoot 'Codigos\pipeline_llm'
+$r3Root = if (Test-Path -LiteralPath (Join-Path $r3Local 'servicio.py')) { $r3Local } else { $r3Legacy }
+$r2Mock = Join-Path $projectRoot 'backend\r2_mock\servicio_r2.py'
+$r2BaseUrl = if ($env:R2_BASE_URL) { $env:R2_BASE_URL.TrimEnd('/') } else { 'http://127.0.0.1:8100' }
 
 if (-not $Tunel -and -not $Dominio) {
     throw 'Indica -Tunel para abrir el tunel automaticamente, o -Dominio https://tu-tunel para reutilizar uno abierto.'
@@ -160,7 +165,7 @@ if (-not $Tunel -and -not $Dominio) {
 if ($RolDemo -eq 'admin') {
     Write-Host ''
     Write-Host 'AVISO: vas a compartir una cuenta ADMINISTRADORA por un link publico.' -ForegroundColor Red
-    Write-Host 'Un invitado podria desactivar o retirar cuentas (incluida haadmin),' -ForegroundColor Red
+    Write-Host 'Un invitado podria desactivar o retirar cuentas (incluida la administradora principal),' -ForegroundColor Red
     Write-Host 'importar bases y ver el estado tecnico. Solo para una demo vigilada.' -ForegroundColor Red
     $confirmation = Read-Host 'Escribe SI para continuar'
     if ($confirmation -ne 'SI') {
@@ -189,6 +194,17 @@ if (-not (Test-LocalEndpoint 'http://127.0.0.1:8000/salud')) {
     Write-Host 'API R3 local iniciada.' -ForegroundColor Green
 }
 
+if (-not (Test-LocalEndpoint "$r2BaseUrl/salud") -and $r2BaseUrl -eq 'http://127.0.0.1:8100') {
+    if (-not (Test-Path -LiteralPath $r2Mock)) { throw "No se encontro el simulador contractual R2 en $r2Mock" }
+    $python = Get-Command 'python.exe' -ErrorAction Stop
+    Start-Process -FilePath $python.Source -ArgumentList @('servicio_r2.py') -WorkingDirectory (Split-Path -Parent $r2Mock) -WindowStyle Hidden
+    if (-not (Wait-LocalEndpoint "$r2BaseUrl/salud")) {
+        throw 'El microservicio R2 simulado no quedo disponible en http://127.0.0.1:8100.'
+    }
+    Write-Host 'Microservicio R2 simulado iniciado.' -ForegroundColor Green
+}
+if (-not (Test-LocalEndpoint "$r2BaseUrl/salud")) { throw "El microservicio R2 no responde en $r2BaseUrl." }
+
 $databaseSecret = Read-Host 'Contrasena de PostgreSQL para epen_app' -AsSecureString
 $databasePassword = ConvertFrom-SecureValue $databaseSecret
 if (-not $databasePassword) {
@@ -208,6 +224,7 @@ try {
     $env:NODE_ENV = 'production'
     $env:QWEN_MODE = $QwenMode
     $env:R3_BASE_URL = 'http://127.0.0.1:8000'
+    $env:R2_BASE_URL = $r2BaseUrl
     $env:DEMO_USERNAME = $demoUser
     $env:DEMO_FULL_NAME = 'Invitado de demostracion'
     $env:DEMO_ROLE = $RolDemo
@@ -218,6 +235,8 @@ try {
     Write-Host 'Preparando la cuenta demo de solo lectura...' -ForegroundColor Cyan
     Push-Location $projectRoot
     try {
+        & node 'backend/scripts/migrate.js'
+        if ($LASTEXITCODE -ne 0) { throw 'No se pudieron aplicar las migraciones pendientes.' }
         & node 'backend/scripts/create-demo-user.js'
         if ($LASTEXITCODE -ne 0) {
             throw 'No se pudo preparar la cuenta demo. Revisa la contrasena de PostgreSQL.'
@@ -304,7 +323,7 @@ Cierrala y vuelve a ejecutar el script. Para cerrarla desde aqui:
 }
 finally {
     Remove-Item Env:PGHOST, Env:PGPORT, Env:PGDATABASE, Env:PGUSER, Env:PGPASSWORD -ErrorAction SilentlyContinue
-    Remove-Item Env:NODE_ENV, Env:APP_ORIGIN, Env:TRUST_PROXY, Env:QWEN_MODE, Env:R3_BASE_URL -ErrorAction SilentlyContinue
+    Remove-Item Env:NODE_ENV, Env:APP_ORIGIN, Env:TRUST_PROXY, Env:QWEN_MODE, Env:R3_BASE_URL, Env:R2_BASE_URL -ErrorAction SilentlyContinue
     Remove-Item Env:DEMO_HOST, Env:DEMO_USERNAME, Env:DEMO_FULL_NAME, Env:DEMO_ROLE, Env:DEMO_PASSWORD, Env:DEMO_RESET_PASSWORD, Env:DEMO_ALLOW_ADMIN -ErrorAction SilentlyContinue
     $databasePassword = $null
     if ($tunnel -and $tunnel.Process -and -not $tunnel.Process.HasExited) {
