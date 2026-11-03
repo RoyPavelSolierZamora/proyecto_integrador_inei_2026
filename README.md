@@ -2,29 +2,6 @@
 
 SPA local para el flujo R2 → R3 → R4 del Proyecto Integrador PEU-CD. Esta carpeta es independiente del prototipo visual recibido en `sistema-codificacion-epen/`.
 
-## Probar la interfaz sin PostgreSQL ni Qwen
-
-Esta es la opción recomendada para compañeros que solo necesitan recorrer la SPA. Utiliza
-exclusivamente datos sintéticos y guarda los cambios en el navegador.
-
-Requisito: [Node.js 20 o posterior](https://nodejs.org/). Después de descargar o clonar el
-repositorio, en Windows basta con hacer doble clic en:
-
-```text
-iniciar-demo-local.bat
-```
-
-La primera ejecución instala las dependencias y abre `http://127.0.0.1:5174`. Acceso:
-`admin` / `demo2026`. No requiere PostgreSQL, Python, Ollama ni descargar Qwen.
-
-También se incluye `.github/workflows/pages.yml`. Cuando el repositorio se publique en GitHub y
-se seleccione **Settings → Pages → Source: GitHub Actions**, cada envío a `main` desplegará una
-demo visual estática. Esa página tampoco contiene backend, credenciales reales ni datos EPEN.
-
-La demo visual sirve para revisar navegación, roles, responsive, casos sintéticos y decisiones.
-No demuestra la persistencia PostgreSQL ni ejecuta realmente R2/Qwen; para eso se usa la instalación
-completa descrita más abajo.
-
 ## Instalación completa con Qwen real (para el equipo)
 
 Si necesitas probar el flujo real (cargar una base P309 → R2 → umbral τ → Qwen → decisión humana)
@@ -105,51 +82,8 @@ El acceso demo no es autenticación de producción. La autenticación institucio
 
 El backend real se encuentra en `backend/`. Incluye el esquema de usuarios, sesiones, encuestas, casos, decisiones y auditoría. Consulta [`backend/README.md`](backend/README.md) para iniciar PostgreSQL, ejecutar las migraciones y crear el primer administrador.
 
-La SPA conserva `VITE_AUTH_MODE=demo` mientras PostgreSQL no esté configurado. Al cambiarlo a `real`, deja de leer credenciales del navegador y utiliza exclusivamente la API del backend.
-
-## Compartir una demo pública (túnel)
-
-Sirve para que otras personas vean el dashboard sin instalar nada y sin abrir puertos en el
-router. El túnel publica **un solo puerto** (el 5174 del frontend) y Vite reenvía `/api/*` al
-backend; PostgreSQL (5432), Ollama (11434) y R3 (8000) nunca se exponen.
-
-1. Instala el túnel (solo la primera vez):
-
-```powershell
-winget install --id Cloudflare.cloudflared
-```
-
-2. Crea la cuenta de invitado (solo lectura):
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\backend\scripts\crear-usuario-demo-seguro.ps1"
-```
-
-3. Arranca todo y abre el túnel en un solo paso:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\backend\scripts\iniciar-demo-publica.ps1" -Tunel
-```
-
-El script abre cloudflared, detecta la URL, la usa como `APP_ORIGIN` y `DEMO_HOST`, comprueba
-que el link responda y la imprime como **LINK PARA COMPARTIR**. Si ya tienes un túnel abierto,
-usa `-Dominio https://tu-tunel` en lugar de `-Tunel`.
-
-El rol de la cuenta demo es `auditor` (solo lectura) por defecto. Con `-RolDemo analista` el
-invitado puede codificar; con `-RolDemo supervisor` añade revisión, historial y métricas; y con
-`-RolDemo admin` obtiene acceso total. Este último pide una confirmación explícita porque un
-invitado podría desactivar cuentas (incluida la cuenta administradora principal) o importar bases. La clave demo se
-renueva en cada arranque, así que volver a lanzar sin `-RolDemo admin` devuelve la cuenta a
-`auditor`.
-
-El lanzador configura `APP_ORIGIN`, `TRUST_PROXY=1` y `NODE_ENV=production` solo para esa
-ejecución, y por defecto arranca Vite con `DEMO_HOST` para que acepte el dominio del túnel.
-Con `-QwenMode real` usa el motor Qwen real (20-50 s por caso en CPU); sin ese parámetro
-responde en modo demo, que es lo recomendable cuando hay varios invitados.
-
-Notas de seguridad: entra siempre por la URL del túnel, comparte **solo** la cuenta `demo`
-(nunca una cuenta administradora personal) y desactívala al terminar. El dominio gratuito cambia en cada arranque del
-túnel; si eso molesta, reserva un dominio estático.
+La SPA usa la API del backend cuando `VITE_AUTH_MODE=real` (lo escribe `instalar.ps1`); en ese
+modo no lee credenciales del navegador.
 
 ## Actualizar la base
 
