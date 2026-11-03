@@ -2,9 +2,6 @@ ALTER TABLE epen.datasets
   ADD COLUMN IF NOT EXISTS is_synthetic boolean NOT NULL DEFAULT false,
   ADD COLUMN IF NOT EXISTS notes text;
 
-ALTER TABLE epen.survey_cases
-  ADD COLUMN IF NOT EXISTS demo_qwen jsonb;
-
 CREATE UNIQUE INDEX IF NOT EXISTS datasets_single_active_idx
   ON epen.datasets ((status)) WHERE status = 'active';
 

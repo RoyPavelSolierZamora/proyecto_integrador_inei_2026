@@ -93,7 +93,7 @@ export default function DatasetsPage() {
     const selected = event.target.files?.[0] || null;
     setFile(selected); setPreview(null); setMessage(null);
     if (!selected) return;
-    if (selected.size > 5 * 1024 * 1024) return setMessage({ type: 'error', text: 'Para esta demostración, el archivo no debe superar 5 MB. La carga real se procesará en el backend por lotes.' });
+    if (selected.size > 5 * 1024 * 1024) return setMessage({ type: 'error', text: 'Esta importación avanzada admite hasta 5 MB. Las bases originales se procesan mediante el flujo R2 por lotes.' });
     setReading(true);
     try {
       const result = parseR2Csv(await selected.text());
@@ -223,7 +223,7 @@ export default function DatasetsPage() {
           <div className="advanced-disclosure__body threshold-panel">
             <div><h3>Prueba controlada</h3><p>Estima cuántos registros resolvería R2 y cuántos pasarían a Qwen. No mide precisión ni efectividad.</p></div>
             <div className="threshold-controls"><label>Umbral τ<input type="number" min="0" max="1" step="0.01" value={simulationThreshold} onChange={event => setSimulationThreshold(event.target.value)} /></label><p><strong>{automaticCount}</strong> automáticos · <strong>{Math.max(0, cases.length - automaticCount)}</strong> para Qwen</p><button className="button button--primary" type="button" disabled={saving || !Number.isFinite(thresholdValue) || thresholdValue < 0 || thresholdValue > 1} onClick={async () => { setSaving(true); try { const result = await simulateR2(activeDataset.id, thresholdValue); setMessage({ type: 'success', text: `R2 resolvió ${result.automatic} casos; ${result.pending} quedaron pendientes para Qwen.` }); } catch (cause) { setMessage({ type: 'error', text: cause.message }); } finally { setSaving(false); } }}>Aplicar a esta base sintética</button></div>
-            <small>El valor 0,70 es demostrativo. El umbral productivo se calibrará con datos EPEN reales etiquetados.</small>
+            <small>El valor 0,70 es provisional. El umbral productivo se calibrará con datos EPEN reales etiquetados.</small>
           </div>
         </details>}
       </section>}

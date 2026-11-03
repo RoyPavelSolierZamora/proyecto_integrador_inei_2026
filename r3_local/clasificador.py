@@ -24,7 +24,7 @@ DATOS = os.path.join(BASE, "datos")
 PROMPTS = os.path.join(BASE, "prompts")
 OLLAMA_URL = "http://127.0.0.1:11434/api/chat"
 OLLAMA_TAGS = "http://127.0.0.1:11434/api/tags"
-MODEL = "qwen3:4b-instruct-2507-q4_K_M"
+MODEL = os.environ.get("QWEN_MODEL", "qwen3:4b-instruct-2507-q4_K_M").strip()
 CATALOGO = os.path.join(DATOS, "catalogo_ciiu.csv")
 PROMPT_FILE = os.path.join(PROMPTS, "prompt_v1.txt")
 

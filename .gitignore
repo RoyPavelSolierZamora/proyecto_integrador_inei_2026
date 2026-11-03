@@ -11,17 +11,8 @@ backend/downloads/
 *.db
 *.sqlite
 *.sqlite3
-# Artefactos de demostracion y ejecucion local
+# Artefactos de compilacion y ejecucion local
 .preview-pages/
-demo-link.txt
+.runtime/
 r3_local/salidas/
 r3_local/datos/*.db
-
-# Herramientas de demostracion: se conservan en esta maquina, no se publican.
-iniciar-demo-local.ps1
-iniciar-demo-local.bat
-backend/scripts/iniciar-demo-publica.ps1
-backend/scripts/create-demo-user.js
-backend/scripts/crear-usuario-demo-seguro.ps1
-docs/COMPARTIR_GITHUB.md
-.github/workflows/pages.yml

@@ -1,82 +1,47 @@
-# Backend seguro EPEN
+# Backend EPEN
 
-API local preparada para PostgreSQL 18. La SPA puede conservar el modo demostración o usar este backend configurando `VITE_AUTH_MODE=real`.
+API Express local para autenticación, autorización por roles, auditoría, bases versionadas,
+trabajos R2, cola Qwen y exportación. PostgreSQL es la fuente de verdad del dashboard; R3 no
+mantiene una segunda base operacional.
+
+## Inicio recomendado
+
+Desde la raíz del repositorio ejecuta `instalar.bat` y luego `iniciar-dashboard.bat`. Esos
+lanzadores configuran PostgreSQL, migraciones, datos sintéticos, R2 y R3 sin exponer secretos en
+la línea de comandos.
+
+## Comandos de desarrollo
+
+```powershell
+npm ci
+npm run db:migrate
+npm run db:seed-synthetic
+npm test
+npm run backend
+```
+
+El backend necesita `PGPASSWORD` en memoria o `DATABASE_URL` proporcionado por un gestor de
+secretos. El instalador de Windows usa variables `PG*` y una credencial DPAPI local; no almacena
+la contraseña en `.env`.
 
 ## Controles incorporados
 
-- Contraseñas con `scrypt` y sal aleatoria; nunca se guardan en texto plano.
+- Hash scrypt con sal aleatoria para contraseñas.
 - Sesiones aleatorias almacenadas como huella SHA-256.
 - Cookie `HttpOnly`, `SameSite=Strict` y `Secure` en producción.
-- Token CSRF y validación estricta del origen.
-- Roles comprobados por el backend.
-- Bloqueo de cuenta después de cinco intentos fallidos durante 15 minutos.
-- Límite adicional de intentos por dirección IP.
-- Revocación de sesiones al desactivar o retirar una cuenta.
-- Registro de auditoría para accesos y administración de usuarios.
-- Protección para no eliminar la sesión actual ni el último administrador activo.
+- CSRF, validación de origen, bloqueo de intentos y revocación de sesiones.
+- Roles comprobados en el backend y protección del último administrador activo.
+- Auditoría de accesos, administración, importaciones y decisiones.
+- Validación estricta de contratos R2/R3 y códigos CIIU.
 
-## Preparar PostgreSQL local
+## Integraciones privadas
 
-PostgreSQL crea el usuario administrador `postgres` durante su instalación. Inicia el servicio `postgresql-x64-18` desde Servicios de Windows y abre:
+- R2 temporal: `backend/r2_simulator/servicio_r2.py`, en `127.0.0.1:8100`.
+- R3/Qwen: `r3_local/servicio.py`, en `127.0.0.1:8000`.
+- PostgreSQL: `127.0.0.1:5432`.
 
-```powershell
-& "C:\Program Files\PostgreSQL\18\bin\psql.exe" -U postgres -d postgres
-```
+Para conectar el motor estadístico real consulta
+[`../docs/INTEGRACION_R2_DASHBOARD.md`](../docs/INTEGRACION_R2_DASHBOARD.md).
 
-Dentro de `psql`, elige una contraseña distinta y robusta para la aplicación:
-
-```sql
-CREATE ROLE epen_app WITH LOGIN PASSWORD 'CAMBIAR_POR_UNA_CLAVE_SEGURA';
-CREATE DATABASE epen_codificacion OWNER epen_app ENCODING 'UTF8';
-REVOKE ALL ON DATABASE epen_codificacion FROM PUBLIC;
-GRANT CONNECT ON DATABASE epen_codificacion TO epen_app;
-```
-
-Copia `.env.example` como `.env`, cambia `DATABASE_URL` y establece `VITE_AUTH_MODE=real`. `.env` está excluido del repositorio.
-
-## Migrar y crear el primer administrador
-
-La opción recomendada solicita ambas contraseñas de forma oculta, las conserva solamente durante el proceso y no las escribe en archivos:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\backend\scripts\crear-admin-seguro.ps1"
-```
-
-Antes de iniciar el backend en modo real, levanta la API R3 en otra terminal:
-
-```powershell
-cd "..\Codigos\pipeline_llm"
-python servicio.py --puerto 8000
-```
-
-El lanzador también inicia el simulador contractual R2 en `127.0.0.1:8100`, aplica migraciones
-pendientes y reanuda trabajos interrumpidos. Para sustituirlo por el modelo estadístico real,
-configura `R2_BASE_URL` y respeta [`../docs/INTEGRACION_R2_DASHBOARD.md`](../docs/INTEGRACION_R2_DASHBOARD.md).
-
-Para iniciar el backend con el mismo criterio (PostgreSQL seguro y Qwen real mediante R3):
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\backend\scripts\iniciar-backend-seguro.ps1"
-```
-
-La alternativa manual para automatización controlada es:
-
-```powershell
-npm run db:migrate
-
-$env:ADMIN_USERNAME="administrador"
-$env:ADMIN_FULL_NAME="Administrador EPEN"
-$env:ADMIN_PASSWORD="UNA CLAVE TEMPORAL DE 12 O MAS CARACTERES"
-npm run db:create-admin
-Remove-Item Env:ADMIN_PASSWORD
-```
-
-El comando no imprime ni almacena la clave fuera de PostgreSQL. Después, inicia cada proceso en una terminal:
-
-```powershell
-npm run backend
-npm run dev
-```
-
-En un servidor institucional, `DATABASE_URL` debe provenir de un gestor de secretos, la conexión debe exigir TLS y conviene separar la cuenta que ejecuta migraciones de la cuenta limitada del servicio.
-
+En infraestructura institucional deben emplearse TLS, secretos centralizados, cuentas de base
+separadas para migración y servicio, respaldos y políticas de retención aprobadas.

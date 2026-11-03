@@ -141,7 +141,7 @@ async function processR2Job(jobId, config) {
         let qwen;
         let policy;
         try {
-          qwen = await classifyWithQwen(config, item, { allowDemo: false });
+          qwen = await classifyWithQwen(config, item);
           policy = qwenResolutionPolicy(item.candidates, qwen);
         } catch (cause) {
           qwen = { result: { justificacion: `Qwen no estuvo disponible: ${cause.message}`, modelo: null, latencia_s: null }, review: true, code: null };

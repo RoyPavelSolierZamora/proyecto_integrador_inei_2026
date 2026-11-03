@@ -90,7 +90,7 @@ async function caseByExternalId(db, datasetId, externalId) {
 async function eventsForDataset(db, datasetId) {
   const result = await db.query(`
     SELECT d.id, c.external_id, d.source, d.decision, d.code, d.created_at,
-           COALESCE(u.full_name, CASE WHEN d.source = 'llm' THEN 'Qwen3' WHEN d.source = 'ml' THEN 'Clasificador R2' ELSE 'Sistema demo' END) AS actor
+           COALESCE(u.full_name, CASE WHEN d.source = 'llm' THEN 'Qwen3' WHEN d.source = 'ml' THEN 'Clasificador R2' ELSE 'Sistema sintético' END) AS actor
     FROM epen.decisions d
     JOIN epen.survey_cases c ON c.id = d.case_id
     LEFT JOIN epen.users u ON u.id = d.decided_by
@@ -279,7 +279,7 @@ export function createDataRouter(config) {
     const item = raw.rows[0];
     const { result, review, code } = await classifyWithQwen(config, item);
     await transaction(async client => {
-      await client.query('INSERT INTO epen.decisions (case_id, source, decision, code, justification, model, latency_seconds) VALUES ($1, $2, $3, $4, $5, $6, $7)', [item.id, 'llm', review ? 'revision' : 'selection', code, result.justificacion || null, result.modelo || (config.qwenMode === 'demo' ? 'qwen-demo' : null), result.latencia_s || null]);
+      await client.query('INSERT INTO epen.decisions (case_id, source, decision, code, justification, model, latency_seconds) VALUES ($1, $2, $3, $4, $5, $6, $7)', [item.id, 'llm', review ? 'revision' : 'selection', code, result.justificacion || null, result.modelo || null, result.latencia_s || null]);
       if (review) await client.query("UPDATE epen.survey_cases SET status = 'review', updated_at = now() WHERE id = $1", [item.id]);
       await audit(client, req, 'case.qwen', 'case', item.id, { externalId: item.external_id, code, review, mode: config.qwenMode });
     });

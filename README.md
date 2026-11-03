@@ -1,125 +1,103 @@
 # Sistema de codificación asistida EPEN
 
-SPA local para el flujo R2 → R3 → R4 del Proyecto Integrador PEU-CD. Esta carpeta es independiente del prototipo visual recibido en `sistema-codificacion-epen/`.
+Aplicación local y responsive del Proyecto Integrador PEU-CD para asistir la codificación de
+respuestas abiertas P309 hacia clases CIIU Rev.4. El flujo previsto es:
 
-**Autores:** Roy Solier, Junior Palomino, Victor Moran y Nayeli Girón.
+```text
+CSV EPEN → motor estadístico R2 → umbral τ → Qwen local R3 → revisión humana R4
+```
 
-## Instalación completa con Qwen real (para el equipo)
+El repositorio no contiene información real del INEI. Los registros incluidos están marcados
+como **sintéticos** y el servicio R2 incluido es solamente un simulador contractual.
 
-Si necesitas probar el flujo real (cargar una base P309 → R2 → umbral τ → Qwen → decisión humana)
-en tu propia máquina, el repositorio ya incluye todo: backend, microservicio R2 simulado y la capa
-R3 con su catálogo CIIU. Solo se necesita Windows 10/11 y conexión a Internet; el instalador se
-encarga de Node.js, Python, PostgreSQL 18, Ollama y el modelo de Qwen.
+## Instalación recomendada en Windows
+
+Requisitos: Windows 10/11 de 64 bits, conexión a Internet y aproximadamente 5 GB libres.
+Descarga o clona la carpeta completa y ejecuta:
 
 ```text
 instalar.bat
 ```
 
-Qué hace, en orden:
+El instalador comprueba Node.js, Python, PostgreSQL, Ollama y Qwen; instala lo que falte, crea la
+base local, aplica las migraciones y solicita la primera cuenta administradora. No muevas el
+archivo `.bat` fuera de la carpeta: usa rutas relativas a este repositorio.
 
-1. Comprueba e instala lo que falte con `winget`.
-2. Crea el usuario `epen_app` y la base `epen_codificacion`.
-3. Escribe un `.env` local (excluido por `.gitignore`) con toda la configuración.
-4. Aplica las migraciones e instala el catálogo CIIU y los 6 casos sintéticos.
-5. Crea tu cuenta administradora.
-6. Descarga `qwen3:4b-instruct-2507-q4_K_M` (2,5 GB) si todavía no está.
-7. Verifica que R3 y R2 respondan.
-
-Después, para trabajar:
+Después:
 
 ```text
-iniciar-dashboard.bat     arranca todo y abre http://127.0.0.1:5174
-detener-dashboard.bat     detiene backend, frontend, R3 y R2
+iniciar-dashboard.bat     inicia todos los servicios y abre http://127.0.0.1:5174
+detener-dashboard.bat     detiene únicamente los procesos registrados por el proyecto
 ```
 
-Guía paso a paso y solución de problemas: [`docs/INSTALACION.md`](docs/INSTALACION.md).
+La guía detallada, las credenciales y la solución de problemas están en
+[`docs/INSTALACION.md`](docs/INSTALACION.md).
 
-> Los 6 casos incluidos son **sintéticos**. Sirven para recorrer el flujo real; no son resultados
-> del INEI y no deben presentarse como tales.
+## Componentes
 
-## Primera entrega
+| Carpeta | Responsabilidad |
+|---|---|
+| `src/` | SPA React, navegación responsive y flujos por rol |
+| `backend/src/` | API Express, seguridad, auditoría, trabajos R2 y persistencia |
+| `backend/migrations/` | Esquema versionado de PostgreSQL |
+| `backend/r2_simulator/` | Simulador léxico temporal del contrato R2; no es un modelo ML |
+| `backend/seeds/` | Base pequeña y archivos exclusivamente sintéticos |
+| `r3_local/` | API mínima de Qwen/Ollama, contrato y catálogo CIIU |
+| `docs/` | Instalación y contrato de integración con el R2 real |
+| `tests/`, `backend/tests/` | Pruebas automatizadas de importación, seguridad y políticas |
 
-- Acceso de demostración con cuatro roles.
-- Navegación protegida por rol.
-- Inicio, cola de casos, detalle, revisión, historial, métricas y estado técnico.
-- Decisiones persistidas en el navegador durante el modo demo.
-- Adaptador preparado para consultar la API R3 real.
-- Diseño responsive desde 360 px.
-- Administración demostrativa de credenciales: crear, activar, desactivar y eliminar.
-- Importación versionada de salidas CSV de R2 y selección de la base activa.
-- Backend de autenticación preparado para PostgreSQL, con sesiones, roles y auditoría.
-- Carga de bases P309 originales, trabajos reanudables y conector por lotes al microservicio R2.
+## Datos sintéticos y motor R2
 
-## Ejecutar
+La instalación vacía carga seis casos sintéticos para comprobar login, Qwen, decisiones,
+historial y métricas. Para probar la carga original por lotes utiliza
+`public/plantilla_base_original.csv` desde **Bases de datos**.
+
+`backend/r2_simulator/servicio_r2.py` solo permite desarrollar y verificar el contrato mientras
+el equipo R2 prepara el modelo estadístico real. Para sustituirlo se configura `R2_BASE_URL`; no
+es necesario modificar React, PostgreSQL ni Qwen si se respeta el contrato documentado en
+[`docs/INTEGRACION_R2_DASHBOARD.md`](docs/INTEGRACION_R2_DASHBOARD.md).
+
+## Flujo operativo
+
+1. Un operador carga un CSV original con `id_registro,p309,p308,p308a`.
+2. El backend crea un trabajo reanudable y envía lotes al servicio R2.
+3. R2 devuelve candidatos CIIU Top-K y confianza.
+4. Los registros sobre τ se resuelven con R2; los difíciles pasan a Qwen manual o automático.
+5. Qwen solo puede seleccionar códigos suministrados por R2.
+6. Discrepancias, ambigüedades y fallos técnicos pasan a revisión humana.
+7. Cada versión conserva trazabilidad y puede exportarse como CSV.
+
+El umbral τ debe calibrarse con datos EPEN reales etiquetados. La confianza declarada por Qwen
+no se usa como umbral estadístico.
+
+## Desarrollo y verificación
+
+Con las dependencias ya instaladas:
 
 ```powershell
-cd "RUTA_DONDE_DESCARGASTE\sistema-codificacion-epen-spa"
 npm ci
-npm run dev
+npm test
+npm run build
 ```
 
-Abrir `http://127.0.0.1:5174`.
+El instalador escribe la configuración local. Para desarrollo manual se puede consultar
+`.env.example`, pero las credenciales reales nunca deben guardarse allí ni subirse al repositorio.
 
-Las cuentas de demostración usan la clave `demo2026`:
+## Seguridad local
 
-- `analista`
-- `supervisor`
-- `auditor`
-- `admin`
+- Autenticación PostgreSQL con contraseñas scrypt.
+- Sesiones con cookie `HttpOnly`, `SameSite=Strict`, CSRF y expiración.
+- Autorización por rol en el backend y auditoría de acciones.
+- Bloqueo después de intentos fallidos y revocación de sesiones.
+- Credencial interna `epen_app` cifrada con DPAPI para el usuario actual de Windows.
+- Servicios limitados a `127.0.0.1`; no se publican PostgreSQL, Ollama, R2 ni R3.
+- `.env`, `.runtime`, bases, registros, cargas y compilaciones están excluidos de Git.
 
-## Modos
+Antes de usar información real se requiere revisión institucional de infraestructura, TLS,
+gestión centralizada de secretos, respaldos, retención y permisos.
 
-Por defecto, la SPA puede funcionar con datos sintéticos. En el entorno real, el navegador nunca
-consulta Ollama ni el puerto 8000 directamente: envía la solicitud autenticada al backend del
-puerto 8080, y ese backend se comunica con R3. El lanzador seguro del backend configura
-`QWEN_MODE=real` y `R3_BASE_URL=http://127.0.0.1:8000`.
+## Autores
 
-Antes de iniciar el backend real, se debe levantar Ollama y ejecutar
-`r3_local\servicio.py`. La página **Estado técnico** comprueba R3 mediante un endpoint
-administrativo del backend, sin publicar el servicio interno al frontend.
+Roy Solier, Junior Palomino, Victor Moran y Nayeli Girón.
 
-El acceso demo no es autenticación de producción. La autenticación institucional y los permisos definitivos deben implementarse y validarse en el backend del dashboard antes de usar datos reales.
-
-## Acceso real con PostgreSQL
-
-El backend real se encuentra en `backend/`. Incluye el esquema de usuarios, sesiones, encuestas, casos, decisiones y auditoría. Consulta [`backend/README.md`](backend/README.md) para iniciar PostgreSQL, ejecutar las migraciones y crear el primer administrador.
-
-La SPA usa la API del backend cuando `VITE_AUTH_MODE=real` (lo escribe `instalar.ps1`); en ese
-modo no lee credenciales del navegador.
-
-## Actualizar la base
-
-El administrador puede entrar a **Bases de datos**, descargar la plantilla e importar una nueva versión. El CSV respeta el contrato R2 → R3 y requiere `id_registro`, `p309` y `candidatos`; esta última columna contiene un arreglo JSON de 1 a 5 códigos CIIU. Cada carga conserva su nombre y periodo y puede activarse sin borrar las anteriores.
-
-En producción la carga se realizará en el backend, con validación, transacción, copia de seguridad y auditoría. La importación del navegador existe para probar el flujo sin usar información real.
-
-## Integrar el motor estadístico R2
-
-El dashboard incluye un microservicio contractual simulado en `backend/r2_mock/servicio_r2.py` y
-una cola PostgreSQL reanudable. El rol `operador` puede cargar desde **Bases de datos** un CSV
-original con `id_registro,p309,p308,p308a`; el backend lo divide en lotes, consulta R2, aplica el
-umbral y activa la nueva versión al terminar. Por cada carga se puede elegir **Qwen automático**
-o **Qwen manual**. En automático, Qwen procesa en segundo plano solo los casos difíciles y el
-backend los resuelve únicamente cuando Qwen confirma el Top-1 de R2; las discrepancias y fallos
-pasan a revisión humana.
-
-Cada base conserva nombre, periodo y versión. El campo periodo es libre (`2027-T1`, `2027-01`,
-`ene-mar 2027`, etc.) para admitir entregas trimestrales, mensuales, trimestres móviles u otros
-cortes sin cambiar el sistema.
-
-El procesamiento masivo se inicia desde **Bases de datos**: el backend divide el archivo en lotes
-para R2 y, según la opción elegida, procesa automáticamente con Qwen los casos difíciles. La
-pantalla **Codificación** es una bandeja de excepciones para el trabajo humano, no un segundo
-procesador masivo. Cada versión puede descargarse con **Exportar CSV**; el archivo contiene todos
-los registros, su estado, código final, origen de la última decisión, confianza, candidatos,
-modelo y justificación. Los pendientes permanecen visibles con el código final vacío.
-
-Para mantener la pantalla operativa simple, el historial muestra cinco versiones por página con
-búsqueda y filtro de estado; los trabajos muestran inicialmente los tres más recientes. La
-importación de resultados generados fuera del dashboard y la simulación de umbral están dentro de
-**Herramientas avanzadas**, cerradas por defecto y disponibles solo para administradores.
-
-El simulador no mide desempeño ni sustituye el modelo de R2. Para conectar el servicio real,
-sigue [`docs/INTEGRACION_R2_DASHBOARD.md`](docs/INTEGRACION_R2_DASHBOARD.md) y configura
-`R2_BASE_URL`. No hace falta modificar React, PostgreSQL ni la capa Qwen si se respeta el contrato
-HTTP v1.0.
+Proyecto académico no oficial; no representa resultados publicados por el INEI.

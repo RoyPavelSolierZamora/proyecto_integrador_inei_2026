@@ -1,4 +1,0 @@
-id_registro,p309,candidatos,confianza_ml
-000001,"Crio pollos para venderlos.","[{""codigo"": ""0146"", ""prob"": 0.41}, {""codigo"": ""0150"", ""prob"": 0.33}, {""codigo"": ""0141"", ""prob"": 0.26}]",0.41
-000002,"Vendo ropa nueva en mi tienda.","[{""codigo"": ""4771"", ""prob"": 0.38}, {""codigo"": ""4772"", ""prob"": 0.34}, {""codigo"": ""4719"", ""prob"": 0.28}]",0.38
-000003,"Soy contador en una empresa, llevo los libros contables.","[{""codigo"": ""6920"", ""prob"": 0.55}, {""codigo"": ""6910"", ""prob"": 0.25}, {""codigo"": ""7010"", ""prob"": 0.20}]",0.55

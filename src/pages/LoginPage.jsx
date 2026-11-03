@@ -3,11 +3,11 @@ import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../state/AuthContext';
 
 export default function LoginPage() {
-  const { user, login, authMode, loading: sessionLoading } = useAuth();
+  const { user, login, loading: sessionLoading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [username, setUsername] = useState(authMode === 'real' ? '' : 'analista');
-  const [password, setPassword] = useState(authMode === 'real' ? '' : 'demo2026');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -32,12 +32,12 @@ export default function LoginPage() {
           <p>Acceso local para revisar candidatos CIIU, consultar Qwen3 y registrar decisiones trazables.</p>
         </div>
         <form onSubmit={submit} className="login-form">
-          <div className="demo-notice"><strong>{authMode === 'real' ? 'Acceso protegido' : 'Modo demostración'}</strong><span>{authMode === 'real' ? 'La identidad y los permisos se validan en el backend PostgreSQL.' : 'Utiliza datos sintéticos. No ingresar información real de la EPEN.'}</span></div>
+          <div className="access-notice"><strong>Acceso protegido</strong><span>La identidad y los permisos se validan en el backend PostgreSQL.</span></div>
           <label>Usuario<input autoComplete="username" value={username} onChange={event => setUsername(event.target.value)} /></label>
           <label>Clave<input type="password" autoComplete="current-password" value={password} onChange={event => setPassword(event.target.value)} /></label>
           {error && <p className="form-error" role="alert">{error}</p>}
           <button className="button button--primary button--block" type="submit" disabled={submitting || sessionLoading}>{submitting ? 'Validando…' : 'Ingresar'}</button>
-          <p className="login-help">{authMode === 'real' ? 'Usa la credencial asignada por el administrador.' : 'Usuarios: operador, analista, supervisor, auditor o admin. Clave: demo2026.'}</p>
+          <p className="login-help">Usa la credencial asignada por el administrador.</p>
         </form>
       </section>
     </main>

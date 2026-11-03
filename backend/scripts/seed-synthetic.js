@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { closePool, getPool, transaction } from '../src/db.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const seed = JSON.parse(await readFile(join(here, '..', 'seeds', 'epen-demo-2026.json'), 'utf8'));
+const seed = JSON.parse(await readFile(join(here, '..', 'seeds', 'epen-synthetic-2026.json'), 'utf8'));
 
 /**
  * Catalogo CIIU. La copia canonica viaja dentro del repositorio (r3_local); la
@@ -75,11 +75,11 @@ try {
     for (const item of seed.cases) {
       const inserted = await client.query(`
         INSERT INTO epen.survey_cases
-          (dataset_id, external_id, p309, p308, p308a, candidates, confianza_ml, status, final_code, demo_qwen)
-        VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9, $10::jsonb)
+          (dataset_id, external_id, p309, p308, p308a, candidates, confianza_ml, status, final_code)
+        VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9)
         ON CONFLICT (dataset_id, external_id) DO NOTHING
         RETURNING id
-      `, [datasetId, item.id_registro, item.p309, item.p308, item.p308a, JSON.stringify(item.candidatos), item.confianza_ml, item.estado, item.codigo_final || null, JSON.stringify(item.demo_qwen)]);
+      `, [datasetId, item.id_registro, item.p309, item.p308, item.p308a, JSON.stringify(item.candidatos), item.confianza_ml, item.estado, item.codigo_final || null]);
       if (!inserted.rowCount) continue;
       const caseId = inserted.rows[0].id;
       if (item.estado === 'review') {

@@ -20,8 +20,8 @@ export function getConfig() {
   };
   if (!databaseUrl && !database.password) throw new Error('Falta la credencial de PostgreSQL en memoria (PGPASSWORD).');
   const nodeEnv = process.env.NODE_ENV || 'development';
-  const qwenMode = process.env.QWEN_MODE || 'demo';
-  if (!['demo', 'real'].includes(qwenMode)) throw new Error('QWEN_MODE debe ser demo o real.');
+  const qwenMode = process.env.QWEN_MODE || 'real';
+  if (qwenMode !== 'real') throw new Error('QWEN_MODE debe ser real.');
   return {
     nodeEnv,
     production: nodeEnv === 'production',

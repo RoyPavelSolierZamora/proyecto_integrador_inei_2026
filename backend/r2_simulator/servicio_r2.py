@@ -6,7 +6,7 @@ import re
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 
-MODEL_VERSION = "r2-mock-contract-0.1"
+MODEL_VERSION = "r2-simulator-contract-0.1"
 
 RULES = [
     (("restaurante", "almuerzo", "comida", "menú"), [("5610", "ACTIVIDADES DE RESTAURANTES Y DE SERVICIO MÓVIL DE COMIDAS", .78), ("5621", "SUMINISTRO DE COMIDAS POR ENCARGO", .14), ("5630", "ACTIVIDADES DE SERVICIO DE BEBIDAS", .05)]),
@@ -63,7 +63,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path == "/salud":
-            return send_json(self, {"estado": "ok", "servicio": "r2-mock", "modelo": MODEL_VERSION, "simulado": True, "contrato_version": "1.0"})
+            return send_json(self, {"estado": "ok", "servicio": "r2-simulator", "modelo": MODEL_VERSION, "simulado": True, "contrato_version": "1.0"})
         return send_json(self, {"error": "Ruta no encontrada."}, 404)
 
     def do_POST(self):

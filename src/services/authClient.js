@@ -1,4 +1,3 @@
-export const authMode = import.meta.env.VITE_AUTH_MODE || 'demo';
 let csrfToken = null;
 
 class ApiError extends Error {

@@ -79,7 +79,6 @@ export function parseR2Csv(text) {
       estado: 'pendiente',
       codigo_final: null,
       qwen: null,
-      qwen_demo: null,
     });
   });
   return { rows: parsedRows, errors };

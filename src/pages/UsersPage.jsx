@@ -1,21 +1,20 @@
 import { useEffect, useState } from 'react';
-import { ROLE_LABELS } from '../data/demoData';
+import { ROLE_LABELS } from '../data/roleLabels';
 import { useAuth } from '../state/AuthContext';
 
 const EMPTY_FORM = { name: '', username: '', role: 'analista', password: '' };
 
 export default function UsersPage() {
-  const { user, users, authMode, refreshUsers, createUser, toggleUser, removeUser } = useAuth();
+  const { user, users, refreshUsers, createUser, toggleUser, removeUser } = useAuth();
   const [form, setForm] = useState(EMPTY_FORM);
   const [message, setMessage] = useState(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (authMode !== 'real') return;
     refreshUsers().then(result => {
       if (!result.ok) setMessage({ type: 'error', text: result.error });
     });
-  }, [authMode]);
+  }, []);
 
   function change(event) {
     setForm(current => ({ ...current, [event.target.name]: event.target.value }));
@@ -48,7 +47,7 @@ export default function UsersPage() {
   return (
     <div className="page">
       <div className="page-heading"><div><p className="eyebrow">Control de acceso</p><h1>Usuarios y credenciales</h1><p>Crea, desactiva o retira accesos y asigna el rol mínimo necesario.</p></div></div>
-      <div className={`notice notice--${authMode === 'real' ? 'success' : 'warning'}`}><strong>{authMode === 'real' ? 'Persistencia PostgreSQL' : 'Entorno demostrativo'}</strong><span>{authMode === 'real' ? 'Las contraseñas se almacenan como hash scrypt y los permisos se validan en el servidor.' : 'Estas claves se guardan únicamente en este navegador. Activa VITE_AUTH_MODE=real para usar PostgreSQL.'}</span></div>
+      <div className="notice notice--success"><strong>Persistencia PostgreSQL</strong><span>Las contraseñas se almacenan como hash scrypt y los permisos se validan en el servidor.</span></div>
       {message && <div className={`notice notice--${message.type}`} role="status">{message.text}</div>}
       <div className="admin-grid">
         <section className="panel">
@@ -57,12 +56,12 @@ export default function UsersPage() {
             <label>Nombre completo<input name="name" value={form.name} onChange={change} autoComplete="off" required /></label>
             <label>Nombre de usuario<input name="username" value={form.username} onChange={change} autoComplete="off" placeholder="ej. mquispe" required /></label>
             <label>Rol<select name="role" value={form.role} onChange={change}>{Object.entries(ROLE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-            <label>Clave temporal<input name="password" type="password" value={form.password} onChange={change} autoComplete="new-password" minLength={authMode === 'real' ? 12 : 8} required /></label>
+            <label>Clave temporal<input name="password" type="password" value={form.password} onChange={change} autoComplete="new-password" minLength="12" required /></label>
             <button className="button button--primary" type="submit" disabled={busy}>{busy ? 'Procesando…' : 'Crear credencial'}</button>
           </form>
         </section>
         <section className="panel panel--user-list">
-          <div className="panel-heading"><div><p className="eyebrow">{authMode === 'real' ? 'Directorio PostgreSQL' : 'Directorio local'}</p><h2>{users.length} credenciales</h2></div></div>
+          <div className="panel-heading"><div><p className="eyebrow">Directorio PostgreSQL</p><h2>{users.length} credenciales</h2></div></div>
           <div className="user-list">
             {users.map(item => (
               <article className="user-card" key={item.username}>

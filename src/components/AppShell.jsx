@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
-import { ROLE_LABELS } from '../data/demoData';
-import { runtimeConfig } from '../services/r3Client';
+import { ROLE_LABELS } from '../data/roleLabels';
 import { useAuth } from '../state/AuthContext';
 import { useData } from '../state/DataContext';
 
@@ -30,7 +29,7 @@ export default function AppShell() {
         <div className="topbar-user"><span><strong>{user.name}</strong><small>{ROLE_LABELS[user.role]}</small></span><button type="button" className="button button--quiet" onClick={logout}>Salir</button></div>
       </header>
       <aside className={`sidebar ${open ? 'sidebar--open' : ''}`} aria-label="Navegación principal">
-        <div className="mode-label">Modo {runtimeConfig.dataMode === 'demo' ? 'demostración' : 'real'}</div>
+        <div className="mode-label">Modo real · PostgreSQL</div>
         <nav>
           {items.map(item => <NavLink key={item.to} to={item.to} end={item.end} onClick={() => setOpen(false)} className={({ isActive }) => isActive ? 'nav-link nav-link--active' : 'nav-link'}>{item.label}</NavLink>)}
         </nav>

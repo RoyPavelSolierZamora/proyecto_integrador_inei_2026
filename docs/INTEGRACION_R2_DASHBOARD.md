@@ -169,7 +169,7 @@ Después inicia el backend del dashboard. Para usar otra dirección:
 $env:R2_BASE_URL='http://127.0.0.1:8100'
 ```
 
-El repositorio incluye `backend/r2_mock/servicio_r2.py`. Es únicamente un simulador léxico del
+El repositorio incluye `backend/r2_simulator/servicio_r2.py`. Es únicamente un simulador léxico del
 contrato. Reemplázalo con tu servicio sin modificar el dashboard.
 
 ## Flujo que verá el operador
@@ -188,7 +188,7 @@ contrato. Reemplázalo con tu servicio sin modificar el dashboard.
     una solicitud explícita de revisión o un fallo técnico se deriva a revisión humana.
 
 El modo automático requiere que el backend esté iniciado con `QWEN_MODE=real`. No se utiliza la
-respuesta demostrativa para cerrar trabajos automáticos. Debido al equipo CPU, el procesamiento
+respuesta sintética para cerrar trabajos automáticos. Debido al equipo CPU, el procesamiento
 es secuencial y un trabajo grande puede continuar en segundo plano; la pantalla muestra el avance
 y el lanzador reanuda los trabajos interrumpidos.
 
@@ -215,7 +215,7 @@ y el lanzador reanuda los trabajos interrumpidos.
 
 ## Criterio de aceptación de la conexión
 
-La integración queda aceptada cuando el servicio real sustituya al mock y el dashboard procese
+La integración queda aceptada cuando el servicio real sustituya al simulador y el dashboard procese
 una base sintética completa sin cambios de frontend, mostrando conteos automáticos, pendientes
 para Qwen, derivados manuales y la versión real del modelo.
 

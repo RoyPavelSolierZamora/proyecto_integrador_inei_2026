@@ -23,7 +23,7 @@ test('rechaza modos Qwen desconocidos', () => {
   process.env.PGPASSWORD = 'solo-para-prueba';
   process.env.QWEN_MODE = 'inseguro';
   try {
-    assert.throws(() => getConfig(), /QWEN_MODE debe ser demo o real/);
+    assert.throws(() => getConfig(), /QWEN_MODE debe ser real/);
   } finally {
     if (previousPassword === undefined) delete process.env.PGPASSWORD;
     else process.env.PGPASSWORD = previousPassword;

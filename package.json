@@ -8,10 +8,10 @@
   },
   "scripts": {
     "dev": "vite --host 127.0.0.1",
-    "demo": "vite --host 127.0.0.1 --open",
     "backend": "node backend/src/server.js",
     "db:migrate": "node backend/scripts/migrate.js",
     "db:create-admin": "node backend/scripts/create-admin.js",
+    "db:seed-synthetic": "node backend/scripts/seed-synthetic.js --si-vacio",
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1",
     "test": "node --test"

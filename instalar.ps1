@@ -7,7 +7,7 @@
 
       1. Comprueba (y si falta instala con winget) Node.js, Python, PostgreSQL y Ollama.
       2. Crea el usuario epen_app y la base epen_codificacion.
-      3. Escribe un .env local (ignorado por git) con toda la configuracion.
+      3. Escribe un .env sin secretos y cifra la clave interna para el usuario de Windows.
       4. Aplica las migraciones, instala los 6 casos sinteticos y el catalogo CIIU.
       5. Crea la cuenta administradora.
       6. Descarga el modelo de Qwen si no esta presente.
@@ -39,6 +39,8 @@ param(
 $ErrorActionPreference = 'Stop'
 $projectRoot = $PSScriptRoot
 $envPath = Join-Path $projectRoot '.env'
+$runtimeRoot = Join-Path $projectRoot '.runtime'
+$credentialPath = Join-Path $runtimeRoot 'postgres.credential'
 
 # --------------------------------------------------------------------------- utilidades
 
@@ -71,6 +73,23 @@ function ConvertFrom-SecureValue([Security.SecureString]$Value) {
     $pointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($Value)
     try { return [Runtime.InteropServices.Marshal]::PtrToStringBSTR($pointer) }
     finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($pointer) }
+}
+
+function Save-AppCredential([string]$PlainText) {
+    New-Item -ItemType Directory -Path $runtimeRoot -Force | Out-Null
+    $secure = ConvertTo-SecureString $PlainText -AsPlainText -Force
+    $protected = ConvertFrom-SecureString $secure
+    $utf8 = New-Object System.Text.UTF8Encoding($false)
+    [IO.File]::WriteAllText($credentialPath, ($protected + "`r`n"), $utf8)
+}
+
+function Read-AppCredential {
+    if (-not (Test-Path -LiteralPath $credentialPath)) { return $null }
+    try {
+        $secure = ConvertTo-SecureString (Get-Content -LiteralPath $credentialPath -Raw).Trim()
+        return ConvertFrom-SecureValue $secure
+    }
+    catch { return $null }
 }
 
 function Test-Port([int]$Port) {
@@ -141,8 +160,8 @@ function Install-Package([string]$Id, [string]$Override) {
 function Write-DotEnv([hashtable]$Values) {
     $lines = @(
         '# Archivo generado por instalar.ps1.',
-        '# Contiene la contrasena local de PostgreSQL y esta excluido por .gitignore.',
-        '# No lo compartas ni lo subas a GitHub.'
+        '# No contiene contrasenas. La credencial de epen_app se protege con DPAPI en .runtime/.',
+        '# Es configuracion local y esta excluida de Git.'
     )
     foreach ($key in ($Values.Keys | Sort-Object)) { $lines += ($key + '=' + $Values[$key]) }
     $utf8 = New-Object System.Text.UTF8Encoding($false)
@@ -166,6 +185,9 @@ if (-not $isAdmin) {
 
 Push-Location $projectRoot
 $adminPassword = $null
+$adminCreated = $false
+$generated = $false
+$verifyProcesses = @()
 try {
     # ------------------------------------------------------------------ 1. programas
     Write-Paso '1/7 Comprobando Node.js, Python, PostgreSQL y Ollama'
@@ -260,7 +282,7 @@ try {
 
     $env:PGPASSWORD = $superPassword
     try {
-        $probe = & $psql -h 127.0.0.1 -p 5432 -U postgres -d postgres -tAc 'SELECT 1' 2>&1
+        $probe = & $psql -h 127.0.0.1 -p 5432 -U postgres -d postgres -tAc 'SELECT 1' 2>$null
         if ($LASTEXITCODE -ne 0 -or ($probe | Out-String).Trim() -ne '1') {
             throw 'No se pudo conectar como postgres. Verifica la contrasena y que el servicio este iniciado.'
         }
@@ -271,6 +293,7 @@ try {
             $existing = Get-Content -LiteralPath $envPath -Raw
             if ($existing -match 'DATABASE_URL=postgresql://epen_app:([^@\r\n]+)@') { $appPassword = $Matches[1] }
         }
+        if (-not $appPassword -and -not $Reconfigurar) { $appPassword = Read-AppCredential }
         if (-not $appPassword) { $appPassword = New-RandomPassword 20 }
 
         $roleTemplate = @'
@@ -302,24 +325,32 @@ $do$;
 
     # ------------------------------------------------------------------ 3. .env
     Write-Paso '3/7 Escribiendo la configuracion local (.env)'
+    Save-AppCredential $appPassword
     Write-DotEnv @{
-        DATABASE_URL      = ('postgresql://epen_app:' + $appPassword + '@127.0.0.1:5432/epen_codificacion')
+        PGHOST            = '127.0.0.1'
+        PGPORT            = '5432'
+        PGDATABASE        = 'epen_codificacion'
+        PGUSER            = 'epen_app'
         BACKEND_PORT      = '8080'
         APP_ORIGIN        = 'http://127.0.0.1:5174'
         SESSION_HOURS     = '8'
         DB_SSL            = 'disable'
         QWEN_MODE         = 'real'
+        QWEN_MODEL        = $Modelo
         R3_BASE_URL       = 'http://127.0.0.1:8000'
         R2_BASE_URL       = 'http://127.0.0.1:8100'
         R2_BATCH_SIZE     = '100'
         R2_TIMEOUT_SECONDS = '120'
-        VITE_AUTH_MODE    = 'real'
-        VITE_DATA_MODE    = 'real'
     }
     Write-Ok ('Configuracion guardada en ' + $envPath)
 
     # ------------------------------------------------------------------ 4. dependencias
     Write-Paso '4/7 Instalando dependencias de Node'
+    $dashboardPorts = @(5174, 8080) | Where-Object { Test-Port $_ }
+    if ($dashboardPorts.Count -gt 0) {
+        throw ('El dashboard esta en ejecucion (puertos ' + ($dashboardPorts -join ', ') +
+            '). Ejecuta detener-dashboard.bat, cierra cualquier ventana anterior y repite la instalacion.')
+    }
     $npm = Get-Command 'npm.cmd' -ErrorAction SilentlyContinue
     if (-not $npm) {
         Update-SessionPath
@@ -335,45 +366,52 @@ $do$;
 
     # ------------------------------------------------------------------ 5. base de datos
     Write-Paso '5/7 Aplicando migraciones y datos iniciales'
+    $env:PGPASSWORD = $appPassword
     & $node.Source 'backend/scripts/migrate.js'
     if ($LASTEXITCODE -ne 0) { throw 'No se pudieron aplicar las migraciones.' }
-    & $node.Source 'backend/scripts/seed-demo.js' '--si-vacio'
+    & $node.Source 'backend/scripts/seed-synthetic.js' '--si-vacio'
     if ($LASTEXITCODE -ne 0) { throw 'No se pudieron instalar los datos sinteticos.' }
     Write-Ok 'Esquema y catalogo CIIU listos; semilla sintetica instalada si la base estaba vacia'
 
     # ------------------------------------------------------------------ 6. administrador
-    Write-Paso '6/7 Creando la cuenta administradora'
-    $adminUser = Read-Host '   Usuario (Enter para "admin")'
-    if (-not $adminUser) { $adminUser = 'admin' }
-    $adminName = Read-Host '   Nombre completo (Enter para "Administrador EPEN")'
-    if (-not $adminName) { $adminName = 'Administrador EPEN' }
+    Write-Paso '6/7 Comprobando la cuenta administradora'
+    $adminResult = & $psql -h 127.0.0.1 -p 5432 -U epen_app -d epen_codificacion -tAc `
+        "SELECT username FROM epen.users WHERE role = 'admin' AND active = true AND deleted_at IS NULL ORDER BY id LIMIT 1" 2>$null
+    if ($LASTEXITCODE -ne 0) { throw 'No se pudo comprobar si ya existe una cuenta administradora.' }
+    $adminUser = ($adminResult | Out-String).Trim()
 
-    $adminPassword = ConvertFrom-SecureValue (Read-Host '   Contrasena (Enter para generar una automatica)' -AsSecureString)
-    $generated = $false
-    if (-not $adminPassword) {
-        $adminPassword = New-RandomPassword 14
-        $generated = $true
+    if ($adminUser) {
+        Write-Ok ('Administrador existente: ' + $adminUser + ' (no se modifico su contrasena)')
     }
-    elseif ($adminPassword.Length -lt 12) {
-        Write-Aviso 'La contrasena debe tener al menos 12 caracteres. Se generara una automatica.'
-        $adminPassword = New-RandomPassword 14
-        $generated = $true
-    }
+    else {
+        $adminUser = Read-Host '   Usuario (Enter para "admin")'
+        if (-not $adminUser) { $adminUser = 'admin' }
+        $adminName = Read-Host '   Nombre completo (Enter para "Administrador EPEN")'
+        if (-not $adminName) { $adminName = 'Administrador EPEN' }
 
-    $env:ADMIN_USERNAME = $adminUser
-    $env:ADMIN_FULL_NAME = $adminName
-    $env:ADMIN_PASSWORD = $adminPassword
-    try {
-        & $node.Source 'backend/scripts/create-admin.js'
-        if ($LASTEXITCODE -ne 0) {
-            Write-Aviso ('El usuario "' + $adminUser + '" ya existia; no se cambio su contrasena.')
+        $adminPassword = ConvertFrom-SecureValue (Read-Host '   Contrasena (Enter para generar una automatica)' -AsSecureString)
+        if (-not $adminPassword) {
+            $adminPassword = New-RandomPassword 14
+            $generated = $true
         }
-        else {
+        elseif ($adminPassword.Length -lt 12) {
+            Write-Aviso 'La contrasena debe tener al menos 12 caracteres. Se generara una automatica.'
+            $adminPassword = New-RandomPassword 14
+            $generated = $true
+        }
+
+        $env:ADMIN_USERNAME = $adminUser
+        $env:ADMIN_FULL_NAME = $adminName
+        $env:ADMIN_PASSWORD = $adminPassword
+        try {
+            & $node.Source 'backend/scripts/create-admin.js'
+            if ($LASTEXITCODE -ne 0) { throw 'No se pudo crear la cuenta administradora. Revisa el mensaje anterior.' }
+            $adminCreated = $true
             Write-Ok ('Administrador creado: ' + $adminUser)
         }
-    }
-    finally {
-        Remove-Item Env:ADMIN_USERNAME, Env:ADMIN_FULL_NAME, Env:ADMIN_PASSWORD -ErrorAction SilentlyContinue
+        finally {
+            Remove-Item Env:ADMIN_USERNAME, Env:ADMIN_FULL_NAME, Env:ADMIN_PASSWORD -ErrorAction SilentlyContinue
+        }
     }
 
     # ------------------------------------------------------------------ 7. Qwen
@@ -400,20 +438,28 @@ $do$;
 
     # ------------------------------------------------------------------ verificacion
     Write-Paso 'Comprobando los servicios internos'
+    $env:QWEN_MODEL = $Modelo
 
     $r3Root = Join-Path $projectRoot 'r3_local'
     if (-not (Get-HttpJson 'http://127.0.0.1:8000/salud')) {
         if (-not (Test-Path -LiteralPath (Join-Path $r3Root 'servicio.py'))) { throw 'Falta r3_local/servicio.py en el repositorio.' }
-        Start-Process -FilePath $python -ArgumentList @('servicio.py', '--puerto', '8000') -WorkingDirectory $r3Root -WindowStyle Hidden
+        $verifyProcesses += Start-Process -FilePath $python -ArgumentList @('servicio.py', '--puerto', '8000') -WorkingDirectory $r3Root -WindowStyle Hidden -PassThru
         if (-not (Wait-Http 'http://127.0.0.1:8000/salud' 40)) { throw 'La API R3 no respondio en http://127.0.0.1:8000.' }
     }
     $r3Health = Get-HttpJson 'http://127.0.0.1:8000/salud'
+    if ($r3Health.catalogo_clases -ne 417 -or $r3Health.modelo -ne $Modelo) {
+        throw ('El puerto 8000 no corresponde al R3 esperado o usa otro modelo. Deten el servicio anterior y repite. Modelo detectado: ' + $r3Health.modelo)
+    }
     Write-Ok ('R3 operativo: ' + $r3Health.catalogo_clases + ' clases CIIU, modelo ' + $r3Health.modelo)
 
-    $r2Root = Join-Path $projectRoot 'backend\r2_mock'
+    $r2Root = Join-Path $projectRoot 'backend\r2_simulator'
     if (-not (Get-HttpJson 'http://127.0.0.1:8100/salud')) {
-        Start-Process -FilePath $python -ArgumentList @('servicio_r2.py') -WorkingDirectory $r2Root -WindowStyle Hidden
+        $verifyProcesses += Start-Process -FilePath $python -ArgumentList @('servicio_r2.py') -WorkingDirectory $r2Root -WindowStyle Hidden -PassThru
         if (-not (Wait-Http 'http://127.0.0.1:8100/salud' 20)) { throw 'El simulador R2 no respondio en http://127.0.0.1:8100.' }
+    }
+    $r2Health = Get-HttpJson 'http://127.0.0.1:8100/salud'
+    if ($r2Health.servicio -ne 'r2-simulator' -or $r2Health.contrato_version -ne '1.0') {
+        throw 'El puerto 8100 esta ocupado por un servicio que no es el simulador contractual R2 esperado.'
     }
     Write-Ok 'Simulador contractual R2 operativo'
 
@@ -422,7 +468,10 @@ $do$;
     Write-Host '  INSTALACION COMPLETA' -ForegroundColor Green
     Write-Host ''
     Write-Host ('  Usuario administrador : ' + $adminUser) -ForegroundColor White
-    if ($generated) {
+    if (-not $adminCreated) {
+        Write-Host '  Contrasena            : se conserva la que ya tenia' -ForegroundColor White
+    }
+    elseif ($generated) {
         Write-Host ('  Contrasena            : ' + $adminPassword) -ForegroundColor Yellow
         Write-Host '  Anotala ahora: no se vuelve a mostrar.' -ForegroundColor Yellow
     }
@@ -437,6 +486,11 @@ $do$;
     Write-Host ''
 }
 finally {
+    foreach ($process in $verifyProcesses) {
+        if ($process -and -not $process.HasExited) { Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue }
+    }
+    Remove-Item Env:QWEN_MODEL -ErrorAction SilentlyContinue
+    Remove-Item Env:PGPASSWORD -ErrorAction SilentlyContinue
     Pop-Location
     $adminPassword = $null
 }

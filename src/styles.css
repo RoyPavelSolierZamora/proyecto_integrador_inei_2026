@@ -58,7 +58,7 @@ h2 { margin-bottom: 6px; font-size: 1.08rem; color: var(--navy-strong); }
 .login-form label, .filter-bar label, .catalog-search { display: grid; gap: 7px; color: #354959; font-size: .86rem; font-weight: 700; }
 input, select { width: 100%; min-height: 44px; padding: 10px 12px; color: #172433; background: #fff; border: 1px solid #b9c8cf; border-radius: 8px; }
 .login-form label + label { margin-top: 18px; }
-.demo-notice { display: grid; gap: 4px; margin-bottom: 26px; padding: 13px 15px; color: #60420b; background: var(--warning-soft); border-radius: 9px; font-size: .84rem; }
+.access-notice { display: grid; gap: 4px; margin-bottom: 26px; padding: 13px 15px; color: #60420b; background: var(--warning-soft); border-radius: 9px; font-size: .84rem; }
 .form-error { margin: 12px 0; color: var(--danger); font-size: .88rem; }
 .login-form .button { margin-top: 22px; }
 .login-help { margin: 16px 0 0; color: var(--muted); font-size: .78rem; line-height: 1.5; text-align: center; }

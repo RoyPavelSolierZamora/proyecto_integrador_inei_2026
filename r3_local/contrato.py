@@ -13,7 +13,7 @@ Ninguna de las dos debe cambiar sin subir de version (CONTRATO_VERSION).
 
 Uso:
     python contrato.py --dump      # escribe contrato_v1.json (JSON Schema de ambos)
-    python contrato.py --demo      # ejemplo de entrada -> salida validada
+    python contrato.py --ejemplo   # ejemplo de entrada -> salida validada
 """
 import argparse
 import json
@@ -247,7 +247,7 @@ def dump_esquemas(destino=None):
 
 
 # --------------------------------------------------------------------------
-# Demo / CLI
+# Ejemplo / CLI
 # --------------------------------------------------------------------------
 ENTRADA_EJEMPLO = {
     "id_registro": "000123",
@@ -264,20 +264,20 @@ ENTRADA_EJEMPLO = {
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--dump", action="store_true", help="escribir contrato_v1.json")
-    ap.add_argument("--demo", action="store_true", help="mostrar ejemplo validado")
+    ap.add_argument("--ejemplo", action="store_true", help="mostrar ejemplo validado")
     args = ap.parse_args()
 
     if args.dump:
         print("Escrito:", dump_esquemas())
 
-    if args.demo or not args.dump:
+    if args.ejemplo or not args.dump:
         from clasificador import cargar_catalogo
         cat = cargar_catalogo()
         ent, errs = normalizar_entrada(ENTRADA_EJEMPLO, cat)
         print("ENTRADA normalizada:", json.dumps(ent, ensure_ascii=False, indent=2) if ent else errs)
         sal = construir_salida("000123", {"decision": "seleccionar", "codigo": "0146",
                                           "confianza": 0.95, "justificacion": "cria de aves"},
-                               "qwen3:4b", 12.3, "demo_run")
+                               "qwen3:4b", 12.3, "ejemplo_run")
         print("\nSALIDA:", json.dumps(sal, ensure_ascii=False, indent=2))
         print("\nerrores de validacion:", validar_salida(sal) or "ninguno")
 
