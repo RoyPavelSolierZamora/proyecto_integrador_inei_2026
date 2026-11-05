@@ -37,6 +37,7 @@ export default defineConfig({
       '/api/admin': { target: 'http://127.0.0.1:8080', changeOrigin: false },
       '/api/health': { target: 'http://127.0.0.1:8080', changeOrigin: false },
       '/api/system': { target: 'http://127.0.0.1:8080', changeOrigin: false },
+      '/api/datasets': { target: 'http://127.0.0.1:8080', changeOrigin: false },
       '/api/data': { target: 'http://127.0.0.1:8080', changeOrigin: false },
       '/api/cases': { target: 'http://127.0.0.1:8080', changeOrigin: false },
       '/api/catalog': { target: 'http://127.0.0.1:8080', changeOrigin: false },

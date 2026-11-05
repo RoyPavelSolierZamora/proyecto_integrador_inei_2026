@@ -1,10 +1,13 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { parseR2Csv, parseRawEpenCsv } from '../services/csvImport';
 import { exportDatasetReal, listR2JobsReal, startR2JobReal } from '../services/dataClient';
 import { useAuth } from '../state/AuthContext';
 import { useData } from '../state/DataContext';
 
-const formatDate = value => new Intl.DateTimeFormat('es-PE', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
+import EpenIcon from '../components/epen/EpenIcon';
+import ProcessFlowCard from '../components/epen/ProcessFlowCard';
+import DatasetCsvUpload from '../components/epen/DatasetCsvUpload';
+import DatasetHistoryTable from '../components/epen/DatasetHistoryTable';
 const DATASETS_PER_PAGE = 5;
 
 export default function DatasetsPage() {
@@ -33,6 +36,8 @@ export default function DatasetsPage() {
   const [datasetQuery, setDatasetQuery] = useState('');
   const [datasetStatus, setDatasetStatus] = useState('todos');
   const [datasetPage, setDatasetPage] = useState(1);
+  const rawInput = useRef(null);
+  const rawSubmitBusy = useRef(false);
   const admin = user.role === 'admin';
 
   async function refreshJobs() {
@@ -56,8 +61,10 @@ export default function DatasetsPage() {
     return () => { active = false; clearInterval(timer); };
   }, [real, activeDataset?.id]);
 
-  async function selectRawFile(event) {
-    const selected = event.target.files?.[0] || null;
+  async function selectRawFile(files) {
+    if (saving || reading) return;
+    if (files.length > 1) return setMessage({ type: 'error', text: 'Selecciona un solo CSV original por trabajo.' });
+    const selected = files?.[0] || null;
     setRawFile(selected); setRawText(''); setRawPreview(null); setMessage(null);
     if (!selected) return;
     if (selected.size > 25 * 1024 * 1024) return setMessage({ type: 'error', text: 'El archivo original no debe superar 25 MB por trabajo.' });
@@ -74,11 +81,13 @@ export default function DatasetsPage() {
 
   async function submitRaw(event) {
     event.preventDefault();
+    if (rawSubmitBusy.current || saving || reading) return;
     const form = event.currentTarget;
     const value = Number(threshold);
     if (!rawName.trim() || !rawPeriod.trim()) return setMessage({ type: 'error', text: 'Completa el nombre y el periodo de la base original.' });
     if (!rawFile || !rawPreview?.rows.length || rawPreview.errors.length) return setMessage({ type: 'error', text: 'Selecciona un CSV original válido.' });
     if (!Number.isFinite(value) || value < 0 || value > 1) return setMessage({ type: 'error', text: 'El umbral debe estar entre 0 y 1.' });
+    rawSubmitBusy.current = true;
     setSaving(true);
     try {
       const result = await startR2JobReal({ name: rawName.trim(), period: rawPeriod.trim(), fileName: rawFile.name, threshold: value, synthetic: rawSynthetic, qwenMode, csvText: rawText });
@@ -86,7 +95,7 @@ export default function DatasetsPage() {
       setRawName(''); setRawPeriod(''); setRawFile(null); setRawText(''); setRawPreview(null); setRawSynthetic(true); setQwenMode('automatic');
       form.reset(); await refreshJobs();
     } catch (cause) { setMessage({ type: 'error', text: cause.message || 'No se pudo iniciar el procesamiento R2.' }); }
-    finally { setSaving(false); }
+    finally { rawSubmitBusy.current = false; setSaving(false); }
   }
 
   async function selectFile(event) {
@@ -154,29 +163,31 @@ export default function DatasetsPage() {
   }
 
   return (
-    <div className="page">
-      <div className="page-heading"><div><p className="eyebrow">Administración de datos</p><h1>Bases y periodos</h1><p>Cada encuesta se registra como una versión independiente; la base anterior se conserva para trazabilidad.</p></div></div>
-      <div className="notice"><strong>Ruta recomendada</strong><span>Carga la base original en el primer bloque. El sistema ejecutará R2 y derivará automáticamente los casos difíciles. Las herramientas excepcionales están agrupadas al final.</span></div>
-      {message && <div className={`notice notice--${message.type}`} role="status">{message.text}</div>}
-      {real && <section className="panel r2-upload-panel">
-        <div className="panel-heading"><div><p className="eyebrow">Flujo para operadores</p><h2>Cargar base original y ejecutar R2</h2><p>El backend enviará la base al microservicio R2 por lotes. Los casos sobre el umbral se resolverán automáticamente y los demás quedarán listos para Qwen.</p></div><a className="text-link" href={`${import.meta.env.BASE_URL}plantilla_base_original.csv`} download>Descargar plantilla original</a></div>
+    <div className="page epen-datasets">
+      <div className="page-heading epen-datasets-heading"><span className="epen-heading-icon"><EpenIcon name="database"/></span><div><h1>Bases de datos</h1><p>Gestiona las bases EPEN, ejecuta el procesamiento R2 y consulta las versiones registradas.</p><small>Las versiones anteriores se conservan para trazabilidad.</small></div></div>
+      <div className="notice epen-route-note"><strong>Ruta recomendada</strong><span>Carga la base original en el primer bloque. El sistema ejecutará R2 y derivará automáticamente los casos difíciles. Las herramientas excepcionales están agrupadas al final.</span></div>
+      {message && <div className={`notice notice--${message.type}`} role={message.type === 'error' ? 'alert' : 'status'}>{message.text}</div>}
+      {real && <div className="epen-datasets-upload-grid"><section className="panel r2-upload-panel">
+        <div className="panel-heading"><div><div className="epen-card-title"><EpenIcon name="cloud-arrow-up"/><div><h2>Cargar base para codificación</h2><p>Selecciona el CSV original y configura el procesamiento.</p></div></div></div><a className="text-link" href={`${import.meta.env.BASE_URL}plantilla_base_original.csv`} download>Descargar plantilla original</a></div>
         <form className="r2-upload-form" onSubmit={submitRaw}>
           <label>Nombre de la encuesta<input value={rawName} onChange={event => setRawName(event.target.value)} placeholder="Ej. EPEN Lima y Callao" required /></label>
           <label>Periodo<input value={rawPeriod} onChange={event => setRawPeriod(event.target.value)} placeholder="Ej. 2027-T2" required /></label>
           <label>Umbral R2<input type="number" min="0" max="1" step="0.01" value={threshold} onChange={event => setThreshold(event.target.value)} required /></label>
           <label>Casos difíciles<select value={qwenMode} onChange={event => setQwenMode(event.target.value)}><option value="automatic">Qwen automático</option><option value="manual">Qwen manual</option></select></label>
-          <label className="file-field">CSV original<input type="file" accept=".csv,text/csv" onChange={selectRawFile} required /></label>
+          <DatasetCsvUpload file={rawFile} inputRef={rawInput} disabled={saving || reading} reading={reading} onSelect={selectRawFile} onRemove={() => { setRawFile(null); setRawText(''); setRawPreview(null); setMessage(null); rawInput.current.value = ''; }}/>
           <label className="checkbox-field"><input type="checkbox" checked={rawSynthetic} onChange={event => setRawSynthetic(event.target.checked)} /><span>Datos sintéticos de prueba</span></label>
           {rawPreview && <div className={`import-summary ${rawPreview.errors.length ? 'import-summary--error' : ''}`}><strong>{rawPreview.rows.length} registros detectados</strong><span>{rawPreview.errors.length ? `${rawPreview.errors.length} filas requieren corrección` : 'Lista para enviar al microservicio R2'}</span></div>}
-          <button className="button button--primary" type="submit" disabled={saving || reading || !rawPreview || rawPreview.errors.length > 0}>{saving ? 'Creando trabajo…' : 'Procesar base con R2'}</button>
+          <button className="button button--primary" type="submit" disabled={saving || reading || !rawPreview || rawPreview.errors.length > 0}><EpenIcon name="file-earmark-code"/>{saving ? 'Creando trabajo…' : 'Procesar base con R2'}</button>
+          {rawPreview?.errors.length > 0 && <ul className="validation-list">{rawPreview.errors.slice(0, 5).map((error,index)=><li key={index}>{error}</li>)}</ul>}
         </form>
-      </section>}
+        <p className="epen-upload-note">El backend envía el CSV a R2 por lotes. Crear el trabajo inicia el procesamiento; su finalización se consulta en el seguimiento inferior.</p>
+      </section><ProcessFlowCard/></div>}
       {real && <section className="panel jobs-panel">
         <div className="panel-heading"><div><p className="eyebrow">Procesamiento asíncrono</p><h2>Trabajos R2 recientes</h2></div></div>
         <div className="job-list">{visibleJobs.map(job => {
           const percentage = job.total ? Math.round(job.processed / job.total * 100) : 0;
           const label = { queued: 'En cola', running: 'Procesando R2', qwen_running: 'Procesando Qwen', completed: 'Completado', failed: 'Falló', cancelled: 'Cancelado' }[job.status] || job.status;
-          return <article className="job-card" key={job.id}><div><strong>#{job.id} · {job.datasetName}</strong><span>{job.period} · {job.modelVersion || 'Esperando R2'} · Qwen {job.qwenMode === 'automatic' ? 'automático' : 'manual'}</span></div><span className={`access-state ${job.status === 'completed' ? 'access-state--active' : ''}`}>{label}</span><div className="job-progress"><div><span style={{ width: `${percentage}%` }} /></div><small>{job.processed}/{job.total} R2 · {percentage}% · {job.automatic} automáticos · {job.qwenPending} derivados a Qwen · {job.manual} directos a manual{job.qwenMode === 'automatic' ? ` · Qwen ${job.qwenProcessed}/${job.qwenPending}: ${job.qwenResolved} resueltos, ${job.qwenReview} a revisión` : ''}</small></div>{job.error && <p className="job-error">{job.error}</p>}</article>;
+          return <article className="job-card" key={job.id} data-status={job.status}><div><strong>#{job.id} · {job.datasetName}</strong><span>{job.period} · {job.modelVersion || 'Esperando R2'} · Qwen {job.qwenMode === 'automatic' ? 'automático' : 'manual'}</span></div><span className={`access-state ${job.status === 'completed' ? 'access-state--active' : ''}`}>{label}</span><div className="job-progress"><div role="progressbar" aria-label={`Progreso R2 del trabajo ${job.id}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={percentage}><span style={{ width: `${percentage}%` }} /></div><small>{job.processed}/{job.total} R2 · {percentage}% · {job.automatic} automáticos · {job.qwenPending} derivados a Qwen · {job.manual} directos a manual{job.qwenMode === 'automatic' ? ` · Qwen ${job.qwenProcessed}/${job.qwenPending}: ${job.qwenResolved} resueltos, ${job.qwenReview} a revisión` : ''}</small></div>{job.error && <p className="job-error">{job.error}</p>}</article>;
         })}{!jobs.length && <p className="empty-state empty-state--compact">Todavía no se iniciaron trabajos R2.</p>}</div>
         {jobs.length > 3 && <button className="button button--quiet jobs-toggle" type="button" onClick={() => setShowAllJobs(value => !value)}>{showAllJobs ? 'Mostrar solo los 3 más recientes' : `Ver los ${jobs.length} trabajos`}</button>}
       </section>}
@@ -186,18 +197,7 @@ export default function DatasetsPage() {
             <label>Buscar<input type="search" value={datasetQuery} onChange={event => setDatasetQuery(event.target.value)} placeholder="Nombre, periodo o archivo" /></label>
             <label>Estado<select value={datasetStatus} onChange={event => setDatasetStatus(event.target.value)}><option value="todos">Todos</option><option value="activa">En uso</option><option value="archived">Anteriores</option><option value="staging">Procesando</option><option value="failed">Fallidas</option></select></label>
           </div>
-          <div className="dataset-list">
-            {visibleDatasets.map(dataset => (
-              <article className={`dataset-card ${dataset.id === activeDataset?.id ? 'dataset-card--active' : ''}`} key={dataset.id}>
-                <div><strong>{dataset.name}</strong><span>{dataset.period} · {dataset.records} registros {dataset.synthetic ? '· SINTÉTICA' : ''}</span><small>{dataset.fileName} · {formatDate(dataset.importedAt)} · {dataset.importedBy}</small></div>
-                <div className="dataset-card__actions">
-                  {dataset.id === activeDataset?.id ? <span className="access-state access-state--active">En uso</span> : dataset.status === 'staging' ? <span className="access-state">Procesando</span> : dataset.status === 'failed' ? <span className="access-state access-state--error">Falló</span> : admin && <button className="button button--secondary" type="button" disabled={saving} onClick={async () => { setSaving(true); try { await activateDataset(dataset.id); setMessage({ type: 'success', text: 'Base activa actualizada.' }); } catch (cause) { setMessage({ type: 'error', text: cause.message }); } finally { setSaving(false); } }}>Usar base</button>}
-                  <button className="button button--secondary" type="button" disabled={exportingId === dataset.id} onClick={() => exportDataset(dataset)}>{exportingId === dataset.id ? 'Exportando…' : 'Exportar CSV'}</button>
-                </div>
-              </article>
-            ))}
-            {!visibleDatasets.length && <p className="empty-state empty-state--compact">No hay versiones que coincidan con los filtros.</p>}
-          </div>
+          <DatasetHistoryTable datasets={visibleDatasets} activeId={activeDataset?.id} admin={admin} saving={saving} exportingId={exportingId} onExport={exportDataset} onActivate={async id => { setSaving(true); try { await activateDataset(id); setMessage({ type: 'success', text: 'Base activa actualizada.' }); } catch (cause) { setMessage({ type: 'error', text: cause.message }); } finally { setSaving(false); } }}/>
           {filteredDatasets.length > 0 && <nav className="pagination" aria-label="Páginas del historial de bases"><button className="button button--secondary" type="button" disabled={datasetPage === 1} onClick={() => setDatasetPage(page => page - 1)}>Anterior</button><span>Página <strong>{datasetPage}</strong> de <strong>{totalDatasetPages}</strong> · {filteredDatasets.length} resultado{filteredDatasets.length === 1 ? '' : 's'}</span><button className="button button--secondary" type="button" disabled={datasetPage === totalDatasetPages} onClick={() => setDatasetPage(page => page + 1)}>Siguiente</button></nav>}
       </section>
       {admin && <section className="panel advanced-tools">

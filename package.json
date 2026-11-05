@@ -14,7 +14,8 @@
     "db:seed-synthetic": "node backend/scripts/seed-synthetic.js --si-vacio",
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1",
-    "test": "node --test"
+    "test": "node --test",
+    "test:ui": "playwright test --config epen.playwright.config.js"
   },
   "dependencies": {
     "express": "^5.3.0",
@@ -25,6 +26,7 @@
     "react-router-dom": "^7.18.2"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.1",
     "@vitejs/plugin-react": "4.7.0",
     "vite": "^6.4.5"
   }
