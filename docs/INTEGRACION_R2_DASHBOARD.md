@@ -172,6 +172,55 @@ $env:R2_BASE_URL='http://127.0.0.1:8100'
 El repositorio incluye `backend/r2_simulator/servicio_r2.py`. Es únicamente un simulador léxico del
 contrato. Reemplázalo con tu servicio sin modificar el dashboard.
 
+También incluye `backend/r2_baseline/`, un baseline TF-IDF de biblioteca estándar que acepta los
+campos reales `ID_C200,C308,C308A,C309,C309_COD`, recupera casos históricos similares y conserva
+este contrato HTTP. Se inicia con:
+
+```powershell
+cd backend\r2_baseline
+python servicio_r2.py --datos "C:\ruta\historico_codificado.csv"
+```
+
+La etiqueta `C309_COD` solo se lee durante el entrenamiento. Nunca debe enviarse dentro de los
+registros a predecir. Hasta contar con una calibración temporal independiente, el baseline limita
+su confianza a 0,69 y debe usarse como asistencia, no como evidencia de desempeño productivo.
+
+El baseline puede añadir `calidad_entrada` y hasta tres `casos_similares` a cada resultado. El
+backend filtra esos antecedentes, exige códigos CIIU válidos, los guarda en `r2_evidence` y solo
+envía a Qwen ejemplos cuyo código pertenece al Top-K actual. La etiqueta del registro que se está
+prediciendo nunca forma parte de esa evidencia. El detalle del caso los muestra en una sección
+plegable de **Casos anteriores similares**, limitada a tres referencias con código y porcentaje de
+similitud. La sección funciona como apoyo visual y no sustituye la respuesta actual ni confirma un
+código automáticamente.
+
+Una fila con `P309` vacío ya no bloquea la carga completa: conserva el identificador y R2 la deriva
+de forma explícita a revisión. La columna `p309` sí debe existir en el CSV.
+
+El iniciador puede seleccionarlo sin cambiar código agregando al `.env` local:
+
+```dotenv
+R2_MODE=baseline
+R2_TRAINING_CSV=C:\ruta\historico_codificado.csv
+```
+
+Con `R2_MODE=simulator` o sin esa variable se conserva el simulador predeterminado.
+
+Cuando exista un histórico anual etiquetado puede utilizarse el motor vectorizado y calibrado:
+
+```powershell
+python -m pip install -r backend\r2_advanced\requirements.txt
+```
+
+```dotenv
+R2_MODE=advanced
+R2_TRAINING_CSV=C:\ruta\data_epen_2025.csv
+```
+
+El primer inicio entrena y guarda un artefacto local en `.runtime/r2-models/`; ese directorio está
+ignorado por Git porque el modelo contiene representación del histórico. Para el experimento
+2025 → enero de 2026 se recomienda comenzar con `tau=0,90`, no con 0,70, y volver a calibrar si
+cambia el histórico o el preprocesamiento.
+
 ## Flujo que verá el operador
 
 1. Inicia sesión con rol `operador` o `admin`.
@@ -180,12 +229,20 @@ contrato. Reemplázalo con tu servicio sin modificar el dashboard.
 4. Indica el periodo, el umbral y el modo de Qwen (`automático` o `manual`).
 5. Pulsa **Procesar base con R2**.
 6. El backend divide la base en lotes, llama a tu API, guarda avances y puede reanudar el trabajo.
-7. Los casos con confianza mayor o igual al umbral quedan resueltos por R2.
-8. Los demás quedan pendientes para la capa Qwen.
-9. En modo manual, un analista abre cada caso y decide cuándo consultar Qwen.
-10. En modo automático, el backend consulta Qwen de uno en uno y registra modelo, latencia y
-    respuesta. Qwen solo cierra el caso si confirma el candidato Top-1 de R2; una discrepancia,
-    una solicitud explícita de revisión o un fallo técnico se deriva a revisión humana.
+7. Las respuestas vacías, no informativas, con símbolos excesivos o texto sin sentido se derivan
+   directamente a revisión humana. Una barrera defensiva del backend impide enviarlas a Qwen aunque
+   un motor R2 futuro devolviera candidatos por error.
+8. Los casos clasificables con confianza mayor o igual al umbral quedan resueltos por R2.
+9. Los demás quedan pendientes para la capa Qwen.
+10. En modo manual, un analista abre cada caso y decide cuándo consultar Qwen.
+11. En modo automático, el backend consulta Qwen de uno en uno y registra modelo, latencia,
+    respuesta y posición seleccionada. De forma provisional, Qwen solo cierra si confirma el
+    Top-1 de R2. Las selecciones Top-2/Top-3, una solicitud explícita de revisión, un código fuera
+    del Top-K o un fallo técnico se derivan a revisión humana. La prueba mensual mostró que no es
+    seguro automatizar Top-2/Top-3 sin una compuerta calibrada independiente.
+12. **Codificación y revisión** ofrece una sola bandeja con selector de base, periodo y versión.
+    **Historial** utiliza el mismo selector. Ambos consultan por `dataset_id`, por lo que nunca
+    mezclan registros y no requieren activar una versión archivada para inspeccionarla.
 
 El modo automático requiere que el backend esté iniciado con `QWEN_MODE=real`. No se utiliza la
 respuesta sintética para cerrar trabajos automáticos. Debido al equipo CPU, el procesamiento

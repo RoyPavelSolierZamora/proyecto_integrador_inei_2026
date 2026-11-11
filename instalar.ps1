@@ -337,8 +337,10 @@ $do$;
         DB_SSL            = 'disable'
         QWEN_MODE         = 'real'
         QWEN_MODEL        = $Modelo
+        R3_MODE           = 'local'
         R3_BASE_URL       = 'http://127.0.0.1:8000'
         R2_BASE_URL       = 'http://127.0.0.1:8100'
+        R2_FEATURE_SET    = 'basic'
         R2_BATCH_SIZE     = '100'
         R2_TIMEOUT_SECONDS = '120'
     }

@@ -19,7 +19,7 @@ import argparse
 import json
 import os
 
-CONTRATO_VERSION = "1.0"
+CONTRATO_VERSION = "1.1"
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 
@@ -38,6 +38,8 @@ ESQUEMA_ENTRADA = {
             "description": "Identificador unico del registro en la base EPEN (llave de join).",
         },
         "p309": {"type": "string", "description": "Texto abierto de la P309."},
+        "p308": {"type": "string", "description": "Ocupación declarada; contexto opcional."},
+        "p308a": {"type": "string", "description": "Tareas declaradas; contexto opcional."},
         "candidatos": {
             "type": "array",
             "minItems": 1,
@@ -62,6 +64,22 @@ ESQUEMA_ENTRADA = {
             "minimum": 0,
             "maximum": 1,
             "description": "Confianza del clasificador de R2 (para el umbral tau).",
+        },
+        "casos_similares": {
+            "type": "array",
+            "maxItems": 3,
+            "description": "Antecedentes históricos validados y limitados a los candidatos actuales.",
+            "items": {
+                "type": "object",
+                "required": ["codigo", "p309", "similitud"],
+                "properties": {
+                    "codigo": {"type": "string", "pattern": "^[0-9]{4}$"},
+                    "p309": {"type": "string"},
+                    "p308": {"type": "string"},
+                    "p308a": {"type": "string"},
+                    "similitud": {"type": "number", "exclusiveMinimum": 0, "maximum": 1},
+                },
+            },
         },
     },
 }
@@ -158,11 +176,37 @@ def normalizar_entrada(obj, catalogo=None):
     if errores:
         return None, errores
 
+    candidate_codes = {c["codigo"] for c in limpios}
+    similares = []
+    raw_similares = obj.get("casos_similares") or []
+    if isinstance(raw_similares, list):
+        for example in raw_similares[:3]:
+            if not isinstance(example, dict):
+                continue
+            code = str(example.get("codigo") or "").strip()
+            text = str(example.get("p309") or "").strip()[:240]
+            try:
+                similarity = float(example.get("similitud"))
+            except (TypeError, ValueError):
+                continue
+            if code not in candidate_codes or not text or not 0 < similarity <= 1:
+                continue
+            similares.append({
+                "codigo": code,
+                "p309": text,
+                "p308": str(example.get("p308") or "").strip()[:160],
+                "p308a": str(example.get("p308a") or "").strip()[:240],
+                "similitud": similarity,
+            })
+
     return {
         "id_registro": str(obj["id_registro"]),
-        "p309": str(obj["p309"]).strip(),
+        "p309": str(obj["p309"]).strip()[:500],
+        "p308": str(obj.get("p308") or "").strip()[:300],
+        "p308a": str(obj.get("p308a") or "").strip()[:500],
         "candidatos": limpios,
         "confianza_ml": obj.get("confianza_ml"),
+        "casos_similares": similares,
     }, []
 
 

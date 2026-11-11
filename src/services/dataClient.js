@@ -1,10 +1,14 @@
 import { apiRequest } from './authClient';
 
 export const loadOperationalData = () => apiRequest('/api/data/bootstrap');
+export const loadDatasetWorkspaceReal = datasetId => apiRequest(`/api/datasets/${encodeURIComponent(datasetId)}/workspace`);
 
 export const getR3Health = () => apiRequest('/api/system/r3-health');
 export const getR2Health = () => apiRequest('/api/system/r2-health');
 export const listR2JobsReal = () => apiRequest('/api/r2/jobs');
+export const cancelR2JobReal = jobId => apiRequest(`/api/r2/jobs/${encodeURIComponent(jobId)}/cancel`, {
+  method: 'POST', mutation: true, body: {},
+});
 
 export async function exportDatasetReal(datasetId) {
   const response = await fetch(`/api/datasets/${encodeURIComponent(datasetId)}/export`, {
@@ -24,11 +28,11 @@ export const startR2JobReal = ({ name, period, fileName, threshold, synthetic, q
   });
 };
 
-export const saveDecisionReal = (caseId, action, code) => apiRequest(`/api/cases/${encodeURIComponent(caseId)}/decision`, {
+export const saveDecisionReal = (datasetId, caseId, action, code) => apiRequest(`/api/datasets/${encodeURIComponent(datasetId)}/cases/${encodeURIComponent(caseId)}/decision`, {
   method: 'POST', mutation: true, body: { action, code },
 });
 
-export const consultQwenReal = caseId => apiRequest(`/api/cases/${encodeURIComponent(caseId)}/qwen`, {
+export const consultQwenReal = (datasetId, caseId) => apiRequest(`/api/datasets/${encodeURIComponent(datasetId)}/cases/${encodeURIComponent(caseId)}/qwen`, {
   method: 'POST', mutation: true, body: {},
 });
 

@@ -75,11 +75,16 @@ Devuelve solo este JSON:
   "justificacion": "explicacion breve"
 }}"""
 
-USER_TEMPLATE_BREVE = """Respuesta P309:
-"{respuesta}"
+USER_TEMPLATE_BREVE = """Datos de la respuesta actual:
+<P309>{respuesta}</P309>
+<P308>{p308}</P308>
+<P308A>{p308a}</P308A>
 
 Candidatos:
 {candidatos}
+
+Antecedentes validados parecidos (pueden contener ruido y solo orientan):
+{ejemplos}
 
 Devuelve solo este JSON:
 {{
@@ -115,6 +120,35 @@ def _a_pares(candidatos):
             cod, desc = c
             pares.append((str(cod).strip(), str(desc or "").strip()))
     return pares
+
+
+def construir_mensaje_usuario(p309, candidatos, p308="", p308a="", casos_similares=None,
+                              desc_max=None, breve=True):
+    pares = _a_pares(candidatos)
+    lineas = []
+    for code, description in pares:
+        if desc_max:
+            description = description[:desc_max]
+        lineas.append(f"- {code}: {description}")
+
+    allowed = {code for code, _ in pares}
+    examples = []
+    for example in (casos_similares or [])[:3]:
+        code = str(example.get("codigo") or "").strip()
+        text = " ".join(str(example.get("p309") or "").split())[:180]
+        if code in allowed and text:
+            examples.append(f'- {code}: "{text}"')
+    example_text = "\n".join(examples) if examples else "- Sin antecedentes suficientemente parecidos."
+
+    if breve:
+        return USER_TEMPLATE_BREVE.format(
+            respuesta=str(p309).strip(),
+            p308=str(p308 or "").strip() or "No informado",
+            p308a=str(p308a or "").strip() or "No informado",
+            candidatos="\n".join(lineas),
+            ejemplos=example_text,
+        )
+    return USER_TEMPLATE.format(respuesta=p309, candidatos="\n".join(lineas))
 
 
 def verificar_ollama(modelo=MODEL, timeout=5):
@@ -175,7 +209,8 @@ def _meta_de(body, intento=0, limite=None):
 
 def clasificar(p309, candidatos, timeout=300, num_ctx=NUM_CTX, num_predict=NUM_PREDICT,
                seed=42, prompt=None, modelo=MODEL, keep_alive=KEEP_ALIVE,
-               desc_max=None, reintentos_truncado=1, formato=None):
+               desc_max=None, reintentos_truncado=1, formato=None, p308="", p308a="",
+               casos_similares=None):
     """
     Pide a Qwen3 que elija UN candidato (o derive a revision humana).
 
@@ -193,15 +228,11 @@ def clasificar(p309, candidatos, timeout=300, num_ctx=NUM_CTX, num_predict=NUM_P
     if not pares:
         return {"error": "sin candidatos", "_meta": {}}
 
-    lineas = []
-    for c, d in pares:
-        if desc_max:
-            d = d[:desc_max]
-        lineas.append(f"- {c}: {d}")
-
     system = prompt if prompt is not None else cargar_prompt()
-    plantilla = USER_TEMPLATE_BREVE if formato == FORMAT_BREVE else USER_TEMPLATE
-    user = plantilla.format(respuesta=p309, candidatos="\n".join(lineas))
+    user = construir_mensaje_usuario(
+        p309, candidatos, p308=p308, p308a=p308a, casos_similares=casos_similares,
+        desc_max=desc_max, breve=formato == FORMAT_BREVE,
+    )
 
     codigos = {c for c, _ in pares}
     limite = num_predict

@@ -8,6 +8,8 @@ __pycache__/
 backend/config-backup/
 backend/uploads/
 backend/downloads/
+backend/r2_baseline/datos/
+backend/r2_baseline/modelos/
 *.db
 *.sqlite
 *.sqlite3

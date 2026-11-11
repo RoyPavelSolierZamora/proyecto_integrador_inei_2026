@@ -22,6 +22,12 @@ export function getConfig() {
   const nodeEnv = process.env.NODE_ENV || 'development';
   const qwenMode = process.env.QWEN_MODE || 'real';
   if (qwenMode !== 'real') throw new Error('QWEN_MODE debe ser real.');
+  const r3Mode = String(process.env.R3_MODE || 'local').trim().toLowerCase();
+  if (!['local', 'remote'].includes(r3Mode)) throw new Error('R3_MODE debe ser local o remote.');
+  const r3BaseUrl = String(process.env.R3_BASE_URL || 'http://127.0.0.1:8000').trim().replace(/\/$/, '');
+  const r3ApiToken = String(process.env.R3_API_TOKEN || '').trim();
+  if (r3Mode === 'remote' && !r3BaseUrl.startsWith('https://')) throw new Error('R3 remoto requiere una URL HTTPS.');
+  if (r3Mode === 'remote' && r3ApiToken.length < 24) throw new Error('R3 remoto requiere R3_API_TOKEN de al menos 24 caracteres.');
   return {
     nodeEnv,
     production: nodeEnv === 'production',
@@ -32,7 +38,9 @@ export function getConfig() {
     sessionHours: integer('SESSION_HOURS', 8, 1, 24),
     cookieName: 'epen_session',
     qwenMode,
-    r3BaseUrl: process.env.R3_BASE_URL || 'http://127.0.0.1:8000',
+    r3Mode,
+    r3BaseUrl,
+    r3ApiToken: r3ApiToken || null,
     r2BaseUrl: process.env.R2_BASE_URL || 'http://127.0.0.1:8100',
     r2BatchSize: integer('R2_BATCH_SIZE', 100, 1, 500),
     r2TimeoutSeconds: integer('R2_TIMEOUT_SECONDS', 120, 5, 900),

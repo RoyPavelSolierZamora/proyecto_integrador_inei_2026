@@ -41,8 +41,11 @@ La guía detallada, las credenciales y la solución de problemas están en
 | `backend/src/` | API Express, seguridad, auditoría, trabajos R2 y persistencia |
 | `backend/migrations/` | Esquema versionado de PostgreSQL |
 | `backend/r2_simulator/` | Simulador léxico temporal del contrato R2; no es un modelo ML |
+| `backend/r2_baseline/` | Baseline TF-IDF con casos históricos y API compatible; requiere calibración real |
+| `backend/r2_advanced/` | R2 vectorizado, calibración temporal, caché local y antecedentes históricos |
 | `backend/seeds/` | Base pequeña y archivos exclusivamente sintéticos |
 | `r3_local/` | API mínima de Qwen/Ollama, contrato y catálogo CIIU |
+| `colab/` | Qwen GPU temporal y evaluación BETO temporal sin fuga |
 | `docs/` | Instalación y contrato de integración con el R2 real |
 | `tests/`, `backend/tests/` | Pruebas automatizadas de importación, seguridad y políticas |
 
@@ -57,6 +60,26 @@ el equipo R2 prepara el modelo estadístico real. Para sustituirlo se configura 
 es necesario modificar React, PostgreSQL ni Qwen si se respeta el contrato documentado en
 [`docs/INTEGRACION_R2_DASHBOARD.md`](docs/INTEGRACION_R2_DASHBOARD.md).
 
+`backend/r2_baseline/` ofrece un primer motor híbrido reproducible para pruebas con históricos
+etiquetados. Combina TF-IDF por clase, vecinos históricos, n-gramas de caracteres, una firma
+fonética de bajo peso y controles de calidad para abreviaturas, errores y texto insuficiente.
+Su confianza está limitada a 0,69 hasta calibrarla con un trimestre posterior independiente, por
+lo que inicialmente genera candidatos para Qwen o revisión humana y no cierres automáticos. Puede
+seleccionarse localmente con `R2_MODE=baseline` y `R2_TRAINING_CSV` en `.env`; el simulador continúa
+siendo el valor predeterminado.
+
+`backend/r2_advanced/` es la versión estadística recomendada cuando existe un histórico anual.
+Entrena con n-gramas de palabras y caracteres, LinearSVC y calibración isotónica sobre el último
+mes disponible. En la primera evaluación 2025 → enero de 2026 obtuvo 88,3 % Top-1 y 94,0 % Top-3.
+Con `tau=0,90`, cubrió 67,7 % de los registros con 98,8 % de precisión entre los cierres de R2 y
+derivó 32,3 % a Qwen o revisión. Estas cifras son experimentales y deben reproducirse antes de una
+entrega. Se activa con `R2_MODE=advanced`; sus dependencias e instrucciones están en
+[`backend/r2_advanced/README.md`](backend/r2_advanced/README.md).
+
+R3 usa el contrato 1.1 y el prompt versionado `prompt_v4_robusto.txt`: recibe P309, el contexto
+P308/P308A y hasta tres antecedentes validados de R2. Qwen sigue limitado al Top-K y cualquier
+ambigüedad, discrepancia o salida inválida se deriva a revisión humana.
+
 ## Flujo operativo
 
 1. Un operador carga un CSV original con `id_registro,p309,p308,p308a`.
@@ -67,8 +90,27 @@ es necesario modificar React, PostgreSQL ni Qwen si se respeta el contrato docum
 6. Discrepancias, ambigüedades y fallos técnicos pasan a revisión humana.
 7. Cada versión conserva trazabilidad y puede exportarse como CSV.
 
+El seguimiento separa el progreso R2 del progreso Qwen, estima el tiempo restante con la latencia
+observada y permite una cancelación cooperativa que conserva los resultados parciales. En
+**Codificación** se puede revisar cualquier registro mediante filtros por origen (R2, Qwen o
+persona), además de la cola de excepciones que se abre por defecto.
+
 El umbral τ debe calibrarse con datos EPEN reales etiquetados. La confianza declarada por Qwen
 no se usa como umbral estadístico.
+
+## Asistente de IA en GPU de Colab
+
+`colab/R3_Qwen_EPEN_GPU.ipynb` ejecuta el mismo contrato R3 en una GPU temporal. El backend se
+conecta por HTTPS con token Bearer; PostgreSQL y la auditoría permanecen locales. Consulta
+[`docs/COLAB_R3_GPU.md`](docs/COLAB_R3_GPU.md). Esta modalidad es para datos sintéticos y pruebas,
+no para información estatal real sin autorización institucional.
+
+Cuando Colab muestre la URL y el token, ejecuta `conectar-colab.bat`: valida la conexión y actualiza
+la configuración local sin tener que abrir `.env`. Para volver a ejecutar la IA en la laptop usa
+`usar-ia-local.bat`.
+
+El prototipo BETO del equipo se evalúa con `colab/R2_BETO_EPEN_Evaluacion_Temporal.ipynb`. La
+comparación obligatoria está en [`docs/EVALUACION_R2_BETO.md`](docs/EVALUACION_R2_BETO.md).
 
 ## Desarrollo y verificación
 

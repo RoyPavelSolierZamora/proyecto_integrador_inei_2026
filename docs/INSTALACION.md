@@ -79,7 +79,7 @@ hay que bajar Qwen.
 1. Comprueba Node.js 20+, Python 3.10+, PostgreSQL 18 y Ollama; instala lo que falte con `winget`.
 2. Crea el usuario `epen_app` y la base `epen_codificacion`.
 3. Escribe `.env` sin secretos y protege la clave de `epen_app` con el cifrado del usuario de Windows.
-4. Aplica las migraciones `001`–`004` y carga el catálogo CIIU (417 clases). Los 6 casos
+4. Aplica las migraciones `001`–`007` y carga el catálogo CIIU (417 clases). Los 6 casos
    sintéticos solo se instalan si la base está vacía: una instalación que ya tiene datos nunca
    se archiva ni se reactiva.
 5. Crea la cuenta administradora con hash scrypt.
@@ -103,10 +103,14 @@ servicios en segundo plano y guarda sus registros técnicos en `.runtime/logs/`.
 ```text
 iniciar-dashboard.bat    arranca Ollama, R3, R2, backend y frontend
 detener-dashboard.bat    detiene los cuatro servicios (Ollama se mantiene activo)
+conectar-colab.bat       conecta la asistencia de IA con una sesión GPU de Colab
+usar-ia-local.bat        devuelve la asistencia de IA a esta computadora
 ```
 
 `detener-dashboard.bat` solo termina los procesos registrados por este proyecto. También verifica
 su PID y hora de inicio, por lo que no cierra otro programa de Node o Python que use esos puertos.
+Los dos conectores de IA validan y actualizan la configuración local; no es necesario editar
+`.env` manualmente. La URL temporal y el token los entrega el notebook de Colab.
 
 ## Probar el flujo real completo
 
@@ -119,9 +123,13 @@ Para probar el camino completo:
 2. Ve a **Bases** y carga `public/plantilla_base_original.csv`
    (columnas `id_registro,p309,p308,p308a`).
 3. Elige el umbral τ y el modo de Qwen (manual o automático).
-4. El backend crea un trabajo, envía los registros a R2, aplica τ y activa la nueva versión.
-5. Los casos que queden por debajo del umbral aparecen en **Codificación** para Qwen o revisión
-   humana.
+4. El backend crea un trabajo, envía los registros a R2, aplica τ y activa la nueva versión al
+   terminar. El seguimiento separa R2 y Qwen, muestra un tiempo estimado basado en la latencia
+   observada y permite cancelar conservando resultados parciales.
+5. En **Codificación**, la vista inicial muestra excepciones. Los filtros R2 automático, Qwen,
+   persona y todos permiten abrir y auditar cualquier registro terminado.
+6. **Exportar CSV** descarga el resultado completo o parcial con estado, origen y código final;
+   no es necesario generar un ZIP para revisar lo automatizado.
 
 El contrato exacto que debe cumplir el motor R2 real está en
 [`INTEGRACION_R2_DASHBOARD.md`](INTEGRACION_R2_DASHBOARD.md). El servicio incluido en
@@ -159,6 +167,9 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\instalar.ps1" -SinMod
 | Falla la instalación de PostgreSQL | `--override` no soportado por esa versión de winget | Instala PostgreSQL 18 desde el sitio oficial, elige tu contraseña y vuelve a ejecutar `instalar.bat`. |
 | `No se pudo conectar como postgres` | Contraseña incorrecta o servicio detenido | Inicia el servicio `postgresql-x64-18` y repite. |
 | El backend no arranca | Puerto 8080 ocupado | Ejecuta `detener-dashboard.bat` y vuelve a intentar. |
+| El enlace `127.0.0.1:5174` no abre | El dashboard no está iniciado | Ejecuta `iniciar-dashboard.bat` desde la carpeta descomprimida y espera el mensaje `Interfaz disponible`. |
+| El iniciador pide la clave de `epen_app` | Falta la credencial local cifrada | Escríbela en esa ventana de PowerShell. Se guarda cifrada con DPAPI para los siguientes inicios y no se copia a `.env`. |
+| Faltan dependencias de R2 avanzado | Se activó `R2_MODE=advanced` sin scikit-learn | Ejecuta `python -m pip install -r backend\r2_advanced\requirements.txt`. |
 | La instalación avisa que el dashboard está ejecutándose | Vite o el backend mantienen archivos abiertos | Ejecuta `detener-dashboard.bat`; si fueron iniciados manualmente, cierra sus terminales. |
 | Un puerto está ocupado por otro servicio | Otro programa usa 5174, 8080, 8000 o 8100 | Cierra ese programa. El lanzador ya no reutiliza servicios que no reconoce. |
 | `Blocked request. This host is not allowed` | El túnel usa un dominio no autorizado | Configura `TUNNEL_HOST`, cierra Vite y relanza `iniciar-dashboard.bat`. |

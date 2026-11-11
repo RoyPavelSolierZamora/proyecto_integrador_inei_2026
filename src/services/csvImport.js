@@ -88,7 +88,12 @@ export function parseRawEpenCsv(text, { maxRows = 50_000 } = {}) {
   const matrix = parseMatrix(text);
   if (matrix.length < 2) return { rows: [], errors: ['El archivo no contiene registros.'] };
   const headers = matrix[0].map(value => value.trim().toLowerCase());
-  const missing = ['id_registro', 'p309'].filter(name => !headers.includes(name));
+  const aliases = {
+    id_registro: ['id_registro', 'id_c200'], p309: ['p309', 'c309'],
+    p308: ['p308', 'c308'], p308a: ['p308a', 'c308a'],
+    c310: ['c310'], c311: ['c311'], c366: ['c366'],
+  };
+  const missing = ['id_registro', 'p309'].filter(name => !aliases[name].some(alias => headers.includes(alias)));
   if (missing.length) return { rows: [], errors: [`Faltan columnas obligatorias: ${missing.join(', ')}.`] };
   if (matrix.length - 1 > maxRows) return { rows: [], errors: [`El archivo supera el máximo de ${maxRows} registros por trabajo.`] };
   const rows = [];
@@ -97,11 +102,16 @@ export function parseRawEpenCsv(text, { maxRows = 50_000 } = {}) {
   matrix.slice(1).forEach((values, offset) => {
     const line = offset + 2;
     const record = Object.fromEntries(headers.map((header, index) => [header, (values[index] || '').trim()]));
-    if (!record.id_registro || !record.p309) { errors.push(`Fila ${line}: id_registro y p309 son obligatorios.`); return; }
-    if (record.id_registro.length > 120) { errors.push(`Fila ${line}: id_registro supera 120 caracteres.`); return; }
-    if (seen.has(record.id_registro)) { errors.push(`Fila ${line}: id_registro duplicado.`); return; }
-    seen.add(record.id_registro);
-    rows.push({ id_registro: record.id_registro, p309: record.p309, p308: record.p308 || '', p308a: record.p308a || '' });
+    const value = name => aliases[name].map(alias => record[alias]).find(item => item !== undefined && item !== '') || '';
+    const identifier = value('id_registro');
+    if (!identifier) { errors.push(`Fila ${line}: id_registro es obligatorio.`); return; }
+    if (identifier.length > 120) { errors.push(`Fila ${line}: id_registro supera 120 caracteres.`); return; }
+    if (seen.has(identifier)) { errors.push(`Fila ${line}: id_registro duplicado.`); return; }
+    seen.add(identifier);
+    rows.push({
+      id_registro: identifier, p309: value('p309'), p308: value('p308'), p308a: value('p308a'),
+      c310: value('c310'), c311: value('c311'), c366: value('c366'),
+    });
   });
   return { rows, errors };
 }

@@ -1,34 +1,62 @@
-import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import DatasetWorkspaceSelector from '../components/DatasetWorkspaceSelector';
 import StatusBadge from '../components/StatusBadge';
+import useDatasetWorkspace from '../hooks/useDatasetWorkspace';
 import { useData } from '../state/DataContext';
 
 export default function CasesPage() {
-  const { cases, activeDataset } = useData();
+  const { datasets, activeDataset } = useData();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedDatasetId = Number(searchParams.get('dataset')) || activeDataset?.id;
+  const { selectedDataset, cases, loading, error } = useDatasetWorkspace(requestedDatasetId);
   const [query, setQuery] = useState('');
-  const [status, setStatus] = useState('atencion');
+  const [view, setView] = useState('atencion');
+  const [page, setPage] = useState(1);
+  const pageSize = 25;
+  const caseOrigin = item => item.origen_decision || (item.qwen ? 'qwen' : item.estado === 'corregido' ? 'humano' : item.codigo_final ? 'r2' : 'pendiente');
 
   const filtered = useMemo(() => cases.filter(item => {
-    const matchStatus = status === 'todos' || (status === 'atencion' ? ['pendiente', 'revision'].includes(item.estado) : item.estado === status);
+    const matchView = view === 'todos'
+      || (view === 'atencion' && ['pendiente', 'revision'].includes(item.estado))
+      || (view === 'r2' && caseOrigin(item) === 'r2')
+      || (view === 'qwen' && caseOrigin(item) === 'qwen')
+      || (view === 'humano' && caseOrigin(item) === 'humano');
     const haystack = `${item.id_registro} ${item.p309} ${item.p308}`.toLowerCase();
-    return matchStatus && haystack.includes(query.trim().toLowerCase());
-  }), [cases, query, status]);
+    return matchView && haystack.includes(query.trim().toLowerCase());
+  }), [cases, query, view]);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const visible = filtered.slice((page - 1) * pageSize, page * pageSize);
+
+  useEffect(() => setPage(1), [query, view, cases.length, selectedDataset?.id]);
+  useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
+
+  const originLabel = { r2: 'Clasificador automático', qwen: 'Asistente de IA', humano: 'Persona', pendiente: 'Sin decisión' };
+  const selectDataset = datasetId => {
+    const next = new URLSearchParams(searchParams);
+    next.set('dataset', String(datasetId));
+    setSearchParams(next);
+  };
 
   return (
     <div className="page">
-      <div className="page-heading"><div><p className="eyebrow">Bandeja de excepciones</p><h1>Codificación</h1><p>Base activa: <strong>{activeDataset?.name}</strong> · {activeDataset?.period}. R2 ya procesa la base por bloques; aquí se atienden únicamente los registros que necesitan intervención humana.</p></div></div>
-      <div className="notice"><strong>¿Dónde se procesan los bloques?</strong><span>En Bases de datos, al pulsar “Procesar base con R2”. Esta bandeja no vuelve a ejecutar toda la base: permite revisar pendientes, discrepancias y casos derivados.</span></div>
+      <div className="page-heading"><div><p className="eyebrow">Bandeja unificada</p><h1>Codificación y revisión</h1><p>Selecciona primero la base. Los casos de versiones distintas nunca se combinan en una misma bandeja.</p></div></div>
+      <DatasetWorkspaceSelector datasets={datasets} selectedId={selectedDataset?.id} onChange={selectDataset} />
+      {loading && <div className="notice" role="status">Cargando la base seleccionada…</div>}
+      {error && <div className="notice notice--error" role="alert">{error}</div>}
+      <div className="notice"><strong>Una sola bandeja operativa</strong><span>“Requieren atención” reúne pendientes y revisión humana. Las demás vistas permiten auditar lo resuelto por el clasificador, la asistencia de IA o una persona.</span></div>
       <section className="filter-bar" aria-label="Filtros de casos">
         <label>Buscar<input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="ID, actividad u ocupación" /></label>
-        <label>Estado<select value={status} onChange={event => setStatus(event.target.value)}><option value="atencion">Requieren atención</option><option value="todos">Todos</option><option value="pendiente">Pendientes</option><option value="revision">Revisión humana</option><option value="confirmado">Confirmados</option><option value="corregido">Corregidos</option></select></label>
+        <label>Vista<select value={view} onChange={event => setView(event.target.value)}><option value="atencion">Requieren atención</option><option value="todos">Todos los registros</option><option value="r2">Clasificador automático</option><option value="qwen">Procesados con IA</option><option value="humano">Revisados por persona</option></select></label>
         <span className="filter-count" aria-live="polite">{filtered.length} resultado{filtered.length === 1 ? '' : 's'}</span>
       </section>
       <div className="table-wrap">
         <table>
-          <thead><tr><th>Registro</th><th>Respuesta P309</th><th>Confianza R2</th><th>Estado</th><th><span className="sr-only">Acción</span></th></tr></thead>
-          <tbody>{filtered.map(item => <tr key={item.id_registro}><td data-label="Registro"><strong>{item.id_registro}</strong></td><td data-label="Respuesta P309">{item.p309}</td><td data-label="Confianza R2">{Math.round(item.confianza_ml * 100)} %</td><td data-label="Estado"><StatusBadge status={item.estado} /></td><td className="table-action-cell" data-label="Acción"><Link className="button button--secondary table-action" to={`/casos/${item.id_registro}`}>Revisar</Link></td></tr>)}</tbody>
+          <thead><tr><th>Registro</th><th>Respuesta P309</th><th>Origen</th><th>Confianza del clasificador</th><th>Estado</th><th><span className="sr-only">Acción</span></th></tr></thead>
+          <tbody>{visible.map(item => <tr key={item.id_registro}><td data-label="Registro"><strong>{item.id_registro}</strong></td><td data-label="Respuesta P309">{item.p309 || 'Sin respuesta P309'}</td><td data-label="Origen">{originLabel[caseOrigin(item)] || 'Sin decisión'}</td><td data-label="Confianza del clasificador">{item.confianza_ml ? `${Math.round(item.confianza_ml * 100)} %` : '—'}</td><td data-label="Estado"><StatusBadge status={item.estado} /></td><td className="table-action-cell" data-label="Acción"><Link className="button button--secondary table-action" to={`/casos/${encodeURIComponent(item.id_registro)}?dataset=${selectedDataset?.id}`}>Ver detalle</Link></td></tr>)}</tbody>
         </table>
-        {!filtered.length && <p className="empty-state">No se encontraron registros con esos filtros.</p>}
+        {!loading && !filtered.length && <p className="empty-state">No se encontraron registros con esos filtros.</p>}
+        {filtered.length > 0 && <nav className="pagination" aria-label="Páginas de registros"><button className="button button--secondary" type="button" disabled={page === 1} onClick={() => setPage(value => value - 1)}>Anterior</button><span>Página <strong>{page}</strong> de <strong>{totalPages}</strong> · {filtered.length} registros</span><button className="button button--secondary" type="button" disabled={page === totalPages} onClick={() => setPage(value => value + 1)}>Siguiente</button></nav>}
       </div>
     </div>
   );

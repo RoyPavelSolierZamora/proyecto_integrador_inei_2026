@@ -3,17 +3,18 @@ import { audit } from './audit.js';
 import { getPool, transaction } from './db.js';
 import { requireAuth, requireCsrf, requireRole } from './middleware.js';
 import { r2Health } from './r2-client.js';
-import { enqueueR2Job, listR2Jobs } from './r2-jobs.js';
+import { enqueueR2Job, listR2Jobs, requestR2JobCancellation } from './r2-jobs.js';
 import { parseRawEpenCsv } from './raw-csv.js';
 import { classifyWithQwen } from './qwen-client.js';
 import { buildCsv, RESULT_HEADERS } from './csv-export.js';
 
 const CASE_SELECT = `
-  SELECT c.id, c.dataset_id, c.external_id, c.p309, c.p308, c.p308a,
-         c.candidates, c.confianza_ml, c.status, c.final_code, c.updated_at,
+  SELECT c.id, c.dataset_id, c.external_id, c.p309, c.p308, c.p308a, c.c310, c.c311, c.c366,
+         c.candidates, c.confianza_ml, c.r2_evidence, c.status, c.final_code, c.updated_at,
          llm.decision AS llm_decision, llm.code AS llm_code,
          llm.justification AS llm_justification, llm.latency_seconds AS llm_latency,
-         human.decision AS human_decision
+         human.decision AS human_decision,
+         latest.source AS latest_source
   FROM epen.survey_cases c
   LEFT JOIN LATERAL (
     SELECT decision, code, justification, latency_seconds
@@ -24,6 +25,10 @@ const CASE_SELECT = `
     SELECT decision FROM epen.decisions WHERE case_id = c.id AND source = 'human'
     ORDER BY created_at DESC, id DESC LIMIT 1
   ) human ON true
+  LEFT JOIN LATERAL (
+    SELECT source FROM epen.decisions WHERE case_id = c.id
+    ORDER BY created_at DESC, id DESC LIMIT 1
+  ) latest ON true
 `;
 
 function httpError(status, message) {
@@ -41,7 +46,45 @@ function mapDataset(row) {
   };
 }
 
-function mapCase(row) {
+function cleanEvidenceText(value, maximum) {
+  return String(value || '').trim().slice(0, maximum);
+}
+
+export function mapR2Evidence(value) {
+  const evidence = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  const quality = evidence.calidad_entrada && typeof evidence.calidad_entrada === 'object'
+    ? {
+        nivel: ['alta', 'media', 'baja'].includes(evidence.calidad_entrada.nivel) ? evidence.calidad_entrada.nivel : 'desconocida',
+        motivos: Array.isArray(evidence.calidad_entrada.motivos)
+          ? evidence.calidad_entrada.motivos.map(reason => cleanEvidenceText(reason, 80)).filter(Boolean).slice(0, 8)
+          : [],
+      }
+    : null;
+  const cases = Array.isArray(evidence.casos_similares) ? evidence.casos_similares : [];
+  const similarCases = cases.flatMap(item => {
+    const code = cleanEvidenceText(item?.codigo, 4);
+    const similarity = Number(item?.similitud);
+    const p309 = cleanEvidenceText(item?.p309, 240);
+    if (!/^\d{4}$/.test(code) || !Number.isFinite(similarity) || similarity <= 0 || similarity > 1 || !p309) return [];
+    return [{
+      codigo: code,
+      similitud: similarity,
+      p309,
+      p308: cleanEvidenceText(item?.p308, 160),
+      p308a: cleanEvidenceText(item?.p308a, 240),
+    }];
+  }).slice(0, 3);
+  return {
+    calibracion: cleanEvidenceText(evidence.calibracion, 80) || null,
+    calidad_entrada: quality,
+    casos_similares: similarCases,
+    reglas_estructurales: Array.isArray(evidence.reglas_estructurales)
+      ? evidence.reglas_estructurales.map(rule => cleanEvidenceText(rule, 100)).filter(Boolean).slice(0, 5)
+      : [],
+  };
+}
+
+export function mapCase(row) {
   let estado = 'pendiente';
   if (row.status === 'review') estado = 'revision';
   if (row.status === 'resolved') estado = row.human_decision === 'correction' ? 'corregido' : 'confirmado';
@@ -54,8 +97,12 @@ function mapCase(row) {
   return {
     id: Number(row.id), dataset_id: Number(row.dataset_id), id_registro: row.external_id,
     p309: row.p309, p308: row.p308 || '', p308a: row.p308a || '',
+    c310: row.c310 || '', c311: row.c311 || '', c366: row.c366 || '',
     candidatos: Array.isArray(row.candidates) ? row.candidates : [], confianza_ml: row.confianza_ml === null ? 0 : Number(row.confianza_ml),
-    estado, codigo_final: row.final_code, qwen, updated_at: row.updated_at,
+    evidencia_r2: mapR2Evidence(row.r2_evidence),
+    estado, codigo_final: row.final_code, qwen,
+    origen_decision: row.latest_source === 'ml' ? 'r2' : row.latest_source === 'llm' ? 'qwen' : row.latest_source === 'human' ? 'humano' : 'pendiente',
+    updated_at: row.updated_at,
   };
 }
 
@@ -77,6 +124,15 @@ async function activeDataset(db) {
   return result.rowCount ? mapDataset(result.rows[0]) : null;
 }
 
+async function datasetById(db, datasetId) {
+  const result = await db.query(`
+    SELECT d.*, u.full_name AS imported_by_name
+    FROM epen.datasets d LEFT JOIN epen.users u ON u.id = d.imported_by
+    WHERE d.id = $1
+  `, [datasetId]);
+  return result.rowCount ? mapDataset(result.rows[0]) : null;
+}
+
 async function casesForDataset(db, datasetId) {
   const result = await db.query(`${CASE_SELECT} WHERE c.dataset_id = $1 ORDER BY c.id`, [datasetId]);
   return result.rows.map(mapCase);
@@ -90,13 +146,13 @@ async function caseByExternalId(db, datasetId, externalId) {
 async function eventsForDataset(db, datasetId) {
   const result = await db.query(`
     SELECT d.id, c.external_id, d.source, d.decision, d.code, d.created_at,
-           COALESCE(u.full_name, CASE WHEN d.source = 'llm' THEN 'Qwen3' WHEN d.source = 'ml' THEN 'Clasificador R2' ELSE 'Sistema sintético' END) AS actor
+           COALESCE(u.full_name, CASE WHEN d.source = 'llm' THEN 'Asistente de IA' WHEN d.source = 'ml' THEN 'Clasificador automático' ELSE 'Sistema sintético' END) AS actor
     FROM epen.decisions d
     JOIN epen.survey_cases c ON c.id = d.case_id
     LEFT JOIN epen.users u ON u.id = d.decided_by
     WHERE c.dataset_id = $1 ORDER BY d.created_at, d.id
   `, [datasetId]);
-  const labels = { confirmation: 'confirmación', correction: 'corrección', derivation: 'derivación', selection: 'consulta Qwen', revision: 'consulta Qwen', automatic: 'codificación automática R2' };
+  const labels = { confirmation: 'confirmación', correction: 'corrección', derivation: 'derivación', selection: 'consulta de IA', revision: 'consulta de IA', automatic: 'codificación automática' };
   return result.rows.map(row => ({
     id: Number(row.id), caseId: row.external_id, action: labels[row.decision] || row.decision,
     code: row.code, user: row.actor, at: row.created_at,
@@ -127,12 +183,15 @@ export function createDataRouter(config) {
   router.get('/api/system/r3-health', requireRole('admin'), async (_req, res) => {
     try {
       const response = await fetch(`${config.r3BaseUrl}/salud`, {
-        headers: { Accept: 'application/json' },
+        headers: {
+          Accept: 'application/json',
+          ...(config.r3ApiToken ? { Authorization: `Bearer ${config.r3ApiToken}` } : {}),
+        },
         signal: AbortSignal.timeout(7_000),
       });
       if (!response.ok) throw httpError(503, `La capa R3 respondió ${response.status}.`);
       const health = await response.json();
-      res.json({ ...health, mode: config.qwenMode });
+      res.json({ ...health, mode: config.qwenMode, execution: config.r3Mode || 'local' });
     } catch (cause) {
       if (cause.status) throw cause;
       throw httpError(503, cause.name === 'TimeoutError'
@@ -147,6 +206,16 @@ export function createDataRouter(config) {
 
   router.get('/api/r2/jobs', requireRole('operador', 'admin'), async (_req, res) => {
     res.json({ jobs: await listR2Jobs() });
+  });
+
+  router.post('/api/r2/jobs/:id/cancel', requireRole('operador', 'admin'), requireCsrf, async (req, res) => {
+    const jobId = Number(req.params.id);
+    if (!Number.isSafeInteger(jobId) || jobId < 1) throw httpError(400, 'El trabajo solicitado no es válido.');
+    const result = await requestR2JobCancellation(jobId);
+    if (result.outcome === 'missing') throw httpError(404, 'Trabajo no encontrado.');
+    if (result.outcome === 'finished') throw httpError(409, 'El trabajo ya finalizó y no se puede cancelar.');
+    await audit(getPool(), req, 'r2.job_cancel_requested', 'processing_job', jobId, { immediate: result.outcome === 'cancelled' });
+    res.status(202).json({ status: result.outcome });
   });
 
   router.post('/api/r2/jobs', requireRole('operador', 'admin'), requireCsrf,
@@ -175,9 +244,10 @@ export function createDataRouter(config) {
         const datasetId = dataset.rows[0].id;
         for (const row of records) {
           await client.query(`
-            INSERT INTO epen.survey_cases (dataset_id, external_id, p309, p308, p308a, candidates)
-            VALUES ($1, $2, $3, $4, $5, NULL)
-          `, [datasetId, row.id_registro, row.p309, row.p308 || null, row.p308a || null]);
+            INSERT INTO epen.survey_cases (dataset_id, external_id, p309, p308, p308a, c310, c311, c366, candidates)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NULL)
+          `, [datasetId, row.id_registro, row.p309, row.p308 || null, row.p308a || null,
+            row.c310 || null, row.c311 || null, row.c366 || null]);
         }
         const job = await client.query(`
           INSERT INTO epen.processing_jobs (dataset_id, threshold, total_records, created_by, qwen_mode)
@@ -198,6 +268,19 @@ export function createDataRouter(config) {
       activeDataset: active,
       cases: active ? await casesForDataset(pool, active.id) : [],
       events: active ? await eventsForDataset(pool, active.id) : [],
+    });
+  });
+
+  router.get('/api/datasets/:id/workspace', requireRole('analista', 'supervisor', 'auditor', 'admin'), async (req, res) => {
+    const datasetId = Number(req.params.id);
+    if (!Number.isSafeInteger(datasetId) || datasetId < 1) throw httpError(400, 'La base solicitada no es válida.');
+    const pool = getPool();
+    const dataset = await datasetById(pool, datasetId);
+    if (!dataset) throw httpError(404, 'Base no encontrada.');
+    res.json({
+      dataset,
+      cases: await casesForDataset(pool, datasetId),
+      events: await eventsForDataset(pool, datasetId),
     });
   });
 
@@ -250,40 +333,44 @@ export function createDataRouter(config) {
     res.json({ rows: result.rows.map(row => ({ codigo: row.code, descripcion: row.description })) });
   });
 
-  router.post('/api/cases/:externalId/decision', requireRole('analista', 'supervisor', 'admin'), requireCsrf, async (req, res) => {
+  router.post(['/api/cases/:externalId/decision', '/api/datasets/:datasetId/cases/:externalId/decision'], requireRole('analista', 'supervisor', 'admin'), requireCsrf, async (req, res) => {
     const actionMap = { confirmación: 'confirmation', confirmation: 'confirmation', corrección: 'correction', correction: 'correction', derivación: 'derivation', derivation: 'derivation' };
     const decision = actionMap[String(req.body?.action || '')];
     const code = req.body?.code ? String(req.body.code) : null;
     if (!decision) throw httpError(400, 'La decisión no es válida.');
     if (decision !== 'derivation' && !/^\d{4}$/.test(code || '')) throw httpError(400, 'El código final debe tener 4 dígitos.');
     const updated = await transaction(async client => {
-      const active = await activeDataset(client);
-      if (!active) throw httpError(409, 'No existe una base activa.');
-      const current = await client.query('SELECT id FROM epen.survey_cases WHERE dataset_id = $1 AND external_id = $2 FOR UPDATE', [active.id, req.params.externalId]);
+      const requestedId = req.params.datasetId ? Number(req.params.datasetId) : null;
+      if (req.params.datasetId && (!Number.isSafeInteger(requestedId) || requestedId < 1)) throw httpError(400, 'La base solicitada no es válida.');
+      const target = requestedId ? await datasetById(client, requestedId) : await activeDataset(client);
+      if (!target) throw httpError(409, requestedId ? 'La base solicitada no existe.' : 'No existe una base activa.');
+      const current = await client.query('SELECT id FROM epen.survey_cases WHERE dataset_id = $1 AND external_id = $2 FOR UPDATE', [target.id, req.params.externalId]);
       if (!current.rowCount) throw httpError(404, 'Registro no encontrado.');
       const caseId = current.rows[0].id;
       await client.query('UPDATE epen.survey_cases SET status = $1, final_code = $2, updated_at = now() WHERE id = $3', [decision === 'derivation' ? 'review' : 'resolved', decision === 'derivation' ? null : code, caseId]);
       await client.query('INSERT INTO epen.decisions (case_id, source, decision, code, decided_by) VALUES ($1, $2, $3, $4, $5)', [caseId, 'human', decision, decision === 'derivation' ? null : code, req.auth.user.id]);
-      await audit(client, req, `case.${decision}`, 'case', caseId, { externalId: req.params.externalId, code });
-      return caseByExternalId(client, active.id, req.params.externalId);
+      await audit(client, req, `case.${decision}`, 'case', caseId, { datasetId: Number(target.id), externalId: req.params.externalId, code });
+      return caseByExternalId(client, target.id, req.params.externalId);
     });
     res.json({ case: updated });
   });
 
-  router.post('/api/cases/:externalId/qwen', requireRole('analista', 'supervisor', 'admin'), requireCsrf, async (req, res) => {
+  router.post(['/api/cases/:externalId/qwen', '/api/datasets/:datasetId/cases/:externalId/qwen'], requireRole('analista', 'supervisor', 'admin'), requireCsrf, async (req, res) => {
     const pool = getPool();
-    const active = await activeDataset(pool);
-    if (!active) throw httpError(409, 'No existe una base activa.');
-    const raw = await pool.query('SELECT * FROM epen.survey_cases WHERE dataset_id = $1 AND external_id = $2', [active.id, req.params.externalId]);
+    const requestedId = req.params.datasetId ? Number(req.params.datasetId) : null;
+    if (req.params.datasetId && (!Number.isSafeInteger(requestedId) || requestedId < 1)) throw httpError(400, 'La base solicitada no es válida.');
+    const target = requestedId ? await datasetById(pool, requestedId) : await activeDataset(pool);
+    if (!target) throw httpError(409, requestedId ? 'La base solicitada no existe.' : 'No existe una base activa.');
+    const raw = await pool.query('SELECT * FROM epen.survey_cases WHERE dataset_id = $1 AND external_id = $2', [target.id, req.params.externalId]);
     if (!raw.rowCount) throw httpError(404, 'Registro no encontrado.');
     const item = raw.rows[0];
     const { result, review, code } = await classifyWithQwen(config, item);
     await transaction(async client => {
       await client.query('INSERT INTO epen.decisions (case_id, source, decision, code, justification, model, latency_seconds) VALUES ($1, $2, $3, $4, $5, $6, $7)', [item.id, 'llm', review ? 'revision' : 'selection', code, result.justificacion || null, result.modelo || null, result.latencia_s || null]);
       if (review) await client.query("UPDATE epen.survey_cases SET status = 'review', updated_at = now() WHERE id = $1", [item.id]);
-      await audit(client, req, 'case.qwen', 'case', item.id, { externalId: item.external_id, code, review, mode: config.qwenMode });
+      await audit(client, req, 'case.qwen', 'case', item.id, { datasetId: Number(target.id), externalId: item.external_id, code, review, mode: config.qwenMode });
     });
-    res.json({ result: { ...result, codigo: code }, case: await caseByExternalId(pool, active.id, item.external_id) });
+    res.json({ result: { ...result, codigo: code }, case: await caseByExternalId(pool, target.id, item.external_id) });
   });
 
   router.post('/api/admin/datasets/:id/activate', requireRole('admin'), requireCsrf, async (req, res) => {

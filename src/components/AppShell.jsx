@@ -9,8 +9,7 @@ import '../epen-theme.css';
 
 const allItems = [
   { to: '/', label: 'Inicio', icon: 'house-door', end: true, roles: ['operador', 'analista', 'supervisor', 'auditor', 'admin'] },
-  { to: '/casos', label: 'Codificación', icon: 'file-earmark-code', roles: ['analista', 'supervisor', 'admin'] },
-  { to: '/revision', label: 'Revisión', icon: 'clipboard-check', roles: ['supervisor', 'admin'] },
+  { to: '/casos', label: 'Codificación y revisión', icon: 'clipboard-check', roles: ['analista', 'supervisor', 'admin'] },
   { to: '/historial', label: 'Historial', icon: 'clock-history', roles: ['supervisor', 'auditor', 'admin'] },
   { to: '/metricas', label: 'Métricas', icon: 'bar-chart', roles: ['supervisor', 'auditor', 'admin'] },
   { to: '/bases', label: 'Bases de datos', icon: 'database', roles: ['operador', 'admin'] },

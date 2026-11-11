@@ -29,7 +29,7 @@ export default function LoginPage() {
           <span className="brand-mark brand-mark--large">EPEN</span>
           <p className="eyebrow">Proyecto Integrador PEU-CD</p>
           <h1 id="login-title">Codificación asistida de actividades económicas</h1>
-          <p>Acceso local para revisar candidatos CIIU, consultar Qwen3 y registrar decisiones trazables.</p>
+          <p>Acceso local para revisar candidatos CIIU, consultar la asistencia de IA y registrar decisiones trazables.</p>
         </div>
         <form onSubmit={submit} className="login-form">
           <div className="access-notice"><strong>Acceso protegido</strong><span>La identidad y los permisos se validan en el backend PostgreSQL.</span></div>

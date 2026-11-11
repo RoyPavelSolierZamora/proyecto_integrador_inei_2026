@@ -22,12 +22,13 @@ import contrato
 
 
 BASE = os.path.dirname(os.path.abspath(__file__))
-PROMPT_FILE = os.path.join(BASE, "prompts", "prompt_v3_breve.txt")
+PROMPT_FILE = os.path.join(BASE, "prompts", "prompt_v4_robusto.txt")
 MAX_BODY_BYTES = 2 * 1024 * 1024
 
 CATALOGO = None
 PROMPT = None
 FORMATO = None
+PROMPT_VERSION = None
 
 
 def send_json(handler, payload, status=200):
@@ -55,6 +56,7 @@ class Handler(BaseHTTPRequestHandler):
                 "modelo": clf.MODEL,
                 "catalogo_clases": len(CATALOGO),
                 "contrato_version": contrato.CONTRATO_VERSION,
+                "prompt_version": PROMPT_VERSION,
             })
         if path == "/contrato":
             return send_json(self, {
@@ -100,17 +102,19 @@ def classify_record(item, run_id):
     try:
         response = clf.clasificar(
             normalized["p309"], normalized["candidatos"], prompt=PROMPT, formato=FORMATO,
+            p308=normalized.get("p308", ""), p308a=normalized.get("p308a", ""),
+            casos_similares=normalized.get("casos_similares", []),
         )
     except Exception as error:  # La salida contractual deriva los fallos a revisión humana.
         response = {"error": f"Fallo de conexión con Ollama: {error}"}
     return contrato.construir_salida(
-        normalized["id_registro"], response, clf.MODEL, time.time() - started, run_id,
+        normalized["id_registro"], response, f"{clf.MODEL}|prompt={PROMPT_VERSION}", time.time() - started, run_id,
         confianza_ml=normalized.get("confianza_ml"),
     )
 
 
 def main():
-    global CATALOGO, PROMPT, FORMATO
+    global CATALOGO, PROMPT, FORMATO, PROMPT_VERSION
     parser = argparse.ArgumentParser()
     parser.add_argument("--host", default="127.0.0.1", help="Mantener 127.0.0.1 para uso local seguro.")
     parser.add_argument("--puerto", type=int, default=8000)
@@ -119,6 +123,7 @@ def main():
 
     CATALOGO = clf.cargar_catalogo()
     PROMPT = clf.cargar_prompt(args.prompt)
+    PROMPT_VERSION = os.path.basename(args.prompt)
     FORMATO = clf.FORMAT_BREVE
 
     _, message = clf.verificar_ollama()

@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { activateDatasetReal, consultQwenReal, importDatasetReal, loadOperationalData, saveDecisionReal, searchCatalogReal, simulateR2Real } from '../services/dataClient';
+import { activateDatasetReal, consultQwenReal, importDatasetReal, loadDatasetWorkspaceReal, loadOperationalData, saveDecisionReal, searchCatalogReal, simulateR2Real } from '../services/dataClient';
 import { useAuth } from './AuthContext';
 
 const DataContext = createContext(null);
@@ -39,15 +39,19 @@ export function DataProvider({ children }) {
     }
   }, [authLoading, user?.username]);
 
-  async function consultQwen(caseId) {
-    const response = await consultQwenReal(caseId);
-    await reload({ silent: true });
+  async function consultQwen(datasetId, caseId) {
+    const response = await consultQwenReal(datasetId, caseId);
+    if (String(datasetId) === String(workspace.activeDatasetId)) await reload({ silent: true });
     return response.result;
   }
 
-  async function decide(caseId, action, code) {
-    await saveDecisionReal(caseId, action, code);
-    await reload({ silent: true });
+  async function decide(datasetId, caseId, action, code) {
+    await saveDecisionReal(datasetId, caseId, action, code);
+    if (String(datasetId) === String(workspace.activeDatasetId)) await reload({ silent: true });
+  }
+
+  async function loadDatasetWorkspace(datasetId) {
+    return loadDatasetWorkspaceReal(datasetId);
   }
 
   async function activateDataset(datasetId) {
@@ -103,6 +107,7 @@ export function DataProvider({ children }) {
     error,
     real: true,
     reload,
+    loadDatasetWorkspace,
     consultQwen,
     decide,
     activateDataset,

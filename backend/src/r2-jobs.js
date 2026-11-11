@@ -3,8 +3,27 @@ import { predictR2Batch } from './r2-client.js';
 import { classifyWithQwen, qwenResolutionPolicy } from './qwen-client.js';
 
 let worker = Promise.resolve();
+const activeQwenRequests = new Map();
+const QWEN_BLOCKING_QUALITY_REASONS = new Set([
+  'p309_vacio', 'p309_demasiado_corto', 'exceso_de_simbolos', 'caracteres_repetidos',
+  'respuesta_no_informativa', 'texto_sin_sentido', 'fuera_de_distribucion',
+]);
+
+export function requiresDirectHumanReview(result) {
+  if (result?.revision_manual === true) return true;
+  const quality = result?.evidencia_r2?.calidad_entrada;
+  if (quality?.nivel === 'baja') return true;
+  return Array.isArray(quality?.motivos) && quality.motivos.some(reason => QWEN_BLOCKING_QUALITY_REASONS.has(reason));
+}
 
 export function mapJob(row) {
+  const qwenPending = Number(row.qwen_pending_count || 0);
+  const qwenProcessed = Number(row.qwen_processed_count || 0);
+  const remainingQwen = Math.max(0, qwenPending - qwenProcessed);
+  const averageSeconds = Number(row.qwen_average_seconds);
+  const estimatedSecondsRemaining = row.status === 'qwen_running' && remainingQwen > 0 && Number.isFinite(averageSeconds) && averageSeconds > 0
+    ? Math.ceil(remainingQwen * averageSeconds)
+    : null;
   return {
     id: Number(row.id),
     datasetId: Number(row.dataset_id),
@@ -15,14 +34,17 @@ export function mapJob(row) {
     total: Number(row.total_records),
     processed: Number(row.processed_records),
     automatic: Number(row.automatic_count),
-    qwenPending: Number(row.qwen_pending_count),
+    qwenPending,
     manual: Number(row.manual_count),
     qwenMode: row.qwen_mode || 'manual',
-    qwenProcessed: Number(row.qwen_processed_count || 0),
+    qwenProcessed,
     qwenResolved: Number(row.qwen_resolved_count || 0),
     qwenReview: Number(row.qwen_review_count || 0),
     modelVersion: row.model_version,
     error: row.error_message,
+    cancelRequested: Boolean(row.cancel_requested),
+    qwenAverageSeconds: Number.isFinite(averageSeconds) && averageSeconds > 0 ? averageSeconds : null,
+    estimatedSecondsRemaining,
     createdAt: row.created_at,
     startedAt: row.started_at,
     finishedAt: row.finished_at,
@@ -31,11 +53,39 @@ export function mapJob(row) {
 
 export async function listR2Jobs(limit = 20) {
   const result = await getPool().query(`
-    SELECT j.*, d.name AS dataset_name, d.period
+    SELECT j.*, d.name AS dataset_name, d.period, qwen_stats.average_seconds AS qwen_average_seconds
     FROM epen.processing_jobs j JOIN epen.datasets d ON d.id = j.dataset_id
+    LEFT JOIN LATERAL (
+      SELECT avg(dec.latency_seconds)::float AS average_seconds
+      FROM epen.decisions dec
+      WHERE dec.run_id = ('r2-job-' || j.id::text)
+        AND dec.source = 'llm' AND dec.latency_seconds > 0
+    ) qwen_stats ON true
     ORDER BY j.created_at DESC, j.id DESC LIMIT $1
   `, [limit]);
   return result.rows.map(mapJob);
+}
+
+async function cancellationRequested(jobId) {
+  const result = await getPool().query('SELECT cancel_requested FROM epen.processing_jobs WHERE id = $1', [jobId]);
+  return !result.rowCount || result.rows[0].cancel_requested;
+}
+
+async function cancelJob(jobId, datasetId) {
+  await transaction(async client => {
+    const updated = await client.query(`
+      UPDATE epen.processing_jobs
+      SET status = 'cancelled', finished_at = now(), updated_at = now()
+      WHERE id = $1 AND status NOT IN ('completed', 'failed', 'cancelled')
+      RETURNING id
+    `, [jobId]);
+    if (!updated.rowCount) return;
+    await client.query("UPDATE epen.datasets SET status = 'cancelled', notes = 'Procesamiento cancelado; se conservaron los resultados parciales.' WHERE id = $1", [datasetId]);
+    await client.query(`
+      INSERT INTO epen.audit_log (action, entity_type, entity_id, details)
+      VALUES ('r2.job_cancelled', 'processing_job', $1, $2::jsonb)
+    `, [String(jobId), JSON.stringify({ datasetId: Number(datasetId), preserved: true })]);
+  });
 }
 
 async function failJob(jobId, datasetId, message) {
@@ -57,15 +107,18 @@ async function processR2Job(jobId, config) {
       WHERE j.id = $1 FOR UPDATE OF j
     `, [jobId]);
     if (!found.rowCount || ['completed', 'failed', 'cancelled'].includes(found.rows[0].status)) return null;
+    if (found.rows[0].cancel_requested) return { ...found.rows[0], cancellation_pending: true };
     await client.query("UPDATE epen.processing_jobs SET status = 'running', started_at = COALESCE(started_at, now()), error_message = NULL, updated_at = now() WHERE id = $1", [jobId]);
     return found.rows[0];
   });
   if (!claimed) return;
+  if (claimed.cancellation_pending) return cancelJob(jobId, claimed.dataset_id);
 
   try {
     while (true) {
+      if (await cancellationRequested(jobId)) return cancelJob(jobId, claimed.dataset_id);
       const batch = await getPool().query(`
-        SELECT id, external_id, p309, p308, p308a
+        SELECT id, external_id, p309, p308, p308a, c310, c311, c366
         FROM epen.survey_cases
         WHERE dataset_id = $1 AND candidates IS NULL AND status = 'pending'
         ORDER BY id LIMIT $2
@@ -73,6 +126,7 @@ async function processR2Job(jobId, config) {
       if (!batch.rowCount) break;
       const records = batch.rows.map(row => ({
         id_registro: row.external_id, p309: row.p309, p308: row.p308 || '', p308a: row.p308a || '',
+        c310: row.c310 || '', c311: row.c311 || '', c366: row.c366 || '',
       }));
       const prediction = await predictR2Batch(config, {
         runId: `r2-job-${jobId}`, datasetId: Number(claimed.dataset_id), records,
@@ -91,10 +145,11 @@ async function processR2Job(jobId, config) {
         let manual = 0;
         for (const result of prediction.results) {
           const row = byExternalId.get(result.id_registro);
-          if (result.revision_manual) {
+          if (requiresDirectHumanReview(result)) {
             manual += 1;
-            await client.query("UPDATE epen.survey_cases SET status = 'review', updated_at = now() WHERE id = $1", [row.id]);
-            await client.query("INSERT INTO epen.decisions (case_id, run_id, source, decision, justification, model) VALUES ($1, $2, 'ml', 'derivation', $3, $4)", [row.id, `r2-job-${jobId}`, result.motivo, prediction.modelVersion]);
+            await client.query("UPDATE epen.survey_cases SET status = 'review', r2_evidence = $2::jsonb, updated_at = now() WHERE id = $1", [row.id, JSON.stringify(result.evidencia_r2 || {})]);
+            const reason = result.motivo || 'La calidad de entrada no permite una clasificación automática segura.';
+            await client.query("INSERT INTO epen.decisions (case_id, run_id, source, decision, justification, model) VALUES ($1, $2, 'ml', 'derivation', $3, $4)", [row.id, `r2-job-${jobId}`, reason, prediction.modelVersion]);
             continue;
           }
           const isAutomatic = result.confianza_ml >= Number(claimed.threshold);
@@ -102,9 +157,10 @@ async function processR2Job(jobId, config) {
           else qwenPending += 1;
           await client.query(`
             UPDATE epen.survey_cases
-            SET candidates = $1::jsonb, confianza_ml = $2, status = $3, final_code = $4, updated_at = now()
-            WHERE id = $5
-          `, [JSON.stringify(result.candidatos), result.confianza_ml, isAutomatic ? 'resolved' : 'pending', isAutomatic ? result.candidatos[0].codigo : null, row.id]);
+            SET candidates = $1::jsonb, confianza_ml = $2, status = $3, final_code = $4,
+                r2_evidence = $5::jsonb, updated_at = now()
+            WHERE id = $6
+          `, [JSON.stringify(result.candidatos), result.confianza_ml, isAutomatic ? 'resolved' : 'pending', isAutomatic ? result.candidatos[0].codigo : null, JSON.stringify(result.evidencia_r2 || {}), row.id]);
           if (isAutomatic) {
             await client.query(`
               INSERT INTO epen.decisions (case_id, run_id, source, decision, code, justification, model)
@@ -127,9 +183,12 @@ async function processR2Job(jobId, config) {
     const remaining = await getPool().query('SELECT count(*)::int AS total FROM epen.survey_cases WHERE dataset_id = $1 AND candidates IS NULL AND status = $2', [claimed.dataset_id, 'pending']);
     if (remaining.rows[0].total > 0) throw new Error('El trabajo terminó con registros sin respuesta R2.');
 
+    if (await cancellationRequested(jobId)) return cancelJob(jobId, claimed.dataset_id);
+
     if (claimed.qwen_mode === 'automatic') {
-      await getPool().query("UPDATE epen.processing_jobs SET status = 'qwen_running', updated_at = now() WHERE id = $1", [jobId]);
+      await getPool().query("UPDATE epen.processing_jobs SET status = 'qwen_running', qwen_started_at = COALESCE(qwen_started_at, now()), updated_at = now() WHERE id = $1", [jobId]);
       while (true) {
+        if (await cancellationRequested(jobId)) return cancelJob(jobId, claimed.dataset_id);
         const pending = await getPool().query(`
           SELECT c.* FROM epen.survey_cases c
           WHERE c.dataset_id = $1 AND c.status = 'pending' AND c.candidates IS NOT NULL
@@ -140,12 +199,19 @@ async function processR2Job(jobId, config) {
         const item = pending.rows[0];
         let qwen;
         let policy;
+        const qwenController = new AbortController();
+        activeQwenRequests.set(Number(jobId), qwenController);
         try {
-          qwen = await classifyWithQwen(config, item);
+          qwen = await classifyWithQwen(config, item, { signal: qwenController.signal });
           policy = qwenResolutionPolicy(item.candidates, qwen);
         } catch (cause) {
-          qwen = { result: { justificacion: `Qwen no estuvo disponible: ${cause.message}`, modelo: null, latencia_s: null }, review: true, code: null };
+          if (cause.code === 'QWEN_CANCELLED' || await cancellationRequested(jobId)) {
+            return cancelJob(jobId, claimed.dataset_id);
+          }
+          qwen = { result: { justificacion: `El asistente de IA no estuvo disponible: ${cause.message}`, modelo: null, latencia_s: null }, review: true, code: null };
           policy = { status: 'review', finalCode: null, reason: 'La consulta automática falló y requiere revisión humana.' };
+        } finally {
+          if (activeQwenRequests.get(Number(jobId)) === qwenController) activeQwenRequests.delete(Number(jobId));
         }
         const justification = [qwen.result.justificacion, policy.reason].filter(Boolean).join(' ');
         await transaction(async client => {
@@ -166,6 +232,8 @@ async function processR2Job(jobId, config) {
       }
     }
 
+    if (await cancellationRequested(jobId)) return cancelJob(jobId, claimed.dataset_id);
+
     await transaction(async client => {
       await client.query("UPDATE epen.datasets SET status = 'archived' WHERE status = 'active'");
       await client.query("UPDATE epen.datasets SET status = 'active', activated_at = now() WHERE id = $1", [claimed.dataset_id]);
@@ -178,6 +246,28 @@ async function processR2Job(jobId, config) {
   } catch (cause) {
     await failJob(jobId, claimed.dataset_id, cause.message);
   }
+}
+
+export async function requestR2JobCancellation(jobId) {
+  const result = await transaction(async client => {
+    const found = await client.query('SELECT id, dataset_id, status FROM epen.processing_jobs WHERE id = $1 FOR UPDATE', [jobId]);
+    if (!found.rowCount) return { outcome: 'missing' };
+    const job = found.rows[0];
+    if (['completed', 'failed', 'cancelled'].includes(job.status)) return { outcome: 'finished', status: job.status };
+    const queued = job.status === 'queued';
+    await client.query(`
+      UPDATE epen.processing_jobs
+      SET cancel_requested = true, cancel_requested_at = now(),
+          status = CASE WHEN status = 'queued' THEN 'cancelled' ELSE status END,
+          finished_at = CASE WHEN status = 'queued' THEN now() ELSE finished_at END,
+          updated_at = now()
+      WHERE id = $1
+    `, [jobId]);
+    if (queued) await client.query("UPDATE epen.datasets SET status = 'cancelled', notes = 'Procesamiento cancelado antes de iniciar.' WHERE id = $1", [job.dataset_id]);
+    return { outcome: queued ? 'cancelled' : 'requested', status: queued ? 'cancelled' : job.status };
+  });
+  if (result.outcome === 'requested') activeQwenRequests.get(Number(jobId))?.abort();
+  return result;
 }
 
 export function enqueueR2Job(jobId, config) {

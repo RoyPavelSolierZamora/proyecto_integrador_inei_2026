@@ -32,3 +32,24 @@ test('rechaza modos Qwen desconocidos', () => {
   }
 });
 
+test('exige HTTPS y token largo para R3 remoto', () => {
+  const previous = { password: process.env.PGPASSWORD, mode: process.env.R3_MODE, url: process.env.R3_BASE_URL, token: process.env.R3_API_TOKEN };
+  process.env.PGPASSWORD = 'solo-para-prueba';
+  process.env.R3_MODE = 'remote';
+  process.env.R3_BASE_URL = 'http://r3.example.test';
+  process.env.R3_API_TOKEN = 'corto';
+  try {
+    assert.throws(() => getConfig(), /URL HTTPS/);
+    process.env.R3_BASE_URL = 'https://r3.example.test';
+    assert.throws(() => getConfig(), /al menos 24 caracteres/);
+    process.env.R3_API_TOKEN = 'token-seguro-de-prueba-123456789';
+    const config = getConfig();
+    assert.equal(config.r3Mode, 'remote');
+    assert.equal(config.r3BaseUrl, 'https://r3.example.test');
+  } finally {
+    for (const [key, value] of Object.entries({ PGPASSWORD: previous.password, R3_MODE: previous.mode, R3_BASE_URL: previous.url, R3_API_TOKEN: previous.token })) {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
+  }
+});
+
