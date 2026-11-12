@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import ContextHelp from '../components/ContextHelp';
+import { operationalText } from '../utils/operationalText';
 import HistoricalEvidence from '../components/HistoricalEvidence';
 import StatusBadge from '../components/StatusBadge';
 import useDatasetWorkspace from '../hooks/useDatasetWorkspace';
@@ -84,20 +86,21 @@ export default function CaseDetailPage() {
           <dl className="response-grid"><div><dt>P309 Actividad económica</dt><dd>{item.p309}</dd></div><div><dt>P308 Ocupación</dt><dd>{item.p308}</dd></div><div><dt>P308A Tareas realizadas</dt><dd>{item.p308a}</dd></div></dl>
         </section>
         <section className="panel">
-          <div className="panel-heading"><div><p className="eyebrow">Clasificador automático</p><h2>Códigos candidatos</h2></div><span>{Math.round(item.confianza_ml * 100)} % máximo</span></div>
-          <div className="candidate-list" role="radiogroup" aria-label="Códigos candidatos">
+          <div className="panel-heading"><div><p className="eyebrow">Clasificación automática</p><h2>Códigos sugeridos</h2></div><span>{Math.round(item.confianza_ml * 100)} % máximo</span></div>
+          <ContextHelp title="¿Cómo interpretar los códigos y la confianza?"><p>El código CIIU identifica una actividad económica. El porcentaje indica la confianza de la sugerencia, no garantiza su corrección. Compara la respuesta original y la información complementaria antes de confirmar.</p></ContextHelp>
+          <div className="candidate-list" role="radiogroup" aria-label="Códigos sugeridos">
             {item.candidatos.map(candidate => <label className={`candidate ${selected === candidate.codigo ? 'candidate--selected' : ''}`} key={candidate.codigo}><input type="radio" name="candidate" value={candidate.codigo} checked={selected === candidate.codigo} onChange={() => setSelected(candidate.codigo)} /><span className="candidate-code">{candidate.codigo}</span><span className="candidate-description">{candidate.descripcion}</span><strong>{Math.round(candidate.prob * 100)} %</strong></label>)}
           </div>
           {!item.candidatos.length && <p className="empty-state empty-state--compact">El clasificador no produjo candidatos. Este caso requiere selección manual desde el catálogo.</p>}
         </section>
         <section className="panel">
           <div className="panel-heading"><div><p className="eyebrow">Apoyo para casos difíciles</p><h2>Asistente de IA</h2></div><button className="button button--secondary" type="button" onClick={runQwen} disabled={loading || !item.candidatos.length}>{loading ? 'Procesando…' : item.qwen ? 'Consultar nuevamente' : 'Consultar IA'}</button></div>
-          {item.qwen ? <div className="qwen-result"><div className="qwen-code"><span>Código sugerido</span><strong>{item.qwen.codigo || 'Revisión'}</strong></div><p>{item.qwen.justificacion}</p><small>Latencia: {item.qwen.latencia_s?.toFixed?.(1) || item.qwen.latencia_s} s · La IA funciona como apoyo y no reemplaza los controles de calidad.</small></div> : <p className="empty-state empty-state--compact">Todavía no se consultó la asistencia de IA para este registro.</p>}
+          {item.qwen ? <div className="qwen-result"><div className="qwen-code"><span>Código sugerido</span><strong>{item.qwen.codigo || 'Revisión'}</strong></div><p>{operationalText(item.qwen.justificacion)}</p><small>Tiempo de respuesta: {item.qwen.latencia_s?.toFixed?.(1) || item.qwen.latencia_s} s · La IA funciona como apoyo y no reemplaza los controles de calidad.</small></div> : <p className="empty-state empty-state--compact">Todavía no se consultó la asistencia de IA para este registro.</p>}
         </section>
         <HistoricalEvidence evidence={item.evidencia_r2} />
       </div>
       <section className="decision-bar" aria-label="Decisión del analista">
-        <div><span>Decisión actual</span><strong>{selected || 'Sin código seleccionado'}</strong></div>
+        <div><span>Código seleccionado</span><strong>{selected || 'Sin código seleccionado'}</strong></div>
         <div className="decision-actions"><button className="button button--primary" type="button" disabled={!selected} onClick={() => save('confirmación')}>Confirmar código</button><button className="button button--secondary" type="button" onClick={() => correctionDialog.current?.showModal()}>Buscar otro código</button><button className="button button--danger-quiet" type="button" onClick={() => save('derivación')}>Enviar a revisión</button></div>
       </section>
       <dialog ref={correctionDialog} className="dialog" onClose={() => setCatalogQuery('')}>

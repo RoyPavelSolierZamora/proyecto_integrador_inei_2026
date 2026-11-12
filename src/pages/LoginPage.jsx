@@ -32,7 +32,7 @@ export default function LoginPage() {
           <p>Acceso local para revisar candidatos CIIU, consultar la asistencia de IA y registrar decisiones trazables.</p>
         </div>
         <form onSubmit={submit} className="login-form">
-          <div className="access-notice"><strong>Acceso protegido</strong><span>La identidad y los permisos se validan en el backend PostgreSQL.</span></div>
+          <div className="access-notice"><strong>Acceso protegido</strong><span>Ingresa con la cuenta asignada por el administrador.</span></div>
           <label>Usuario<input autoComplete="username" value={username} onChange={event => setUsername(event.target.value)} /></label>
           <label>Clave<input type="password" autoComplete="current-password" value={password} onChange={event => setPassword(event.target.value)} /></label>
           {error && <p className="form-error" role="alert">{error}</p>}

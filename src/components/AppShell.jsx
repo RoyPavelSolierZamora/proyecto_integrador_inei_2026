@@ -35,14 +35,14 @@ export default function AppShell() {
       </header>
       <aside ref={sidebar} id="epen-sidebar" className={`sidebar ${open ? 'sidebar--open' : ''}`} aria-label="Navegación principal">
         <div className="epen-sidebar-brand"><span className="epen-logo-bars" aria-hidden="true"><i /><i /><i /><i /></span><strong>EPEN</strong></div>
-        <div className="mode-label">Modo real · PostgreSQL</div>
+        <div className="mode-label">Gestión de codificación</div>
         <nav>
           {items.map(item => <NavLink key={item.to} to={item.to} end={item.end} onClick={() => setOpen(false)} className={({ isActive }) => isActive ? 'nav-link nav-link--active' : 'nav-link'}><EpenIcon name={item.icon} /><span>{item.label}</span></NavLink>)}
         </nav>
       </aside>
       {open && <button className="scrim" type="button" aria-label="Cerrar navegación" onClick={closeMenu} />}
       <main className="main-content">
-        {loading ? <div className="panel loading-panel" role="status">Cargando datos desde PostgreSQL…</div>
+        {loading ? <div className="panel loading-panel" role="status">Cargando datos…</div>
           : error ? <div className="notice notice--error" role="alert"><strong>No se pudieron cargar los datos</strong><span>{error}</span><button type="button" className="button button--secondary" onClick={() => reload()}>Reintentar</button></div>
             : <Outlet />}
       </main>
