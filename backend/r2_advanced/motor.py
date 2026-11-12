@@ -24,7 +24,7 @@ from sklearn.svm import LinearSVC
 FEATURE_SET = os.environ.get("R2_FEATURE_SET", "basic").strip().lower()
 if FEATURE_SET not in {"basic", "multivariate"}:
     raise ValueError("R2_FEATURE_SET debe ser basic o multivariate.")
-MODEL_FAMILY = "r2-multivariado-linearsvc-calibrado-0.4" if FEATURE_SET == "multivariate" else "r2-tfidf-linearsvc-calibrado-0.3"
+MODEL_FAMILY = "r2-multivariado-linearsvc-calibrado-0.4" if FEATURE_SET == "multivariate" else "r2-tfidf-linearsvc-calibrado-0.5"
 ALIASES = {
     "id_registro": ("id_registro", "ID_C200"),
     "anio": ("anio", "ANIO"),
@@ -228,24 +228,38 @@ class MotorR2Avanzado:
 
     def fit(self, cases):
         self.history_cases = list(cases)
-        months = sorted({case.mes.zfill(2) for case in self.history_cases if case.mes.isdigit()})
-        calibration_month = months[-1] if len(months) >= 2 else None
-        calibration_cases = [case for case in self.history_cases if case.mes.zfill(2) == calibration_month] if calibration_month else []
-        training_cases = [case for case in self.history_cases if case.mes.zfill(2) != calibration_month] if calibration_month else list(self.history_cases)
+        periods = sorted({
+            (int(case.anio), int(case.mes))
+            for case in self.history_cases
+            if case.anio.isdigit() and case.mes.isdigit()
+            and 1900 <= int(case.anio) <= 2200 and 1 <= int(case.mes) <= 12
+        })
+        calibration_period = periods[-1] if len(periods) >= 2 else None
+        calibration_cases = [
+            case for case in self.history_cases
+            if calibration_period and (int(case.anio), int(case.mes)) == calibration_period
+        ]
+        training_cases = [
+            case for case in self.history_cases
+            if not calibration_period or (int(case.anio), int(case.mes)) != calibration_period
+        ]
         if len(calibration_cases) < 100 or len({case.codigo for case in training_cases}) < 2:
             training_cases = list(self.history_cases)
             calibration_cases = []
-            calibration_month = None
+            calibration_period = None
 
         self.features = self._build_features()
         x_train = self.features.fit_transform([_texto_modelo(case.record()) for case in training_cases])
         y_train = np.array([case.codigo for case in training_cases])
-        self.classifier = LinearSVC(C=1.6, class_weight=None)
+        self.classifier = LinearSVC(C=1.6, class_weight=None, tol=1e-3, max_iter=2000)
         self.classifier.fit(x_train, y_train)
         self.training_count = len(training_cases)
         self.training_classes = len(self.classifier.classes_)
 
         if calibration_cases:
+            calibration_year, calibration_month = calibration_period
+            self.calibration_count = len(calibration_cases)
+            self.calibration_label = f"margen-temporal-{calibration_year}-{calibration_month:02d}"
             x_calibration = self.features.transform([_texto_modelo(case.record()) for case in calibration_cases])
             y_calibration = np.array([case.codigo for case in calibration_cases])
             scores = self.classifier.decision_function(x_calibration)
@@ -258,9 +272,7 @@ class MotorR2Avanzado:
             if len(set(correct.tolist())) > 1:
                 self.calibrator = IsotonicRegression(y_min=0.0, y_max=1.0, out_of_bounds="clip")
                 self.calibrator.fit(margin, correct)
-                self.calibration_count = len(calibration_cases)
-                year = calibration_cases[0].anio or "historico"
-                self.calibration_label = f"isotonica-temporal-{year}-{calibration_month}"
+                self.calibration_label = f"isotonica-temporal-{calibration_year}-{calibration_month:02d}"
 
         self.history_matrix = self.features.transform([_texto_modelo(case.record()) for case in self.history_cases])
         self.exact_index = defaultdict(Counter)

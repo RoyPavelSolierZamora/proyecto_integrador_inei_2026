@@ -126,10 +126,17 @@ def construir_mensaje_usuario(p309, candidatos, p308="", p308a="", casos_similar
                               desc_max=None, breve=True):
     pares = _a_pares(candidatos)
     lineas = []
-    for code, description in pares:
+    for index, (code, description) in enumerate(pares, start=1):
         if desc_max:
             description = description[:desc_max]
-        lineas.append(f"- {code}: {description}")
+        source = candidatos[index - 1] if isinstance(candidatos[index - 1], dict) else {}
+        rank = source.get("rank", index)
+        try:
+            score = float(source.get("prob"))
+        except (TypeError, ValueError):
+            score = None
+        score_text = f", puntaje R2 {score:.3f}" if score is not None else ""
+        lineas.append(f"- rango {rank}: {code}: {description}{score_text}")
 
     allowed = {code for code, _ in pares}
     examples = []
@@ -137,7 +144,19 @@ def construir_mensaje_usuario(p309, candidatos, p308="", p308a="", casos_similar
         code = str(example.get("codigo") or "").strip()
         text = " ".join(str(example.get("p309") or "").split())[:180]
         if code in allowed and text:
-            examples.append(f'- {code}: "{text}"')
+            occupation = " ".join(str(example.get("p308") or "").split())[:100]
+            tasks = " ".join(str(example.get("p308a") or "").split())[:160]
+            try:
+                similarity = float(example.get("similitud"))
+            except (TypeError, ValueError):
+                similarity = None
+            details = [f'P309="{text}"']
+            if occupation:
+                details.append(f'P308="{occupation}"')
+            if tasks:
+                details.append(f'P308A="{tasks}"')
+            similarity_text = f", similitud {similarity:.3f}" if similarity is not None else ""
+            examples.append(f"- código {code}{similarity_text}: " + "; ".join(details))
     example_text = "\n".join(examples) if examples else "- Sin antecedentes suficientemente parecidos."
 
     if breve:

@@ -32,13 +32,20 @@ class ContextoRobustoTest(unittest.TestCase):
     def test_prompt_incluye_contexto_y_antecedente_validado(self):
         prompt = clasificador.construir_mensaje_usuario(
             "vta d almuerzos",
-            [{"codigo": "5610", "descripcion": "Restaurantes"}],
+            [{"codigo": "5610", "descripcion": "Restaurantes", "rank": 1, "prob": 0.63}],
             p308="cocinera",
             p308a="prepara platos",
-            casos_similares=[{"codigo": "5610", "p309": "Venta de almuerzos"}],
+            casos_similares=[{
+                "codigo": "5610", "p309": "Venta de almuerzos", "p308": "cocinera",
+                "p308a": "prepara menú", "similitud": 0.91,
+            }],
         )
         self.assertIn("<P308>cocinera</P308>", prompt)
-        self.assertIn("5610: \"Venta de almuerzos\"", prompt)
+        self.assertIn("rango 1: 5610", prompt)
+        self.assertIn("puntaje R2 0.630", prompt)
+        self.assertIn('P309="Venta de almuerzos"', prompt)
+        self.assertIn('P308A="prepara menú"', prompt)
+        self.assertIn("similitud 0.910", prompt)
 
 
 if __name__ == "__main__":

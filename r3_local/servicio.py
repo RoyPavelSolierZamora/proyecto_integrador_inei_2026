@@ -22,7 +22,7 @@ import contrato
 
 
 BASE = os.path.dirname(os.path.abspath(__file__))
-PROMPT_FILE = os.path.join(BASE, "prompts", "prompt_v4_robusto.txt")
+PROMPT_FILE = os.path.join(BASE, "prompts", "prompt_v5_contexto_historico.txt")
 MAX_BODY_BYTES = 2 * 1024 * 1024
 
 CATALOGO = None

@@ -213,13 +213,14 @@ python -m pip install -r backend\r2_advanced\requirements.txt
 
 ```dotenv
 R2_MODE=advanced
-R2_TRAINING_CSV=C:\ruta\data_epen_2025.csv
+R2_TRAINING_CSV=C:\ruta\data_epen_2022_2025.csv
+R2_FEATURE_SET=basic
 ```
 
 El primer inicio entrena y guarda un artefacto local en `.runtime/r2-models/`; ese directorio está
-ignorado por Git porque el modelo contiene representación del histórico. Para el experimento
-2025 → enero de 2026 se recomienda comenzar con `tau=0,90`, no con 0,70, y volver a calibrar si
-cambia el histórico o el preprocesamiento.
+ignorado por Git porque el modelo contiene representación del histórico. El dashboard propone
+`tau=0,95` para priorizar precisión, pero el operador puede usar 0,90 para aumentar cobertura. El
+umbral se guarda por trabajo y debe volver a evaluarse si cambia el histórico o el preprocesamiento.
 
 ## Flujo que verá el operador
 

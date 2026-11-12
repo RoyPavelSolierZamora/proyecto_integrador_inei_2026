@@ -52,6 +52,24 @@ class MotorR2AvanzadoTest(unittest.TestCase):
         self.assertTrue(result["revision_manual"])
         self.assertIn("p309_vacio", result["calidad_entrada"]["motivos"])
 
+    def test_calibra_solo_con_el_ultimo_periodo_completo(self):
+        historical = [
+            CasoHistorico(f"T-{index}", "2024", "12", "Venta de comida", "Cocinera", "Prepara platos", "", "", "", "5610")
+            for index in range(100)
+        ]
+        historical.extend([
+            CasoHistorico(f"U-{index}", "2025", "11", "Servicio de mototaxi", "Conductor", "Transporta", "", "", "", "4922")
+            for index in range(100)
+        ])
+        historical.extend([
+            CasoHistorico(f"C-{index}", "2025", "12", "Desarrollo de software", "Programador", "Programa", "", "", "", "6201")
+            for index in range(100)
+        ])
+        engine = MotorR2Avanzado(self.catalog).fit(historical)
+        self.assertEqual(engine.training_count, 200)
+        self.assertEqual(engine.calibration_count, 100)
+        self.assertIn("2025-12", engine.calibration_label)
+
 
 if __name__ == "__main__":
     unittest.main()

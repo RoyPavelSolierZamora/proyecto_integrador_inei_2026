@@ -69,15 +69,15 @@ seleccionarse localmente con `R2_MODE=baseline` y `R2_TRAINING_CSV` en `.env`; e
 siendo el valor predeterminado.
 
 `backend/r2_advanced/` es la versión estadística recomendada cuando existe un histórico anual.
-Entrena con n-gramas de palabras y caracteres, LinearSVC y calibración isotónica sobre el último
-mes disponible. En la primera evaluación 2025 → enero de 2026 obtuvo 88,3 % Top-1 y 94,0 % Top-3.
-Con `tau=0,90`, cubrió 67,7 % de los registros con 98,8 % de precisión entre los cierres de R2 y
-derivó 32,3 % a Qwen o revisión. Estas cifras son experimentales y deben reproducirse antes de una
-entrega. Se activa con `R2_MODE=advanced`; sus dependencias e instrucciones están en
+La versión 0.5 usa P309/P308/P308A, n-gramas de palabras y caracteres, LinearSVC y calibración
+isotónica sobre el último periodo cronológico. Entrenada hasta noviembre de 2025 y calibrada con
+diciembre de 2025 obtuvo 91,4 % Top-1 y 96,6 % Top-3 sobre enero-agosto de 2026. Con `tau=0,95`
+cubrió 68,0 % con 99,3 % de precisión. El umbral predeterminado del dashboard es 0,95, pero el
+operador puede cambiarlo por trabajo. Se activa con `R2_MODE=advanced`; sus instrucciones están en
 [`backend/r2_advanced/README.md`](backend/r2_advanced/README.md).
 
-R3 usa el contrato 1.1 y el prompt versionado `prompt_v4_robusto.txt`: recibe P309, el contexto
-P308/P308A y hasta tres antecedentes validados de R2. Qwen sigue limitado al Top-K y cualquier
+R3 usa el contrato 1.1 y el prompt versionado `prompt_v5_contexto_historico.txt`: recibe P309, el
+contexto P308/P308A, rango y puntaje R2, y hasta tres antecedentes validados. Qwen sigue limitado al Top-K y cualquier
 ambigüedad, discrepancia o salida inválida se deriva a revisión humana.
 
 ## Flujo operativo
