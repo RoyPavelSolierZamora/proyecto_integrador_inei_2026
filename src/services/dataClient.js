@@ -28,8 +28,8 @@ export const startR2JobReal = ({ name, period, fileName, threshold, synthetic, q
   });
 };
 
-export const saveDecisionReal = (datasetId, caseId, action, code) => apiRequest(`/api/datasets/${encodeURIComponent(datasetId)}/cases/${encodeURIComponent(caseId)}/decision`, {
-  method: 'POST', mutation: true, body: { action, code },
+export const saveDecisionReal = (datasetId, caseId, action, code, justification = '') => apiRequest(`/api/datasets/${encodeURIComponent(datasetId)}/cases/${encodeURIComponent(caseId)}/decision`, {
+  method: 'POST', mutation: true, body: { action, code, justification },
 });
 
 export const consultQwenReal = (datasetId, caseId) => apiRequest(`/api/datasets/${encodeURIComponent(datasetId)}/cases/${encodeURIComponent(caseId)}/qwen`, {
@@ -52,4 +52,26 @@ export async function searchCatalogReal(query) {
   const data = await apiRequest(`/api/catalog?q=${encodeURIComponent(query || '')}`);
   return data.rows;
 }
+
+export async function searchCatalogPageReal(query, { limit = 30, offset = 0 } = {}) {
+  const params = new URLSearchParams({ q: query || '', limit: String(limit), offset: String(offset) });
+  const data = await apiRequest(`/api/catalog?${params.toString()}`);
+  const rows = data.rows || [];
+  return { rows, total: Number.isFinite(Number(data.total)) ? Number(data.total) : rows.length };
+}
+
+export const getDatasetSummaryReal = datasetId => apiRequest(`/api/analytics/datasets/${encodeURIComponent(datasetId)}/summary`);
+export const compareDatasetsReal = (left, right) => apiRequest(`/api/analytics/compare?left=${encodeURIComponent(left)}&right=${encodeURIComponent(right)}`);
+export const getQualitySummaryReal = datasetId => apiRequest(`/api/analytics/datasets/${encodeURIComponent(datasetId)}/quality`);
+export const getSimilarCasesReal = (datasetId, caseId) => apiRequest(`/api/analytics/datasets/${encodeURIComponent(datasetId)}/cases/${encodeURIComponent(caseId)}/similar`);
+export const askAssistantReal = input => apiRequest('/api/assistant/chat', { method: 'POST', mutation: true, body: input });
+
+export const listCodingRulesReal = status => apiRequest(`/api/coding-rules${status ? `?status=${encodeURIComponent(status)}` : ''}`);
+export const getCaseCodingRulesReal = (datasetId, caseId) => apiRequest(`/api/datasets/${encodeURIComponent(datasetId)}/cases/${encodeURIComponent(caseId)}/coding-rules`);
+export const createCodingRuleReal = input => apiRequest('/api/coding-rules', { method: 'POST', mutation: true, body: input });
+export const updateCodingRuleReal = (id, input) => apiRequest(`/api/coding-rules/${encodeURIComponent(id)}`, { method: 'PATCH', mutation: true, body: input });
+export const updateCodingRuleStatusReal = (id, status) => apiRequest(`/api/coding-rules/${encodeURIComponent(id)}/status`, { method: 'PATCH', mutation: true, body: { status } });
+
+export const listQualityReviewsReal = (datasetId, caseId) => apiRequest(`/api/datasets/${encodeURIComponent(datasetId)}/cases/${encodeURIComponent(caseId)}/quality-reviews`);
+export const createQualityReviewReal = (datasetId, caseId, input) => apiRequest(`/api/datasets/${encodeURIComponent(datasetId)}/cases/${encodeURIComponent(caseId)}/quality-reviews`, { method: 'POST', mutation: true, body: input });
 

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import DatasetWorkspaceSelector from '../components/DatasetWorkspaceSelector';
 import ContextHelp from '../components/ContextHelp';
 import StatusBadge from '../components/StatusBadge';
@@ -8,6 +8,7 @@ import { useData } from '../state/DataContext';
 
 export default function CasesPage() {
   const { datasets, activeDataset } = useData();
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedDatasetId = Number(searchParams.get('dataset')) || activeDataset?.id;
   const { selectedDataset, cases, loading, error } = useDatasetWorkspace(requestedDatasetId);
@@ -43,6 +44,7 @@ export default function CasesPage() {
     <div className="page">
       <div className="page-heading"><div><p className="eyebrow">Bandeja unificada</p><h1>Codificación y revisión</h1><p>Selecciona una base y revisa sus registros pendientes.</p></div></div>
       <DatasetWorkspaceSelector datasets={datasets} selectedId={selectedDataset?.id} onChange={selectDataset} />
+      {location.state?.notice && <div className="notice notice--success" role="status">{location.state.notice}</div>}
       {loading && <div className="notice" role="status">Cargando la base seleccionada…</div>}
       {error && <div className="notice notice--error" role="alert">{error}</div>}
       <ContextHelp title="¿Qué muestra cada vista?"><p>“Requieren atención” reúne pendientes y revisión humana. Las otras vistas muestran todos los registros o los procesados por clasificación automática, IA o una persona, siempre dentro de la base seleccionada.</p></ContextHelp>
@@ -51,10 +53,10 @@ export default function CasesPage() {
         <label>Vista<select value={view} onChange={event => setView(event.target.value)}><option value="atencion">Requieren atención</option><option value="todos">Todos los registros</option><option value="r2">Clasificación automática</option><option value="qwen">Procesados con IA</option><option value="humano">Revisados por persona</option></select></label>
         <span className="filter-count" aria-live="polite">{filtered.length} resultado{filtered.length === 1 ? '' : 's'}</span>
       </section>
-      <div className="table-wrap" role="region" aria-label="Tabla de registros" tabIndex={0}>
-        <table>
-          <thead><tr><th>Registro</th><th>Actividad económica (P309)</th><th>Origen</th><th>Nivel de confianza</th><th>Estado</th><th><span className="sr-only">Acción</span></th></tr></thead>
-          <tbody>{visible.map(item => <tr key={item.id_registro}><td data-label="Registro"><strong>{item.id_registro}</strong></td><td data-label="Actividad económica (P309)">{item.p309 || 'Sin respuesta P309'}</td><td data-label="Origen">{originLabel[caseOrigin(item)] || 'Sin decisión'}</td><td data-label="Nivel de confianza">{item.confianza_ml ? `${Math.round(item.confianza_ml * 100)} %` : '—'}</td><td data-label="Estado"><StatusBadge status={item.estado} /></td><td className="table-action-cell" data-label="Acción"><Link className="button button--secondary table-action" to={`/casos/${encodeURIComponent(item.id_registro)}?dataset=${selectedDataset?.id}`}>Ver detalle</Link></td></tr>)}</tbody>
+      <div className="table-wrap cases-table-wrap" role="region" aria-label="Tabla de registros" tabIndex={0}>
+        <table className="cases-table">
+          <thead><tr><th>Registro</th><th>Actividad económica (P309)</th><th>Origen y responsable</th><th>Nivel de confianza</th><th>Estado</th><th><span className="sr-only">Acción</span></th></tr></thead>
+          <tbody>{visible.map(item => <tr key={item.id_registro}><td className="case-id-cell" data-label="Registro"><strong title={item.id_registro}>{item.id_registro}</strong></td><td data-label="Actividad económica (P309)">{item.p309 || 'Sin respuesta P309'}</td><td data-label="Origen y responsable"><span className="decision-source">{originLabel[caseOrigin(item)] || 'Sin decisión'}</span><small>{item.responsable_decision || '—'}</small></td><td data-label="Nivel de confianza">{item.confianza_ml ? `${Math.round(item.confianza_ml * 100)} %` : '—'}</td><td data-label="Estado"><StatusBadge status={item.estado} /></td><td className="table-action-cell" data-label="Acción"><Link className="button button--secondary table-action" to={`/casos/${encodeURIComponent(item.id_registro)}?dataset=${selectedDataset?.id}`}>Ver detalle</Link></td></tr>)}</tbody>
         </table>
         {!loading && !filtered.length && <p className="empty-state">No se encontraron registros con esos filtros.</p>}
         {filtered.length > 0 && <nav className="pagination" aria-label="Páginas de registros"><button className="button button--secondary" type="button" disabled={page === 1} onClick={() => setPage(value => value - 1)}>Anterior</button><span>Página <strong>{page}</strong> de <strong>{totalPages}</strong> · {filtered.length} registros</span><button className="button button--secondary" type="button" disabled={page === totalPages} onClick={() => setPage(value => value + 1)}>Siguiente</button></nav>}

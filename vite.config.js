@@ -33,15 +33,9 @@ export default defineConfig({
     // El websocket de recarga en caliente no atraviesa bien un túnel HTTPS.
     hmr: tunnelHost ? false : undefined,
     proxy: {
-      '/api/auth': { target: 'http://127.0.0.1:8080', changeOrigin: false },
-      '/api/admin': { target: 'http://127.0.0.1:8080', changeOrigin: false },
-      '/api/health': { target: 'http://127.0.0.1:8080', changeOrigin: false },
-      '/api/system': { target: 'http://127.0.0.1:8080', changeOrigin: false },
-      '/api/datasets': { target: 'http://127.0.0.1:8080', changeOrigin: false },
-      '/api/data': { target: 'http://127.0.0.1:8080', changeOrigin: false },
-      '/api/cases': { target: 'http://127.0.0.1:8080', changeOrigin: false },
-      '/api/catalog': { target: 'http://127.0.0.1:8080', changeOrigin: false },
-      '/api/r2': { target: 'http://127.0.0.1:8080', changeOrigin: false },
+      // Todas las rutas de la API pertenecen al backend Express. Una sola regla
+      // evita olvidar prefijos nuevos (asistente, analítica, criterios, etc.).
+      '/api': { target: 'http://127.0.0.1:8080', changeOrigin: false },
     },
   },
 });

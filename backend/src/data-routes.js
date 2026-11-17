@@ -14,7 +14,11 @@ const CASE_SELECT = `
          llm.decision AS llm_decision, llm.code AS llm_code,
          llm.justification AS llm_justification, llm.latency_seconds AS llm_latency,
          human.decision AS human_decision,
-         latest.source AS latest_source
+         latest.source AS latest_source, latest.decision AS latest_decision,
+         latest.model AS latest_model, latest.justification AS latest_justification,
+         COALESCE(latest_actor.full_name,
+           CASE latest.source WHEN 'ml' THEN 'Clasificación automática' WHEN 'llm' THEN 'Asistente de IA' ELSE NULL END
+         ) AS latest_actor
   FROM epen.survey_cases c
   LEFT JOIN LATERAL (
     SELECT decision, code, justification, latency_seconds
@@ -26,9 +30,10 @@ const CASE_SELECT = `
     ORDER BY created_at DESC, id DESC LIMIT 1
   ) human ON true
   LEFT JOIN LATERAL (
-    SELECT source FROM epen.decisions WHERE case_id = c.id
+    SELECT source, decision, model, justification, decided_by FROM epen.decisions WHERE case_id = c.id
     ORDER BY created_at DESC, id DESC LIMIT 1
   ) latest ON true
+  LEFT JOIN epen.users latest_actor ON latest_actor.id = latest.decided_by
 `;
 
 function httpError(status, message) {
@@ -102,6 +107,10 @@ export function mapCase(row) {
     evidencia_r2: mapR2Evidence(row.r2_evidence),
     estado, codigo_final: row.final_code, qwen,
     origen_decision: row.latest_source === 'ml' ? 'r2' : row.latest_source === 'llm' ? 'qwen' : row.latest_source === 'human' ? 'humano' : 'pendiente',
+    responsable_decision: row.latest_actor || null,
+    tipo_decision: row.latest_decision || null,
+    modelo_decision: row.latest_model || null,
+    justificacion_decision: row.latest_justification || null,
     updated_at: row.updated_at,
   };
 }
@@ -156,6 +165,7 @@ async function eventsForDataset(db, datasetId) {
   return result.rows.map(row => ({
     id: Number(row.id), caseId: row.external_id, action: labels[row.decision] || row.decision,
     code: row.code, user: row.actor, at: row.created_at,
+    source: row.source === 'ml' ? 'automatic' : row.source === 'llm' ? 'ai' : 'human',
   }));
 }
 
@@ -327,16 +337,28 @@ export function createDataRouter(config) {
 
   router.get('/api/catalog', requireAuth, async (req, res) => {
     const query = String(req.query.q || '').trim();
-    const result = query
-      ? await getPool().query('SELECT code, description FROM epen.ciiu_catalog WHERE active = true AND (code LIKE $1 OR description ILIKE $2) ORDER BY code LIMIT 20', [`${query}%`, `%${query}%`])
-      : await getPool().query('SELECT code, description FROM epen.ciiu_catalog WHERE active = true ORDER BY code LIMIT 20');
-    res.json({ rows: result.rows.map(row => ({ codigo: row.code, descripcion: row.description })) });
+    const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 30, 1), 500);
+    const offset = Math.max(Number.parseInt(req.query.offset, 10) || 0, 0);
+    const filter = query ? 'WHERE active = true AND (code LIKE $1 OR description ILIKE $2)' : 'WHERE active = true';
+    const filterValues = query ? [`${query}%`, `%${query}%`] : [];
+    const totalResult = await getPool().query(`SELECT COUNT(*)::int AS total FROM epen.ciiu_catalog ${filter}`, filterValues);
+    const result = await getPool().query(
+      `SELECT code, description FROM epen.ciiu_catalog ${filter} ORDER BY code LIMIT $${filterValues.length + 1} OFFSET $${filterValues.length + 2}`,
+      [...filterValues, limit, offset],
+    );
+    res.json({
+      rows: result.rows.map(row => ({ codigo: row.code, descripcion: row.description })),
+      total: totalResult.rows[0]?.total ?? result.rowCount,
+      limit,
+      offset,
+    });
   });
 
   router.post(['/api/cases/:externalId/decision', '/api/datasets/:datasetId/cases/:externalId/decision'], requireRole('analista', 'supervisor', 'admin'), requireCsrf, async (req, res) => {
     const actionMap = { confirmación: 'confirmation', confirmation: 'confirmation', corrección: 'correction', correction: 'correction', derivación: 'derivation', derivation: 'derivation' };
     const decision = actionMap[String(req.body?.action || '')];
-    const code = req.body?.code ? String(req.body.code) : null;
+    const code = req.body?.code ? String(req.body.code).trim() : null;
+    const justification = String(req.body?.justification || '').trim().slice(0, 2000) || null;
     if (!decision) throw httpError(400, 'La decisión no es válida.');
     if (decision !== 'derivation' && !/^\d{4}$/.test(code || '')) throw httpError(400, 'El código final debe tener 4 dígitos.');
     const updated = await transaction(async client => {
@@ -344,12 +366,21 @@ export function createDataRouter(config) {
       if (req.params.datasetId && (!Number.isSafeInteger(requestedId) || requestedId < 1)) throw httpError(400, 'La base solicitada no es válida.');
       const target = requestedId ? await datasetById(client, requestedId) : await activeDataset(client);
       if (!target) throw httpError(409, requestedId ? 'La base solicitada no existe.' : 'No existe una base activa.');
-      const current = await client.query('SELECT id FROM epen.survey_cases WHERE dataset_id = $1 AND external_id = $2 FOR UPDATE', [target.id, req.params.externalId]);
+      const current = await client.query('SELECT id, candidates FROM epen.survey_cases WHERE dataset_id = $1 AND external_id = $2 FOR UPDATE', [target.id, req.params.externalId]);
       if (!current.rowCount) throw httpError(404, 'Registro no encontrado.');
       const caseId = current.rows[0].id;
-      await client.query('UPDATE epen.survey_cases SET status = $1, final_code = $2, updated_at = now() WHERE id = $3', [decision === 'derivation' ? 'review' : 'resolved', decision === 'derivation' ? null : code, caseId]);
-      await client.query('INSERT INTO epen.decisions (case_id, source, decision, code, decided_by) VALUES ($1, $2, $3, $4, $5)', [caseId, 'human', decision, decision === 'derivation' ? null : code, req.auth.user.id]);
-      await audit(client, req, `case.${decision}`, 'case', caseId, { datasetId: Number(target.id), externalId: req.params.externalId, code });
+      let storedDecision = decision;
+      let storedJustification = justification;
+      if (decision !== 'derivation') {
+        const catalog = await client.query('SELECT code FROM epen.ciiu_catalog WHERE code = $1 AND active = true', [code]);
+        if (!catalog.rowCount) throw httpError(400, 'El código no pertenece al catálogo CIIU activo.');
+        const candidates = Array.isArray(current.rows[0].candidates) ? current.rows[0].candidates.map(item => String(item.codigo || '')) : [];
+        if (!candidates.includes(code)) storedDecision = 'correction';
+        if (storedDecision === 'correction' && !storedJustification) storedJustification = 'Selección manual desde el catálogo CIIU.';
+      }
+      await client.query('UPDATE epen.survey_cases SET status = $1, final_code = $2, updated_at = now() WHERE id = $3', [storedDecision === 'derivation' ? 'review' : 'resolved', storedDecision === 'derivation' ? null : code, caseId]);
+      await client.query('INSERT INTO epen.decisions (case_id, source, decision, code, justification, decided_by) VALUES ($1, $2, $3, $4, $5, $6)', [caseId, 'human', storedDecision, storedDecision === 'derivation' ? null : code, storedJustification, req.auth.user.id]);
+      await audit(client, req, `case.${storedDecision}`, 'case', caseId, { datasetId: Number(target.id), externalId: req.params.externalId, code, outsideCandidates: storedDecision === 'correction' });
       return caseByExternalId(client, target.id, req.params.externalId);
     });
     res.json({ case: updated });

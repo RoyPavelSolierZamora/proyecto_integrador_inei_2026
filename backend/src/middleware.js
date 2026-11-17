@@ -16,7 +16,7 @@ export async function loadSession(req, _res, next) {
     if (!token) return next();
     const tokenHash = hashToken(token);
     const result = await getPool().query(`
-      SELECT s.token_hash, s.csrf_token, s.expires_at,
+      SELECT s.token_hash, btrim(s.csrf_token) AS csrf_token, s.expires_at,
              u.id, u.username, u.full_name, u.role, u.active
       FROM epen.sessions s
       JOIN epen.users u ON u.id = s.user_id
@@ -52,7 +52,11 @@ export function requireRole(...roles) {
 export function requireCsrf(req, res, next) {
   const config = getConfig();
   if (req.headers.origin !== config.appOrigin) return res.status(403).json({ error: 'Origen de la petición no permitido.' });
-  if (!req.auth || req.headers['x-csrf-token'] !== req.auth.csrfToken) return res.status(403).json({ error: 'Token de seguridad inválido.' });
+  // csrf_token es char(64): PostgreSQL rellena con espacios. Comparar sin
+  // relleno evita que toda mutación falle tras restaurar la sesión con /me.
+  const supplied = String(req.headers['x-csrf-token'] || '').trim();
+  const expected = req.auth ? String(req.auth.csrfToken).trim() : '';
+  if (!req.auth || !expected || supplied !== expected) return res.status(403).json({ error: 'Token de seguridad inválido.' });
   next();
 }
 

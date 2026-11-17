@@ -148,8 +148,8 @@ test('navegación conserva detalle, versiones, historial y revisión',async({pag
  await page.getByRole('button',{name:'Volver a codificación',exact:false}).click();
  await page.locator('.workspace-picker__trigger').click();await page.getByRole('option').filter({hasText:'Base de prueba 2'}).click();
  await expect(page).toHaveURL(/dataset=2/);await page.getByRole('link',{name:'Ver detalle'}).click();await expect(page.locator('.response-grid')).toContainText('base 2');
- await page.getByRole('button',{name:'Enviar a revisión'}).click();await expect.poll(()=>calls.some(c=>c.path==='/api/datasets/2/cases/PRUEBA-001/decision'&&JSON.parse(c.body).action==='derivación')).toBe(true);
- await page.goto('/historial?dataset=2');await expect(page.locator('tbody')).toContainText('PRUEBA-001');await page.getByLabel('Buscar',{exact:true}).fill('no existe');await expect(page.getByText('No encontramos decisiones con esa búsqueda.')).toBeVisible();
+ await page.getByRole('button',{name:'Revisión',exact:true}).click();await expect.poll(()=>calls.some(c=>c.path==='/api/datasets/2/cases/PRUEBA-001/decision'&&JSON.parse(c.body).action==='derivación')).toBe(true);
+ await page.goto('/historial?dataset=2');await expect(page.locator('.audit-timeline')).toContainText('PRUEBA-001');await page.getByLabel('Buscar',{exact:true}).fill('no existe');await expect(page.getByText('No hay eventos con esos filtros.')).toBeVisible();
  expect(errors).toEqual([]);
 });
 
@@ -162,7 +162,10 @@ for(const width of [1366,768,390]) test(`revisión visual y desbordamientos ${wi
  for(const [name,url] of [['inicio','/'],['bases','/bases'],['usuarios','/usuarios'],['casos','/casos'],['historial','/historial'],['detalle','/casos/PRUEBA-001?dataset=1'],['metricas','/metricas']]) {
    await page.goto(url);await expect(page.locator('.main-content h1')).toBeVisible();
    await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
-   if(name==='detalle') expect(await page.evaluate(()=>document.querySelector('.history-disclosure').getBoundingClientRect().bottom <= document.querySelector('.decision-bar').getBoundingClientRect().top)).toBe(true);
+   if(name==='detalle') {
+     expect(await page.evaluate(()=>[...document.querySelectorAll('.support-disclosure')].every(item=>!item.open))).toBe(true);
+     expect(await page.evaluate(()=>{const box=document.querySelector('.decision-bar').getBoundingClientRect();return box.top>=0&&box.bottom<=innerHeight+1;})).toBe(true);
+   }
    await page.screenshot({path:testInfo.outputPath(`${name}.png`),fullPage:true});
    if(name==='usuarios') {await page.getByRole('tab',{name:'Crear usuario'}).click();await page.screenshot({path:testInfo.outputPath('crear.png'),fullPage:true});}
  }

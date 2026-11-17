@@ -88,7 +88,9 @@ ambigüedad, discrepancia o salida inválida se deriva a revisión humana.
 4. Los registros sobre τ se resuelven con R2; los difíciles pasan a Qwen manual o automático.
 5. Qwen solo puede seleccionar códigos suministrados por R2.
 6. Discrepancias, ambigüedades y fallos técnicos pasan a revisión humana.
-7. Cada versión conserva trazabilidad y puede exportarse como CSV.
+7. El analista puede elegir cualquier clase del catálogo oficial cuando el Top-K no corresponda;
+   debe justificar la corrección y el cambio queda auditado.
+8. Cada versión conserva trazabilidad y puede exportarse como CSV.
 
 El seguimiento separa el progreso R2 del progreso Qwen, estima el tiempo restante con la latencia
 observada y permite una cancelación cooperativa que conserva los resultados parciales. En
@@ -97,6 +99,22 @@ persona), además de la cola de excepciones que se abre por defecto.
 
 El umbral τ debe calibrarse con datos EPEN reales etiquetados. La confianza declarada por Qwen
 no se usa como umbral estadístico.
+
+## Asistente, criterios y control de calidad
+
+El **Asistente EPEN** responde ayuda de uso y consultas calculadas sobre las bases cargadas:
+resumen de una versión, comparación de dos periodos, antecedentes relacionados y métricas de
+calidad autorizadas por rol. No genera SQL, no envía datos a un proveedor externo y registra solo
+la intención y la huella SHA-256 de la pregunta para auditoría.
+
+Los supervisores pueden proponer criterios de codificación asociados a una clase CIIU oficial.
+Un administrador debe aprobarlos antes de que aparezcan como criterios vigentes relacionados en
+el detalle de un registro. Esta bandeja no permite inventar ni modificar clases del catálogo.
+
+El control de calidad separa señales de revisión de errores confirmados. La tasa por codificador
+solo usa dictámenes formales registrados por supervisor o administrador; una concentración en una
+rama CIIU se presenta como alerta de muestreo, nunca como prueba automática de sesgo. Consulta
+[`docs/GOBERNANZA_Y_CONTROL_CALIDAD.md`](docs/GOBERNANZA_Y_CONTROL_CALIDAD.md).
 
 ## Asistente de IA en GPU de Colab
 
@@ -119,6 +137,7 @@ Con las dependencias ya instaladas:
 ```powershell
 npm ci
 npm test
+npm run test:ui
 npm run build
 ```
 

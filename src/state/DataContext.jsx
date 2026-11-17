@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { activateDatasetReal, consultQwenReal, importDatasetReal, loadDatasetWorkspaceReal, loadOperationalData, saveDecisionReal, searchCatalogReal, simulateR2Real } from '../services/dataClient';
+import { activateDatasetReal, consultQwenReal, importDatasetReal, loadDatasetWorkspaceReal, loadOperationalData, saveDecisionReal, searchCatalogPageReal, searchCatalogReal, simulateR2Real } from '../services/dataClient';
 import { useAuth } from './AuthContext';
 
 const DataContext = createContext(null);
@@ -45,8 +45,8 @@ export function DataProvider({ children }) {
     return response.result;
   }
 
-  async function decide(datasetId, caseId, action, code) {
-    await saveDecisionReal(datasetId, caseId, action, code);
+  async function decide(datasetId, caseId, action, code, justification = '') {
+    await saveDecisionReal(datasetId, caseId, action, code, justification);
     if (String(datasetId) === String(workspace.activeDatasetId)) await reload({ silent: true });
   }
 
@@ -72,6 +72,10 @@ export function DataProvider({ children }) {
 
   async function searchCatalog(query) {
     return searchCatalogReal(query);
+  }
+
+  async function searchCatalogPage(query, options) {
+    return searchCatalogPageReal(query, options);
   }
 
   const activeDataset = useMemo(
@@ -114,6 +118,7 @@ export function DataProvider({ children }) {
     importDataset,
     simulateR2,
     searchCatalog,
+    searchCatalogPage,
   }), [workspace, activeCases, activeDataset, metrics, loading, error]);
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;

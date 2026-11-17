@@ -5,13 +5,17 @@ import { useAuth } from '../state/AuthContext';
 import { useData } from '../state/DataContext';
 
 import EpenIcon from './epen/EpenIcon';
+import AssistantDock from './AssistantDock';
 import '../epen-theme.css';
 
 const allItems = [
   { to: '/', label: 'Inicio', icon: 'house-door', end: true, roles: ['operador', 'analista', 'supervisor', 'auditor', 'admin'] },
-  { to: '/casos', label: 'Codificación y revisión', icon: 'clipboard-check', roles: ['analista', 'supervisor', 'admin'] },
+  { to: '/casos', label: 'Codificación y revisión', icon: 'clipboard-check', roles: ['analista', 'supervisor', 'auditor', 'admin'] },
   { to: '/historial', label: 'Historial', icon: 'clock-history', roles: ['supervisor', 'auditor', 'admin'] },
   { to: '/metricas', label: 'Métricas', icon: 'bar-chart', roles: ['supervisor', 'auditor', 'admin'] },
+  { to: '/calidad', label: 'Control de calidad', icon: 'bar-chart', roles: ['supervisor', 'auditor', 'admin'] },
+  { to: '/criterios', label: 'Criterios', icon: 'clipboard-check', roles: ['supervisor', 'auditor', 'admin'] },
+  { to: '/asistente', label: 'Asistente', icon: 'layers', roles: ['operador', 'analista', 'supervisor', 'auditor', 'admin'] },
   { to: '/bases', label: 'Bases de datos', icon: 'database', roles: ['operador', 'admin'] },
   { to: '/usuarios', label: 'Usuarios', icon: 'people', roles: ['admin'] },
   { to: '/sistema', label: 'Estado técnico', icon: 'gear', roles: ['admin'] },
@@ -46,6 +50,7 @@ export default function AppShell() {
           : error ? <div className="notice notice--error" role="alert"><strong>No se pudieron cargar los datos</strong><span>{error}</span><button type="button" className="button button--secondary" onClick={() => reload()}>Reintentar</button></div>
             : <Outlet />}
       </main>
+      <AssistantDock />
     </div>
   );
 }

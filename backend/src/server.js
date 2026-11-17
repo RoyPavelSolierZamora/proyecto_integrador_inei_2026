@@ -7,6 +7,8 @@ import { closePool, getPool, transaction } from './db.js';
 import { loadSession, requireAuth, requireCsrf, requireRole, requireTrustedOrigin } from './middleware.js';
 import { createCsrfToken, createSessionToken, hashPassword, hashToken, normalizeUsername, validUsername, validatePassword, verifyPassword } from './security.js';
 import { createDataRouter } from './data-routes.js';
+import { createGovernanceRouter } from './governance-routes.js';
+import { createInsightsRouter } from './insights-routes.js';
 import { resumeR2Jobs } from './r2-jobs.js';
 
 const config = getConfig();
@@ -207,6 +209,8 @@ app.delete('/api/admin/users/:id', requireRole('admin'), requireCsrf, async (req
 });
 
 app.use(createDataRouter(config));
+app.use(createGovernanceRouter());
+app.use(createInsightsRouter());
 
 app.use((req, res) => res.status(404).json({ error: 'Ruta no encontrada.' }));
 app.use((err, req, res, _next) => {

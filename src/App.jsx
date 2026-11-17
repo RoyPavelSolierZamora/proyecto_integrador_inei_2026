@@ -10,6 +10,9 @@ import MetricsPage from './pages/MetricsPage';
 import SystemPage from './pages/SystemPage';
 import UsersPage from './pages/UsersPage';
 import DatasetsPage from './pages/DatasetsPage';
+import QualityPage from './pages/QualityPage';
+import CriteriaPage from './pages/CriteriaPage';
+import AssistantPage from './pages/AssistantPage';
 
 export default function App() {
   return (
@@ -18,7 +21,7 @@ export default function App() {
       <Route element={<ProtectedRoute />}>
         <Route element={<AppShell />}>
           <Route index element={<HomePage />} />
-          <Route element={<ProtectedRoute roles={['analista', 'supervisor', 'admin']} />}>
+          <Route element={<ProtectedRoute roles={['analista', 'supervisor', 'auditor', 'admin']} />}>
             <Route path="casos" element={<CasesPage />} />
             <Route path="casos/:id" element={<CaseDetailPage />} />
             <Route path="revision" element={<Navigate to="/casos" replace />} />
@@ -26,7 +29,10 @@ export default function App() {
           <Route element={<ProtectedRoute roles={['supervisor', 'auditor', 'admin']} />}>
             <Route path="historial" element={<HistoryPage />} />
             <Route path="metricas" element={<MetricsPage />} />
+            <Route path="calidad" element={<QualityPage />} />
+            <Route path="criterios" element={<CriteriaPage />} />
           </Route>
+          <Route path="asistente" element={<AssistantPage />} />
           <Route element={<ProtectedRoute roles={['operador', 'admin']} />}>
             <Route path="bases" element={<DatasetsPage />} />
           </Route>
