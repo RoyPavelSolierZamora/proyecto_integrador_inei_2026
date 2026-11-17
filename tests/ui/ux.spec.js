@@ -2,7 +2,7 @@
 import { readFileSync } from 'node:fs';
 
 // Fixtures exist only in this browser test. Every API request is intercepted.
-async function setup(page, { role = 'admin', failList = false, emptyUsers = false, failCreate = false, failUpload = false } = {}) {
+async function setup(page, { role = 'admin', failList = false, emptyUsers = false, failCreate = false, failUpload = false, workspaceFor } = {}) {
   const calls = [], errors = [];
   page.on('pageerror', error => errors.push(error.message));
   const datasets = Array.from({ length: 7 }, (_, i) => ({ id:i+1, name:`Base de prueba ${i+1}`, period:'2026-T4', version:1, fileName:`base-${i+1}.csv`, records:2, synthetic:true, status:i ? 'archived' : 'active', active:!i, importedAt:'2026-11-01T15:00:00Z', importedBy:'Cuenta de prueba' }));
@@ -14,6 +14,7 @@ async function setup(page, { role = 'admin', failList = false, emptyUsers = fals
   ];
   const caseFor = id => ({ id:id*10, dataset_id:id, id_registro:'PRUEBA-001', p309:`Venta de alimentos, base ${id}`, p308:'Vendedor', p308a:'Atiende al público', confianza_ml:.82, estado:'pendiente', candidatos:[{codigo:'4711',descripcion:'Venta al por menor',prob:.82,rank:1}], qwen:{codigo:'4711',justificacion:'Qwen coincide con R2.',latencia_s:2}, evidencia_r2:{casos_similares:[{codigo:'4711',p309:'Venta de verduras',similitud:.8}],calidad_entrada:{nivel:'media',motivos:['sin_contexto_p308']}} });
   const eventsFor = id => [{ id:id*100, datasetId:id, caseId:'PRUEBA-001', action:'consulta de IA', code:'4711', user:'Asistente de IA', at:'2026-11-01T15:00:00Z' }];
+  const workspace = id => ({ cases: [caseFor(id)], events: eventsFor(id), ...workspaceFor?.(id) });
   const jobs = ['running','completed','qwen_running','queued','failed','cancelled'].map((status,i)=>({id:i+1,datasetId:1,datasetName:'Proceso de prueba',period:'2026-T4',modelVersion:'r2-baseline',qwenMode:'automatic',status,total:2,processed:status==='completed'?2:1,automatic:1,qwenPending:1,manual:0,qwenProcessed:0,qwenResolved:0,qwenReview:0,cancelRequested:false,estimatedSecondsRemaining:60,error:status==='failed'?'Error de prueba':null}));
   await page.context().addCookies([{name:'epen_ui_test',value:'fixture',url:'http://127.0.0.1:5178'}]);
   await page.route('**/api/**', async route => {
@@ -22,8 +23,8 @@ async function setup(page, { role = 'admin', failList = false, emptyUsers = fals
     const json = data => route.fulfill({json:data});
     if(pathname==='/api/auth/me')return json({user:{id:1,name:'Administrador de prueba',username:'admin.test',role,active:true},csrfToken:'csrf-test'});
     if(pathname==='/api/auth/logout')return route.fulfill({status:204});
-    if(pathname==='/api/data/bootstrap')return json({datasets,activeDataset:datasets.find(d=>d.id===activeId),cases:[caseFor(activeId)],events:eventsFor(activeId)});
-    if(pathname.endsWith('/workspace')) {const id=Number(pathname.split('/')[3]);return json({dataset:datasets.find(d=>d.id===id),cases:[caseFor(id)],events:eventsFor(id)});}
+    if(pathname==='/api/data/bootstrap')return json({datasets,activeDataset:datasets.find(d=>d.id===activeId),...workspace(activeId)});
+    if(pathname.endsWith('/workspace')) {const id=Number(pathname.split('/')[3]);return json({dataset:datasets.find(d=>d.id===id),...workspace(id)});}
     if(pathname==='/api/admin/users' && method==='GET')return failList ? route.fulfill({status:503,json:{error:'Lista no disponible'}}) : json({users});
     if(pathname==='/api/admin/users' && method==='POST') {
       if(failCreate){failCreate=false;return route.fulfill({status:409,json:{error:'Ese nombre de usuario ya existe.'}});}
@@ -52,6 +53,58 @@ async function setup(page, { role = 'admin', failList = false, emptyUsers = fals
   });
   return {calls,errors};
 }
+
+test('casos: indicadores por base, independientes de la tabla y adaptados a móvil', async ({ page }) => {
+  const { errors } = await setup(page, {
+    workspaceFor: id => ({
+      cases: Array.from({ length: 26 }, (_, index) => ({
+        dataset_id: id, id_registro: `REG-${index + 1}`, p309: 'Venta de alimentos', estado: 'pendiente',
+      })),
+      indicators: id === 1 ? {
+        r2: { accuracy: .8, automaticApproval: .6, macroF1: .7, evaluated: 10, threshold: .9 },
+        r3: { accuracy: .75, automaticApproval: .5, macroF1: .65, evaluated: 4 },
+      } : {
+        r2: { accuracy: null, automaticApproval: 0, macroF1: null, evaluated: 0 },
+        r3: { accuracy: .4, automaticApproval: null, macroF1: .3, evaluated: 5 },
+      },
+    }),
+  });
+  await page.goto('/casos');
+  const r2 = page.getByRole('region', { name: 'R2 (Clasificador)' });
+  const r3 = page.getByRole('region', { name: 'R3 (Asistente de IA)' });
+  const values = chart => chart.locator('.indicator-bar strong');
+  await expect(values(r2)).toHaveText(['80 %', '60 %', '70 %']);
+  await expect(values(r3)).toHaveText(['75 %', '50 %', '65 %']);
+  await expect(r2).toContainText('≥ 90 %');
+  await expect(r3).toContainText('Registros evaluados: 4');
+  const left = await r2.boundingBox();
+  const right = await r3.boundingBox();
+  expect(right.x).toBeGreaterThanOrEqual(left.x + left.width);
+  expect(right.y).toBe(left.y);
+
+  await page.getByRole('button', { name: 'Siguiente' }).click();
+  await expect(page.locator('tbody')).toContainText('REG-26');
+  await page.getByRole('searchbox', { name: 'Buscar' }).fill('sin coincidencias');
+  await page.getByRole('combobox', { name: 'Vista' }).selectOption('humano');
+  await expect(page.locator('tbody tr')).toHaveCount(0);
+  await expect(values(r2)).toHaveText(['80 %', '60 %', '70 %']);
+  await expect(values(r3)).toHaveText(['75 %', '50 %', '65 %']);
+
+  await page.locator('.workspace-picker__trigger').click();
+  await page.getByRole('option').filter({ hasText: 'Base de prueba 2' }).click();
+  await expect(values(r2)).toHaveText(['No disponible', '0 %', 'No disponible']);
+  await expect(values(r3)).toHaveText(['40 %', 'No disponible', '30 %']);
+  await expect(r3).toContainText('Registros evaluados: 5');
+  await expect(r2.getByText(/Umbral de confianza/)).toHaveCount(0);
+
+  await page.setViewportSize({ width: 360, height: 800 });
+  const top = await r2.boundingBox();
+  const bottom = await r3.boundingBox();
+  expect(bottom.y).toBeGreaterThanOrEqual(top.y + top.height);
+  expect(bottom.x).toBe(top.x);
+  expect(bottom.x + bottom.width).toBeLessThanOrEqual(360);
+  expect(errors).toEqual([]);
+});
 
 test('usuarios: tabla única, filtros combinados, teclado y creación con datos del servidor',async({page})=>{
   const {calls,errors}=await setup(page,{failCreate:true});await page.goto('/usuarios');

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useData } from '../state/DataContext';
 
 export default function useDatasetWorkspace(requestedDatasetId) {
-  const { cases: activeCases, events: activeEvents, datasets, activeDataset, loadDatasetWorkspace, reload } = useData();
+  const { cases: activeCases, events: activeEvents, activeIndicators, datasets, activeDataset, loadDatasetWorkspace, reload } = useData();
   const selectedDataset = useMemo(() => {
     const requested = datasets.find(item => String(item.id) === String(requestedDatasetId));
     return requested || activeDataset || datasets[0] || null;
@@ -47,6 +47,7 @@ export default function useDatasetWorkspace(requestedDatasetId) {
     selectedDataset,
     cases: selectedIsActive ? activeCases : remoteMatches ? remote.cases || [] : [],
     events: selectedIsActive ? activeEvents : remoteMatches ? remote.events || [] : [],
+    indicators: selectedIsActive ? activeIndicators : remoteMatches ? remote.indicators : null,
     loading,
     error,
     refresh,

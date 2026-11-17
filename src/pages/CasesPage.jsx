@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import DatasetWorkspaceSelector from '../components/DatasetWorkspaceSelector';
+import WorkspaceIndicators from '../components/WorkspaceIndicators';
 import ContextHelp from '../components/ContextHelp';
 import StatusBadge from '../components/StatusBadge';
 import useDatasetWorkspace from '../hooks/useDatasetWorkspace';
@@ -11,7 +12,7 @@ export default function CasesPage() {
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedDatasetId = Number(searchParams.get('dataset')) || activeDataset?.id;
-  const { selectedDataset, cases, loading, error } = useDatasetWorkspace(requestedDatasetId);
+  const { selectedDataset, cases, indicators, loading, error } = useDatasetWorkspace(requestedDatasetId);
   const [query, setQuery] = useState('');
   const [view, setView] = useState('atencion');
   const [page, setPage] = useState(1);
@@ -44,6 +45,7 @@ export default function CasesPage() {
     <div className="page">
       <div className="page-heading"><div><p className="eyebrow">Bandeja unificada</p><h1>Codificación y revisión</h1><p>Selecciona una base y revisa sus registros pendientes.</p></div></div>
       <DatasetWorkspaceSelector datasets={datasets} selectedId={selectedDataset?.id} onChange={selectDataset} />
+      {selectedDataset && <WorkspaceIndicators indicators={indicators} loading={loading} />}
       {location.state?.notice && <div className="notice notice--success" role="status">{location.state.notice}</div>}
       {loading && <div className="notice" role="status">Cargando la base seleccionada…</div>}
       {error && <div className="notice notice--error" role="alert">{error}</div>}

@@ -3,7 +3,7 @@ import { activateDatasetReal, consultQwenReal, importDatasetReal, loadDatasetWor
 import { useAuth } from './AuthContext';
 
 const DataContext = createContext(null);
-const emptyState = () => ({ cases: [], events: [], datasets: [], activeDatasetId: null });
+const emptyState = () => ({ cases: [], events: [], datasets: [], activeDatasetId: null, indicators: null });
 
 function stateFromApi(data) {
   return {
@@ -11,6 +11,7 @@ function stateFromApi(data) {
     events: data.events || [],
     datasets: data.datasets || [],
     activeDatasetId: data.activeDataset?.id || null,
+    indicators: data.indicators || null,
   };
 }
 
@@ -104,6 +105,7 @@ export function DataProvider({ children }) {
     cases: activeCases,
     allCases: workspace.cases,
     events: workspace.events,
+    activeIndicators: workspace.indicators,
     datasets: workspace.datasets,
     activeDataset,
     metrics,

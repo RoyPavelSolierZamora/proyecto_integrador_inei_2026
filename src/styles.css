@@ -130,6 +130,63 @@ input, select { width: 100%; min-height: 44px; padding: 10px 12px; color: #17243
 .workspace-selector__summary { display: grid; gap: 4px; min-width: 0; min-height: 44px; align-content: center; }
 .workspace-selector__summary strong { color: var(--navy); }
 .workspace-selector__summary span { color: var(--muted); font-size: .82rem; overflow-wrap: anywhere; }
+.workspace-indicators {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 18px;
+}
+.indicator-card { min-width: 0; padding: 16px; }
+.indicator-card h2 { margin: 0 0 4px; color: var(--navy); font-size: 1rem; }
+.indicator-card p { margin: 0; color: var(--muted); font-size: .82rem; }
+.indicator-chart {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 26px 0 12px;
+  padding-left: 42px;
+  --plot-height: 140px;
+}
+.indicator-grid {
+  position: absolute;
+  inset: 0 0 auto 42px;
+  height: var(--plot-height);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.indicator-grid div { position: relative; height: 0; border-top: 1px solid var(--border); }
+.indicator-grid span {
+  position: absolute;
+  right: calc(100% + 5px);
+  transform: translateY(-50%);
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: .68rem;
+}
+.indicator-column { position: relative; min-width: 0; text-align: center; }
+.indicator-track { height: var(--plot-height); display: flex; align-items: end; justify-content: center; }
+.indicator-bar { position: relative; width: min(55%, 76px); background: var(--navy); border-radius: 4px 4px 0 0; }
+.indicator-column:nth-child(3) .indicator-bar { background: var(--success); }
+.indicator-column:nth-child(4) .indicator-bar { background: var(--brand); }
+.indicator-bar strong {
+  position: absolute;
+  bottom: calc(100% + 3px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 175%;
+  padding-inline: 2px;
+  background: var(--surface);
+  color: var(--navy);
+  font-size: .72rem;
+  line-height: 1.15;
+}
+.indicator-label { display: block; margin: 6px 2px 0; color: var(--navy); font-size: .73rem; overflow-wrap: anywhere; }
+@media (max-width: 760px) {
+  .workspace-indicators { grid-template-columns: minmax(0, 1fr); }
+  .indicator-card { padding: 12px; }
+}
 .table-wrap { overflow: hidden; }
 table { width: 100%; border-collapse: collapse; }
 th, td { padding: 14px 17px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: middle; }

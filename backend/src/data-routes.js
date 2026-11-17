@@ -7,6 +7,7 @@ import { enqueueR2Job, listR2Jobs, requestR2JobCancellation } from './r2-jobs.js
 import { parseRawEpenCsv } from './raw-csv.js';
 import { classifyWithQwen } from './qwen-client.js';
 import { buildCsv, RESULT_HEADERS } from './csv-export.js';
+import { workspaceIndicators } from './workspace-indicators.js';
 
 const CASE_SELECT = `
   SELECT c.id, c.dataset_id, c.external_id, c.p309, c.p308, c.p308a, c.c310, c.c311, c.c366,
@@ -278,6 +279,7 @@ export function createDataRouter(config) {
       activeDataset: active,
       cases: active ? await casesForDataset(pool, active.id) : [],
       events: active ? await eventsForDataset(pool, active.id) : [],
+      indicators: active ? await workspaceIndicators(pool, active.id) : null,
     });
   });
 
@@ -291,6 +293,7 @@ export function createDataRouter(config) {
       dataset,
       cases: await casesForDataset(pool, datasetId),
       events: await eventsForDataset(pool, datasetId),
+      indicators: await workspaceIndicators(pool, datasetId),
     });
   });
 
