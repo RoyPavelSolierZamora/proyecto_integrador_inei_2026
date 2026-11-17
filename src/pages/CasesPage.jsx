@@ -4,6 +4,7 @@ import DatasetWorkspaceSelector from '../components/DatasetWorkspaceSelector';
 import WorkspaceIndicators from '../components/WorkspaceIndicators';
 import ContextHelp from '../components/ContextHelp';
 import StatusBadge from '../components/StatusBadge';
+import PageHeader from '../components/epen/PageHeader';
 import useDatasetWorkspace from '../hooks/useDatasetWorkspace';
 import { useData } from '../state/DataContext';
 
@@ -43,7 +44,12 @@ export default function CasesPage() {
 
   return (
     <div className="page">
-      <div className="page-heading"><div><p className="eyebrow">Bandeja unificada</p><h1>Codificación y revisión</h1><p>Selecciona una base y revisa sus registros pendientes.</p></div></div>
+      <PageHeader
+        icon="clipboard-check"
+        eyebrow="Bandeja unificada"
+        title="Codificación y revisión"
+        description="Selecciona una base y revisa sus registros pendientes."
+      />
       <DatasetWorkspaceSelector datasets={datasets} selectedId={selectedDataset?.id} onChange={selectDataset} />
       {selectedDataset && <WorkspaceIndicators indicators={indicators} loading={loading} />}
       {location.state?.notice && <div className="notice notice--success" role="status">{location.state.notice}</div>}

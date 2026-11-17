@@ -1,5 +1,7 @@
 ﻿import { useEffect, useMemo, useRef, useState } from 'react';
 import { ROLE_LABELS } from '../data/roleLabels';
+import PageHeader from '../components/epen/PageHeader';
+import PanelHeading from '../components/epen/PanelHeading';
 import { useAuth } from '../state/AuthContext';
 
 const EMPTY_FORM = { name: '', username: '', role: 'analista', password: '' };
@@ -82,7 +84,12 @@ export default function UsersPage() {
 
   return (
     <div className="page users-page">
-      <div className="page-heading"><div><p className="eyebrow">Control de acceso</p><h1>Usuarios y credenciales</h1><p>Consulta las cuentas, administra sus accesos o crea un nuevo usuario.</p></div></div>
+      <PageHeader
+        icon="people"
+        eyebrow="Control de acceso"
+        title="Usuarios y credenciales"
+        description="Consulta las cuentas, administra sus accesos o crea un nuevo usuario."
+      />
       <div className="section-tabs" role="tablist" aria-label="Gestión de usuarios" ref={tabs} onKeyDown={tabKey}>
         {[['list', 'Lista de usuarios'], ['create', 'Crear usuario']].map(([value, label]) => <button key={value} id={`users-tab-${value}`} type="button" role="tab" aria-selected={tab === value} aria-controls={`users-panel-${value}`} tabIndex={tab === value ? 0 : -1} onClick={() => selectTab(value)}>{label}</button>)}
       </div>
@@ -111,7 +118,7 @@ export default function UsersPage() {
       </section>
       <section id="users-panel-create" role="tabpanel" aria-labelledby="users-tab-create" hidden={tab !== 'create'} tabIndex={0}>
         <div className="panel user-create-panel">
-          <div className="panel-heading"><div><h2>Crear usuario</h2><p>Todos los campos son obligatorios. La cuenta se creará activa.</p></div></div>
+          <PanelHeading eyebrow="Alta de cuenta" title="Crear usuario" description="Todos los campos son obligatorios. La cuenta se creará activa." />
           <form className="stack-form user-create-form" onSubmit={submit}>
             <label>Nombre completo<input name="name" value={form.name} onChange={change} autoComplete="off" maxLength={120} required disabled={busy} /></label>
             <label><span id="create-username-label">Nombre de usuario</span><input aria-labelledby="create-username-label" name="username" value={form.username} onChange={change} autoComplete="off" placeholder="ej. mquispe" required disabled={busy} aria-describedby="username-help" /><small id="username-help">De 3 a 30 caracteres: letras sin tildes, números, punto, guion o guion bajo.</small></label>

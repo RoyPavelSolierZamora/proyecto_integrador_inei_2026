@@ -10,7 +10,7 @@ import { buildCsv, RESULT_HEADERS } from './csv-export.js';
 import { workspaceIndicators } from './workspace-indicators.js';
 
 const CASE_SELECT = `
-  SELECT c.id, c.dataset_id, c.external_id, c.p309, c.p308, c.p308a, c.c310, c.c311, c.c366,
+  SELECT c.id, c.dataset_id, c.external_id, c.p309, c.p308, c.p308a, c.c309_1, c.c310, c.c311, c.c366,
          c.candidates, c.confianza_ml, c.r2_evidence, c.status, c.final_code, c.updated_at,
          llm.decision AS llm_decision, llm.code AS llm_code,
          llm.justification AS llm_justification, llm.latency_seconds AS llm_latency,
@@ -103,7 +103,7 @@ export function mapCase(row) {
   return {
     id: Number(row.id), dataset_id: Number(row.dataset_id), id_registro: row.external_id,
     p309: row.p309, p308: row.p308 || '', p308a: row.p308a || '',
-    c310: row.c310 || '', c311: row.c311 || '', c366: row.c366 || '',
+    c309_1: row.c309_1 || '', c310: row.c310 || '', c311: row.c311 || '', c366: row.c366 || '',
     candidatos: Array.isArray(row.candidates) ? row.candidates : [], confianza_ml: row.confianza_ml === null ? 0 : Number(row.confianza_ml),
     evidencia_r2: mapR2Evidence(row.r2_evidence),
     estado, codigo_final: row.final_code, qwen,
@@ -153,21 +153,56 @@ async function caseByExternalId(db, datasetId, externalId) {
   return result.rowCount ? mapCase(result.rows[0]) : null;
 }
 
-async function eventsForDataset(db, datasetId) {
-  const result = await db.query(`
-    SELECT d.id, c.external_id, d.source, d.decision, d.code, d.created_at,
-           COALESCE(u.full_name, CASE WHEN d.source = 'llm' THEN 'Asistente de IA' WHEN d.source = 'ml' THEN 'Clasificador automático' ELSE 'Sistema sintético' END) AS actor
-    FROM epen.decisions d
-    JOIN epen.survey_cases c ON c.id = d.case_id
-    LEFT JOIN epen.users u ON u.id = d.decided_by
-    WHERE c.dataset_id = $1 ORDER BY d.created_at, d.id
-  `, [datasetId]);
+function mapHistoryEvent(row) {
   const labels = { confirmation: 'confirmación', correction: 'corrección', derivation: 'derivación', selection: 'consulta de IA', revision: 'consulta de IA', automatic: 'codificación automática' };
-  return result.rows.map(row => ({
+  return {
     id: Number(row.id), caseId: row.external_id, action: labels[row.decision] || row.decision,
     code: row.code, user: row.actor, at: row.created_at,
     source: row.source === 'ml' ? 'automatic' : row.source === 'llm' ? 'ai' : 'human',
-  }));
+  };
+}
+
+async function pagedHistory(db, datasetId, { limit, offset, query, source }) {
+  const sourceValue = { automatic: 'ml', ai: 'llm', human: 'human' }[source] || null;
+  const search = String(query || '').trim().slice(0, 120);
+  const params = [datasetId, sourceValue, search, limit, offset];
+  const where = `
+    c.dataset_id = $1
+    AND ($2::text IS NULL OR d.source = $2)
+    AND ($3::text = '' OR c.external_id ILIKE '%' || $3 || '%'
+      OR COALESCE(d.code, '') ILIKE '%' || $3 || '%'
+      OR COALESCE(u.full_name, '') ILIKE '%' || $3 || '%')
+  `;
+  const [rows, total, summary] = await Promise.all([
+    db.query(`
+      SELECT d.id, c.external_id, d.source, d.decision, d.code, d.created_at,
+        COALESCE(u.full_name, CASE WHEN d.source = 'llm' THEN 'Asistente de IA' WHEN d.source = 'ml' THEN 'Clasificador automático' ELSE 'Sistema' END) AS actor
+      FROM epen.decisions d
+      JOIN epen.survey_cases c ON c.id = d.case_id
+      LEFT JOIN epen.users u ON u.id = d.decided_by
+      WHERE ${where}
+      ORDER BY d.created_at DESC, d.id DESC LIMIT $4 OFFSET $5
+    `, params),
+    db.query(`
+      SELECT count(*)::int AS total
+      FROM epen.decisions d
+      JOIN epen.survey_cases c ON c.id = d.case_id
+      LEFT JOIN epen.users u ON u.id = d.decided_by
+      WHERE ${where}
+    `, params.slice(0, 3)),
+    db.query(`
+      SELECT count(*)::int AS events, count(DISTINCT d.case_id)::int AS cases,
+        count(*) FILTER (WHERE d.source = 'human')::int AS human
+      FROM epen.decisions d JOIN epen.survey_cases c ON c.id = d.case_id
+      WHERE c.dataset_id = $1
+    `, [datasetId]),
+  ]);
+  return {
+    rows: rows.rows.map(mapHistoryEvent), total: Number(total.rows[0].total),
+    summary: {
+      events: Number(summary.rows[0].events), cases: Number(summary.rows[0].cases), human: Number(summary.rows[0].human),
+    },
+  };
 }
 
 function validateCandidates(candidates) {
@@ -237,8 +272,11 @@ export function createDataRouter(config) {
       const threshold = Number(req.query.threshold);
       const synthetic = String(req.query.synthetic || 'false') === 'true';
       const qwenMode = String(req.query.qwenMode || 'manual');
+      const rawAiThreshold = String(req.query.aiThreshold ?? '').trim();
+      const aiThreshold = rawAiThreshold === '' ? null : Number(rawAiThreshold);
       if (!name || name.length > 160 || !period || period.length > 40) throw httpError(400, 'Nombre y periodo son obligatorios.');
       if (!Number.isFinite(threshold) || threshold < 0 || threshold > 1) throw httpError(400, 'El umbral R2 debe estar entre 0 y 1.');
+      if (aiThreshold !== null && (!Number.isFinite(aiThreshold) || aiThreshold < 0 || aiThreshold > 1)) throw httpError(400, 'El umbral de IA debe estar entre 0 y 1 o quedar vacío.');
       if (!['manual', 'automatic'].includes(qwenMode)) throw httpError(400, 'El modo Qwen debe ser manual o automático.');
       if (qwenMode === 'automatic' && config.qwenMode !== 'real') throw httpError(409, 'El procesamiento automático requiere Qwen real.');
       let records;
@@ -255,16 +293,16 @@ export function createDataRouter(config) {
         const datasetId = dataset.rows[0].id;
         for (const row of records) {
           await client.query(`
-            INSERT INTO epen.survey_cases (dataset_id, external_id, p309, p308, p308a, c310, c311, c366, candidates)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NULL)
+            INSERT INTO epen.survey_cases (dataset_id, external_id, p309, p308, p308a, c309_1, c310, c311, c366, candidates)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NULL)
           `, [datasetId, row.id_registro, row.p309, row.p308 || null, row.p308a || null,
-            row.c310 || null, row.c311 || null, row.c366 || null]);
+            row.c309_1 || null, row.c310 || null, row.c311 || null, row.c366 || null]);
         }
         const job = await client.query(`
-          INSERT INTO epen.processing_jobs (dataset_id, threshold, total_records, created_by, qwen_mode)
-          VALUES ($1, $2, $3, $4, $5) RETURNING id
-        `, [datasetId, threshold, records.length, req.auth.user.id, qwenMode]);
-        await audit(client, req, 'r2.job_created', 'processing_job', job.rows[0].id, { datasetId: Number(datasetId), records: records.length, threshold, fileName, synthetic, qwenMode });
+          INSERT INTO epen.processing_jobs (dataset_id, threshold, total_records, created_by, qwen_mode, ai_threshold)
+          VALUES ($1, $2, $3, $4, $5, $6) RETURNING id
+        `, [datasetId, threshold, records.length, req.auth.user.id, qwenMode, aiThreshold]);
+        await audit(client, req, 'r2.job_created', 'processing_job', job.rows[0].id, { datasetId: Number(datasetId), records: records.length, threshold, aiThreshold, fileName, synthetic, qwenMode });
         return { jobId: Number(job.rows[0].id), datasetId: Number(datasetId), records: records.length };
       });
       enqueueR2Job(created.jobId, config);
@@ -278,7 +316,7 @@ export function createDataRouter(config) {
       datasets: await datasets(pool),
       activeDataset: active,
       cases: active ? await casesForDataset(pool, active.id) : [],
-      events: active ? await eventsForDataset(pool, active.id) : [],
+      events: [],
       indicators: active ? await workspaceIndicators(pool, active.id) : null,
     });
   });
@@ -292,9 +330,21 @@ export function createDataRouter(config) {
     res.json({
       dataset,
       cases: await casesForDataset(pool, datasetId),
-      events: await eventsForDataset(pool, datasetId),
+      events: [],
       indicators: await workspaceIndicators(pool, datasetId),
     });
+  });
+
+  router.get('/api/datasets/:id/history', requireRole('supervisor', 'auditor', 'admin'), async (req, res) => {
+    const datasetId = Number(req.params.id);
+    if (!Number.isSafeInteger(datasetId) || datasetId < 1) throw httpError(400, 'La base solicitada no es válida.');
+    const limit = Math.min(100, Math.max(10, Number(req.query.limit) || 30));
+    const offset = Math.max(0, Number(req.query.offset) || 0);
+    const source = String(req.query.source || 'all');
+    if (!['all', 'automatic', 'ai', 'human'].includes(source)) throw httpError(400, 'El origen solicitado no es válido.');
+    const dataset = await datasetById(getPool(), datasetId);
+    if (!dataset) throw httpError(404, 'Base no encontrada.');
+    res.json({ dataset, ...(await pagedHistory(getPool(), datasetId, { limit, offset, query: req.query.q, source })) });
   });
 
   router.get('/api/datasets/:id/export', requireRole('operador', 'supervisor', 'auditor', 'admin'), async (req, res) => {
@@ -414,6 +464,17 @@ export function createDataRouter(config) {
       await client.query("UPDATE epen.datasets SET status = 'archived' WHERE status = 'active'");
       await client.query("UPDATE epen.datasets SET status = 'active', activated_at = now() WHERE id = $1", [req.params.id]);
       await audit(client, req, 'dataset.activated', 'dataset', req.params.id);
+    });
+    res.json({ ok: true });
+  });
+
+  router.patch('/api/admin/datasets/:id/synthetic', requireRole('admin'), requireCsrf, async (req, res) => {
+    if (typeof req.body?.synthetic !== 'boolean') throw httpError(400, 'Indica si la base contiene datos sintéticos.');
+    await transaction(async client => {
+      const target = await client.query('SELECT id FROM epen.datasets WHERE id = $1 FOR UPDATE', [req.params.id]);
+      if (!target.rowCount) throw httpError(404, 'Base no encontrada.');
+      await client.query('UPDATE epen.datasets SET is_synthetic = $1 WHERE id = $2', [req.body.synthetic, req.params.id]);
+      await audit(client, req, 'dataset.synthetic_updated', 'dataset', req.params.id, { synthetic: req.body.synthetic });
     });
     res.json({ ok: true });
   });

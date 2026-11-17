@@ -1,5 +1,7 @@
 import { Link } from 'react-router-dom';
 import StatusBadge from '../components/StatusBadge';
+import PageHeader from '../components/epen/PageHeader';
+import PanelHeading from '../components/epen/PanelHeading';
 import { useAuth } from '../state/AuthContext';
 import { useData } from '../state/DataContext';
 
@@ -12,14 +14,25 @@ export default function HomePage() {
 
   return (
     <div className="page">
-      <div className="page-heading"><div><p className="eyebrow">Resumen operativo</p><h1>Buenos días, {user.name.split(' ')[0]}</h1><p>Base activa: <strong>{activeDataset?.name}</strong> · {activeDataset?.period}.</p></div>{canCode ? <Link className="button button--primary" to="/casos">Continuar codificando</Link> : canLoad ? <Link className="button button--primary" to="/bases">Procesar nueva base</Link> : null}</div>
+      <PageHeader
+        icon="house-door"
+        eyebrow="Resumen operativo"
+        title={`Buenos días, ${user.name.split(' ')[0]}`}
+        description={<>Base activa: <strong>{activeDataset?.name}</strong> · {activeDataset?.period}.</>}
+        actions={canCode ? <Link className="button button--primary" to="/casos">Continuar codificando</Link> : canLoad ? <Link className="button button--primary" to="/bases">Procesar nueva base</Link> : null}
+      />
       <section className="stats-grid" aria-label="Indicadores principales">
         <article className="stat"><span>Pendientes</span><strong>{metrics.pending}</strong><small>Requieren una decisión</small></article>
         <article className="stat"><span>En revisión</span><strong>{metrics.review}</strong><small>Casos derivados</small></article>
         <article className="stat"><span>Resueltos</span><strong>{metrics.confirmed}</strong><small>Confirmados o corregidos</small></article>
       </section>
-      <section className="section-block">
-        <div className="section-heading"><div><h2>Trabajo reciente</h2><p>Casos pendientes o derivados que requieren atención.</p></div>{canCode && <Link to="/casos" className="text-link">Ver todos</Link>}</div>
+      <section className="panel panel--flush">
+        <PanelHeading
+          eyebrow="Seguimiento diario"
+          title="Trabajo reciente"
+          description="Casos pendientes o derivados que requieren atención."
+          actions={canCode ? <Link to="/casos" className="text-link">Ver todos</Link> : null}
+        />
         <div className="record-list">
           {actionable.map(item => (
             <article className="record-row" key={item.id_registro}>

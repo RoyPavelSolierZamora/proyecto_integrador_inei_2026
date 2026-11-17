@@ -25,6 +25,9 @@ async function setup(page, { role = 'admin', failList = false, emptyUsers = fals
     if(pathname==='/api/auth/logout')return route.fulfill({status:204});
     if(pathname==='/api/data/bootstrap')return json({datasets,activeDataset:datasets.find(d=>d.id===activeId),...workspace(activeId)});
     if(pathname.endsWith('/workspace')) {const id=Number(pathname.split('/')[3]);return json({dataset:datasets.find(d=>d.id===id),...workspace(id)});}
+    if(pathname.match(/^\/api\/datasets\/\d+\/history$/)) {const id=Number(pathname.split('/')[3]);const all=eventsFor(id);const q=url.searchParams.get('q')||'';const rows=q&&!all.some(row=>`${row.caseId} ${row.code} ${row.user}`.toLowerCase().includes(q.toLowerCase()))?[]:all;return json({dataset:datasets.find(d=>d.id===id),rows,total:rows.length,summary:{events:all.length,cases:1,human:0}});}
+    if(pathname.match(/^\/api\/analytics\/datasets\/\d+\/summary$/)) {const id=Number(pathname.split('/')[4]);return json({dataset:datasets.find(d=>d.id===id),totals:{total:2,resolved:1,review:1,pending:0,automatic:1,ai:0,human:0,averageConfidence:.82,missingP309:0,missingContext:0,uniqueCodes:1,confidenceBands:{high:0,medium:0,low:2}},rates:{resolved:.5,review:.5,automatic:.5,topFiveConcentration:1,completeness:1},topCodes:[{code:'4711',description:'Venta al por menor',count:1,share:1}],indicators:{r2:{evaluated:1,accuracy:1,macroF1:1},r3:{evaluated:0,accuracy:null,macroF1:null}}});}
+    if(pathname==='/api/assistant/chat') {const input=req.postDataJSON();return json({answer:'Comparación calculada con las bases seleccionadas.',intent:'compare_datasets',calculatedAt:new Date().toISOString(),data:{left:{dataset:datasets.find(d=>d.id===Number(input.datasetId))},right:{dataset:datasets.find(d=>d.id===Number(input.compareDatasetId))},codeChanges:[{code:'4711',description:'Venta al por menor',leftShare:.4,rightShare:.5,change:.1}]}});}
     if(pathname==='/api/admin/users' && method==='GET')return failList ? route.fulfill({status:503,json:{error:'Lista no disponible'}}) : json({users});
     if(pathname==='/api/admin/users' && method==='POST') {
       if(failCreate){failCreate=false;return route.fulfill({status:409,json:{error:'Ese nombre de usuario ya existe.'}});}
@@ -47,6 +50,8 @@ async function setup(page, { role = 'admin', failList = false, emptyUsers = fals
     if(pathname.endsWith('/simulate-r2'))return json({automatic:1,pending:1});
     if(pathname==='/api/admin/datasets')return json({ok:true});
     if(pathname==='/api/catalog')return json({rows:[{codigo:'4711',descripcion:'Venta al por menor'}]});
+    if(pathname==='/api/coding-rules' && method==='GET')return json({rules:[{id:1,code:'4711',title:'Venta minorista',pattern:'Venta directa al consumidor',guidance:'Confirmar que la venta sea al por menor.',codeDescription:'Venta al por menor',status:'active',createdBy:'Supervisor de prueba',createdById:1,approvedBy:'Administrador de prueba'}]});
+    if(pathname==='/api/catalog-change-requests' && method==='GET')return json({requests:[{id:1,type:'add',code:'0123',description:'Cultivo de prueba',justification:'Nueva actividad aprobada para evaluación.',sourceReference:'Documento metodológico',status:'pending',createdBy:'Supervisor de prueba'}]});
     if(pathname.endsWith('/decision'))return json({ok:true});
     if(pathname.endsWith('/qwen'))return json({result:{codigo:'4711',justificacion:'Sugerencia de prueba'}});
     return route.fulfill({status:404,json:{error:'Solicitud no preparada en la prueba'}});
@@ -70,8 +75,8 @@ test('casos: indicadores por base, independientes de la tabla y adaptados a móv
     }),
   });
   await page.goto('/casos');
-  const r2 = page.getByRole('region', { name: 'R2 (Clasificador)' });
-  const r3 = page.getByRole('region', { name: 'R3 (Asistente de IA)' });
+  const r2 = page.getByRole('region', { name: 'Clasificador automático' });
+  const r3 = page.getByRole('region', { name: 'Asistencia de IA' });
   const values = chart => chart.locator('.indicator-bar strong');
   await expect(values(r2)).toHaveText(['80 %', '60 %', '70 %']);
   await expect(values(r3)).toHaveText(['75 %', '50 %', '65 %']);
@@ -171,6 +176,7 @@ test('bases: ayuda accesible, validación CSV y solicitud original sin duplicado
  const transfer=await page.evaluateHandle(text=>{const data=new DataTransfer();data.items.add(new File([text],'original.csv',{type:'text/csv'}));return data;},csv);
  await page.getByLabel('Soltar CSV original').dispatchEvent('drop',{dataTransfer:transfer});
  await form.getByRole('button',{name:'Iniciar clasificación'}).click();await expect(page.getByRole('alert')).toContainText('temporalmente');await expect(page.locator('.epen-selected-file')).toBeVisible();
+ await form.getByLabel('Datos sintéticos de prueba').check();
  await form.evaluate(el=>{el.requestSubmit();el.requestSubmit();});await expect(page.locator('.epen-selected-file')).toHaveCount(0);
  const posts=calls.filter(c=>c.path==='/api/r2/jobs'&&c.method==='POST');expect(posts).toHaveLength(2);expect(posts[1].body).toBe(csv);
  expect(posts[1].query).toMatchObject({threshold:'0.82',qwenMode:'manual',synthetic:'true',period:'2026-T4'});expect(posts[1].headers['x-csrf-token']).toBe('csrf-test');expect(errors).toEqual([]);
@@ -178,19 +184,23 @@ test('bases: ayuda accesible, validación CSV y solicitud original sin duplicado
 
 test('bases conserva seguimiento, cancelación, versiones, exportación y herramientas',async({page})=>{
  const {calls}=await setup(page);await page.goto('/bases');
- await expect(page.getByRole('progressbar').first()).toHaveAttribute('aria-valuenow','50');
+ await expect(page.getByRole('progressbar').first()).toHaveAttribute('aria-valuenow','33');
  page.once('dialog',dialog=>dialog.accept());await page.getByRole('button',{name:'Cancelar trabajo'}).first().click();await expect(page.getByText('Cancelando…',{exact:true})).toBeVisible();
- await page.getByRole('button',{name:'Ver los 6 trabajos'}).click();await expect(page.locator('.job-card')).toHaveCount(6);
- const versions=page.locator('.versions-panel');await versions.getByRole('button',{name:'Siguiente'}).click();await expect(versions.locator('tbody tr')).toHaveCount(2);
- await versions.getByLabel('Buscar',{exact:true}).fill('base-2.csv');await expect(versions.locator('tbody tr')).toHaveCount(1);
- const download=page.waitForEvent('download');await versions.getByRole('button',{name:'Exportar CSV'}).click();expect((await download).suggestedFilename()).toContain('resultados');
- await versions.getByRole('button',{name:'Usar base'}).click();await expect(page.getByRole('status')).toContainText('Base activa actualizada');
+ await expect(page.locator('.job-card')).toHaveCount(2);
+ await page.getByRole('button',{name:'Ver los 6 trabajos'}).click();await expect(page.locator('.job-card')).toHaveCount(4);
+ await page.locator('.jobs-pager').getByRole('button',{name:'Siguiente'}).click();await expect(page.locator('.job-card')).toHaveCount(2);await expect(page.locator('.jobs-pager')).toContainText('Página 2 de 2');
+ const versions=page.locator('.versions-panel');await versions.getByRole('button',{name:'Siguiente'}).click();await expect(versions.getByRole('listitem')).toHaveCount(2);
+ await versions.getByLabel('Buscar',{exact:true}).fill('base-2.csv');await expect(versions.getByRole('listitem')).toHaveCount(1);
+ const download=page.waitForEvent('download');await versions.getByRole('button',{name:/Exportar .* en CSV/}).click();expect((await download).suggestedFilename()).toContain('resultados');
+ await versions.getByRole('button',{name:/Usar la base/}).click();await expect(page.getByRole('status')).toContainText('Base activa actualizada');
  await page.getByText('Importar un resultado procesado fuera del sistema',{exact:true}).click();
- const advanced=page.locator('.advanced-disclosure').first();await advanced.getByLabel('Nombre de la encuesta o base').fill('Importación de prueba');await advanced.getByLabel('Periodo',{exact:true}).fill('2026-T4');
- await advanced.getByLabel('Archivo CSV procesado').setInputFiles({name:'procesado.csv',mimeType:'text/csv',buffer:readFileSync('public/plantilla_importacion.csv')});await advanced.getByRole('button',{name:'Importar y usar esta base'}).click();
- await expect.poll(()=>calls.some(c=>c.path==='/api/admin/datasets'&&c.method==='POST')).toBe(true);
- await page.getByText('Simular el nivel mínimo de confianza en la base sintética activa',{exact:true}).click();await page.getByRole('button',{name:'Aplicar a esta base sintética'}).click();
- await expect.poll(()=>calls.some(c=>c.path.endsWith('/simulate-r2'))).toBe(true);
+ const advanced=page.locator('.advanced-disclosure').filter({hasText:'Importar un resultado procesado fuera del sistema'});
+ const processed=readFileSync('public/plantilla_importacion.csv');await advanced.getByLabel('Archivos CSV procesados').setInputFiles([{name:'procesado-a.csv',mimeType:'text/csv',buffer:processed},{name:'procesado-b.csv',mimeType:'text/csv',buffer:processed}]);
+ await advanced.getByLabel('Nombre de la base').nth(0).fill('Importación A');await advanced.getByLabel('Nombre de la base').nth(1).fill('Importación B');
+ await advanced.getByLabel('Periodo',{exact:true}).nth(0).fill('2026-T3');await advanced.getByLabel('Periodo',{exact:true}).nth(1).fill('2026-T4');
+ await advanced.getByRole('button',{name:'Importar 2 archivos'}).click();
+ await expect.poll(()=>calls.filter(c=>c.path==='/api/admin/datasets'&&c.method==='POST').length).toBe(2);
+ await expect(page.getByText('Simular el nivel mínimo de confianza',{exact:false})).toHaveCount(0);
 });
 
 test('navegación conserva detalle, versiones, historial y revisión',async({page})=>{
@@ -202,8 +212,40 @@ test('navegación conserva detalle, versiones, historial y revisión',async({pag
  await page.locator('.workspace-picker__trigger').click();await page.getByRole('option').filter({hasText:'Base de prueba 2'}).click();
  await expect(page).toHaveURL(/dataset=2/);await page.getByRole('link',{name:'Ver detalle'}).click();await expect(page.locator('.response-grid')).toContainText('base 2');
  await page.getByRole('button',{name:'Revisión',exact:true}).click();await expect.poll(()=>calls.some(c=>c.path==='/api/datasets/2/cases/PRUEBA-001/decision'&&JSON.parse(c.body).action==='derivación')).toBe(true);
- await page.goto('/historial?dataset=2');await expect(page.locator('.audit-timeline')).toContainText('PRUEBA-001');await page.getByLabel('Buscar',{exact:true}).fill('no existe');await expect(page.getByText('No hay eventos con esos filtros.')).toBeVisible();
+ await page.goto('/historial?dataset=2');await expect(page.locator('.audit-table')).toContainText('PRUEBA-001');await page.getByLabel('Buscar',{exact:true}).fill('no existe');await expect(page.getByText('No hay decisiones con estos filtros.')).toBeVisible();
  expect(errors).toEqual([]);
+});
+
+test('asistente flotante conserva el pie y permite comparar sin configuración manual',async({page})=>{
+ const {calls,errors}=await setup(page);await page.setViewportSize({width:1366,height:768});await page.goto('/');
+ await page.getByRole('button',{name:'Abrir asistente EPEN'}).click();
+ const drawer=page.getByRole('dialog',{name:'Asistente EPEN'});await expect(drawer).toBeVisible();
+ const compare=drawer.getByRole('button',{name:'Comparar periodos'});await expect(compare).toBeEnabled();await compare.click();
+ await expect(drawer.getByText('Comparación calculada con las bases seleccionadas.')).toBeVisible();
+ const bounds=await drawer.boundingBox();expect(bounds.y+bounds.height).toBeLessThanOrEqual(768);await expect(drawer.getByText('Abrir análisis completo')).toBeVisible();
+ expect(calls.some(call=>call.path==='/api/assistant/chat'&&JSON.parse(call.body).compareDatasetId)).toBe(true);expect(errors).toEqual([]);
+});
+
+test('métricas informa si el servicio está desactualizado sin dejar la pantalla en blanco', async ({ page }) => {
+ const { errors } = await setup(page);
+ await page.route('**/api/analytics/datasets/*/summary', route => route.fulfill({json:{dataset:{period:'2026-T4'},totals:{total:2},topCodes:[]}}));
+ await page.goto('/metricas');
+ await expect(page.getByRole('heading',{name:'Métricas'})).toBeVisible();
+ await expect(page.getByRole('alert')).toContainText('Reinicia el sistema');
+ expect(errors).toEqual([]);
+});
+
+test('antecedentes permanecen alineados al abrirse en escritorio y móvil', async ({ page }) => {
+ await setup(page);
+ for (const width of [1366, 390]) {
+  await page.setViewportSize({width,height:900}); await page.goto('/casos/PRUEBA-001?dataset=1');
+  const history = page.locator('.detail-history .history-disclosure');
+  const support = page.locator('.support-stack .support-disclosure').first();
+  await expect(history).toBeVisible(); await history.locator('summary').click(); await support.locator('summary').click();
+  const a = await history.boundingBox(), b = await support.boundingBox();
+  expect(Math.abs(a.width-b.width)).toBeLessThan(2);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+ }
 });
 
 for(const role of ['operador','analista','supervisor','auditor']) test(`permisos de administración: ${role}`,async({page})=>{
@@ -212,7 +254,7 @@ for(const role of ['operador','analista','supervisor','auditor']) test(`permisos
 
 for(const width of [1366,768,390]) test(`revisión visual y desbordamientos ${width}`,async({page},testInfo)=>{
  const {errors}=await setup(page);await page.setViewportSize({width,height:900});
- for(const [name,url] of [['inicio','/'],['bases','/bases'],['usuarios','/usuarios'],['casos','/casos'],['historial','/historial'],['detalle','/casos/PRUEBA-001?dataset=1'],['metricas','/metricas']]) {
+ for(const [name,url] of [['inicio','/'],['bases','/bases'],['usuarios','/usuarios'],['casos','/casos'],['historial','/historial'],['detalle','/casos/PRUEBA-001?dataset=1'],['metricas','/metricas'],['criterios','/criterios'],['asistente','/asistente']]) {
    await page.goto(url);await expect(page.locator('.main-content h1')).toBeVisible();
    await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
    if(name==='detalle') {
@@ -221,6 +263,7 @@ for(const width of [1366,768,390]) test(`revisión visual y desbordamientos ${wi
    }
    await page.screenshot({path:testInfo.outputPath(`${name}.png`),fullPage:true});
    if(name==='usuarios') {await page.getByRole('tab',{name:'Crear usuario'}).click();await page.screenshot({path:testInfo.outputPath('crear.png'),fullPage:true});}
+   if(name==='criterios') {await page.getByRole('tab',{name:'Cambios al catálogo'}).click();await page.screenshot({path:testInfo.outputPath('catalogo.png'),fullPage:true});}
  }
  expect(errors).toEqual([]);
 });

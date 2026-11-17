@@ -36,8 +36,8 @@ function IndicatorChart({ id, title, data, loading }) {
 export default function WorkspaceIndicators({ indicators, loading }) {
   return (
     <div className="workspace-indicators" aria-busy={loading}>
-      <IndicatorChart id="r2-indicators" title="R2 (Clasificador)" data={indicators?.r2} loading={loading} />
-      <IndicatorChart id="r3-indicators" title="R3 (Asistente de IA)" data={indicators?.r3} loading={loading} />
+      <IndicatorChart id="r2-indicators" title="Clasificador automático" data={indicators?.r2} loading={loading} />
+      <IndicatorChart id="r3-indicators" title="Asistencia de IA" data={indicators?.r3} loading={loading} />
     </div>
   );
 }

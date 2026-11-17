@@ -18,7 +18,7 @@ test('la carga original acepta nombres EPEN nativos y variables multivariadas', 
   assert.deepEqual(result.errors, []);
   assert.deepEqual(result.rows[0], {
     id_registro: 'A-1', p309: 'Venta de comida', p308: 'Cocinera', p308a: 'Prepara menús',
-    c310: '2', c311: '', c366: '6',
+    c309_1: '', c310: '2', c311: '', c366: '6',
   });
 });
 

@@ -9,6 +9,7 @@ test('normaliza preguntas en español sin depender de tildes', () => {
 test('enruta consultas estadísticas sin permitir SQL libre', () => {
   assert.equal(detectAssistantIntent('Compara enero con febrero', { compareDatasetId: 2 }), 'compare_datasets');
   assert.equal(detectAssistantIntent('¿Qué codificador tiene más correcciones?'), 'quality_control');
+  assert.equal(detectAssistantIntent('Cruza ocupación, tareas y P309'), 'variable_profile');
   assert.equal(detectAssistantIntent('Dame un resumen estadístico'), 'dataset_summary');
   assert.equal(detectAssistantIntent('Resume esta base'), 'dataset_summary');
   assert.equal(detectAssistantIntent('¿Cómo cargo un CSV?'), 'help');

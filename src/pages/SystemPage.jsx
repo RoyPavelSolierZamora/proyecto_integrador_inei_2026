@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import PageHeader from '../components/epen/PageHeader';
+import PanelHeading from '../components/epen/PanelHeading';
 import { getR3Health } from '../services/dataClient';
 
 export default function SystemPage() {
@@ -16,10 +18,32 @@ export default function SystemPage() {
 
   return (
     <div className="page">
-      <div className="page-heading"><div><p className="eyebrow">Administración técnica</p><h1>Estado del sistema</h1><p>Comprueba el asistente de IA sin exponer servicios internos al navegador.</p></div></div>
+      <PageHeader
+        icon="gear"
+        eyebrow="Administración técnica"
+        title="Estado del sistema"
+        description="Comprueba el asistente de IA sin exponer servicios internos al navegador."
+      />
       <div className="system-grid">
-        <section className="panel"><div className="panel-heading"><div><p className="eyebrow">Configuración activa</p><h2>Entorno de procesamiento</h2></div></div><dl className="system-list"><div><dt>Datos y acceso</dt><dd>PostgreSQL local</dd></div><div><dt>Asistente de IA</dt><dd>{executionLabel}</dd></div><div><dt>Acceso a la IA</dt><dd>Solo mediante el sistema autenticado</dd></div><div><dt>Backend seguro</dt><dd>127.0.0.1:8080</dd></div></dl></section>
-        <section className="panel"><div className="panel-heading"><div><p className="eyebrow">Comprobación en vivo</p><h2>Asistente de IA</h2></div><button type="button" className="button button--secondary" disabled={checking} onClick={check}>{checking ? 'Comprobando…' : 'Comprobar ahora'}</button></div>{health && <div className="notice notice--success" role="status"><strong>{health.estado === 'ok' ? 'Operativo' : 'Degradado'} · {executionLabel}</strong><span>{health.ollama} · {health.modelo}{health.gpu ? ` · ${health.gpu}` : ''}</span></div>}{error && <div className="notice notice--error" role="alert">{error}</div>}{!health && !error && <p className="empty-state empty-state--compact">Todavía no se ejecutó la comprobación.</p>}</section>
+        <section className="panel">
+          <PanelHeading eyebrow="Configuración activa" title="Entorno de procesamiento" />
+          <dl className="system-list">
+            <div><dt>Datos y acceso</dt><dd>PostgreSQL local</dd></div>
+            <div><dt>Asistente de IA</dt><dd>{executionLabel}</dd></div>
+            <div><dt>Acceso a la IA</dt><dd>Solo mediante el sistema autenticado</dd></div>
+            <div><dt>Backend seguro</dt><dd>127.0.0.1:8080</dd></div>
+          </dl>
+        </section>
+        <section className="panel">
+          <PanelHeading
+            eyebrow="Comprobación en vivo"
+            title="Asistente de IA"
+            actions={<button type="button" className="button button--secondary" disabled={checking} onClick={check}>{checking ? 'Comprobando…' : 'Comprobar ahora'}</button>}
+          />
+          {health && <div className="notice notice--success" role="status"><strong>{health.estado === 'ok' ? 'Operativo' : 'Degradado'} · {executionLabel}</strong><span>{health.ollama} · {health.modelo}{health.gpu ? ` · ${health.gpu}` : ''}</span></div>}
+          {error && <div className="notice notice--error" role="alert">{error}</div>}
+          {!health && !error && <p className="empty-state empty-state--compact">Todavía no se ejecutó la comprobación.</p>}
+        </section>
       </div>
     </div>
   );

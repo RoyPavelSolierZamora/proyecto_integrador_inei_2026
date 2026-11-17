@@ -91,7 +91,7 @@ export function parseRawEpenCsv(text, { maxRows = 50_000 } = {}) {
   const aliases = {
     id_registro: ['id_registro', 'id_c200'], p309: ['p309', 'c309'],
     p308: ['p308', 'c308'], p308a: ['p308a', 'c308a'],
-    c310: ['c310'], c311: ['c311'], c366: ['c366'],
+    c309_1: ['c309_1'], c310: ['c310'], c311: ['c311'], c366: ['c366'],
   };
   const missing = ['id_registro', 'p309'].filter(name => !aliases[name].some(alias => headers.includes(alias)));
   if (missing.length) return { rows: [], errors: [`Faltan columnas obligatorias: ${missing.join(', ')}.`] };
@@ -110,7 +110,7 @@ export function parseRawEpenCsv(text, { maxRows = 50_000 } = {}) {
     seen.add(identifier);
     rows.push({
       id_registro: identifier, p309: value('p309'), p308: value('p308'), p308a: value('p308a'),
-      c310: value('c310'), c311: value('c311'), c366: value('c366'),
+      c309_1: value('c309_1'), c310: value('c310'), c311: value('c311'), c366: value('c366'),
     });
   });
   return { rows, errors };

@@ -15,6 +15,8 @@ mezclan registros entre versiones ni sustituyen la validación metodológica del
 | Consultar criterios vigentes relacionados | Analista, supervisor, auditor y administrador |
 | Crear y enviar criterios a aprobación | Supervisor y administrador |
 | Aprobar o retirar criterios | Administrador |
+| Proponer altas, cambios o bajas del catálogo | Supervisor y administrador |
+| Aprobar y aplicar un cambio de catálogo | Administrador |
 | Registrar un dictamen de calidad | Supervisor y administrador |
 | Consultar dictámenes | Supervisor, auditor y administrador |
 
@@ -31,6 +33,23 @@ detalle de un registro.
 Los criterios no alteran automáticamente la predicción de R2 o Qwen. Incorporarlos como regla de
 cierre exigiría una evaluación temporal independiente y una autorización metodológica; mientras
 tanto son conocimiento gobernado para la decisión humana.
+
+Un criterio vigente se muestra de inmediato como apoyo en los casos futuros que coinciden con su
+texto ocupacional. No reabre ni recodifica bases anteriores y tampoco reentrena el clasificador.
+
+## Cambios al catálogo CIIU
+
+Las altas, modificaciones y desactivaciones pasan por una solicitud auditable. Una aprobación hace
+que el código quede disponible para selección manual y para crear criterios, pero no lo convierte
+automáticamente en una clase aprendida por los motores. Para predecir un código nuevo se debe:
+
+1. incorporarlo en un histórico etiquetado y aprobado;
+2. entrenar y calibrar una nueva versión de R2 con corte temporal;
+3. actualizar el catálogo que valida la asistencia de IA;
+4. ejecutar la evaluación temporal, la prueba de ruido y la aprobación metodológica;
+5. desplegar la versión con su identificador y métricas, sin sobrescribir resultados anteriores.
+
+Por diseño, ningún cambio de catálogo modifica decisiones ya registradas.
 
 ## Selección fuera del Top-K
 
@@ -61,3 +80,9 @@ El asistente usa intenciones cerradas y consultas SQL parametrizadas implementad
 No ejecuta texto del usuario como SQL. La pregunta no se almacena: se conserva su huella SHA-256,
 la intención, el usuario y el contexto consultado. Los resultados estadísticos describen las bases
 cargadas y no deben interpretarse automáticamente como causalidad, sesgo o cambio económico.
+
+## Auditoría paginada
+
+La pantalla de Auditoría reemplaza al historial visual redundante. Consulta una base y versión
+explícitas, muestra 30 decisiones por página y aplica búsqueda y filtros en PostgreSQL. La SPA no
+descarga de una sola vez todo el historial de decisiones de la versión.

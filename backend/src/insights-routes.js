@@ -3,6 +3,7 @@ import express from 'express';
 import { getPool } from './db.js';
 import { requireAuth, requireCsrf, requireRole } from './middleware.js';
 import { compareCodeRows, detectAssistantIntent, helpAnswer } from './insights.js';
+import { workspaceIndicators } from './workspace-indicators.js';
 
 function httpError(status, message) {
   const error = new Error(message);
@@ -33,10 +34,17 @@ async function datasetSummary(db, datasetId) {
       count(*) FILTER (WHERE c.status = 'resolved')::int AS resolved,
       count(*) FILTER (WHERE c.status = 'review')::int AS review,
       count(*) FILTER (WHERE c.status = 'pending')::int AS pending,
-      count(*) FILTER (WHERE l.source = 'ml')::int AS automatic,
-      count(*) FILTER (WHERE l.source = 'llm')::int AS ai,
-      count(*) FILTER (WHERE l.source = 'human')::int AS human,
-      COALESCE(avg(c.confianza_ml), 0)::float8 AS average_confidence
+      count(*) FILTER (WHERE c.status = 'resolved' AND l.source = 'ml')::int AS automatic,
+      count(*) FILTER (WHERE c.status = 'resolved' AND l.source = 'llm')::int AS ai,
+      count(*) FILTER (WHERE c.status = 'resolved' AND l.source = 'human')::int AS human,
+      count(*) FILTER (WHERE nullif(trim(c.p309), '') IS NULL)::int AS missing_p309,
+      count(*) FILTER (WHERE nullif(trim(c.p308), '') IS NULL OR nullif(trim(c.p308a), '') IS NULL)::int AS missing_context,
+      count(*) FILTER (WHERE c.confianza_ml >= .95)::int AS confidence_high,
+      count(*) FILTER (WHERE c.confianza_ml >= .90 AND c.confianza_ml < .95)::int AS confidence_medium,
+      count(*) FILTER (WHERE c.confianza_ml < .90)::int AS confidence_low,
+      count(*) FILTER (WHERE c.confianza_ml IS NULL)::int AS confidence_missing,
+      count(DISTINCT c.final_code) FILTER (WHERE c.final_code IS NOT NULL)::int AS unique_codes,
+      COALESCE(avg(c.confianza_ml) FILTER (WHERE c.confianza_ml IS NOT NULL), 0)::float8 AS average_confidence
     FROM epen.survey_cases c LEFT JOIN latest l ON l.case_id = c.id
     WHERE c.dataset_id = $1
   `, [datasetId]);
@@ -57,8 +65,45 @@ async function datasetSummary(db, datasetId) {
     totals: {
       total: Number(summary.total), resolved: Number(summary.resolved), review: Number(summary.review), pending: Number(summary.pending),
       automatic: Number(summary.automatic), ai: Number(summary.ai), human: Number(summary.human), averageConfidence: Number(summary.average_confidence),
+      missingP309: Number(summary.missing_p309), missingContext: Number(summary.missing_context), uniqueCodes: Number(summary.unique_codes),
+      confidenceBands: { high: Number(summary.confidence_high), medium: Number(summary.confidence_medium), low: Number(summary.confidence_low), missing: Number(summary.confidence_missing) },
     },
     topCodes: top.rows.map(row => ({ code: row.code, description: row.description, count: Number(row.count), share: denominator ? Number(row.count) / denominator : 0 })),
+    rates: {
+      resolved: Number(summary.total) ? Number(summary.resolved) / Number(summary.total) : 0,
+      review: Number(summary.total) ? Number(summary.review) / Number(summary.total) : 0,
+      automatic: Number(summary.total) ? (Number(summary.automatic) + Number(summary.ai)) / Number(summary.total) : 0,
+      topFiveConcentration: denominator ? top.rows.slice(0, 5).reduce((sum, row) => sum + Number(row.count), 0) / denominator : 0,
+      completeness: Number(summary.total) ? 1 - Number(summary.missing_p309) / Number(summary.total) : 0,
+    },
+  };
+}
+
+async function variableProfile(db, datasetId) {
+  const summary = await datasetSummary(db, datasetId);
+  const result = await db.query(`
+    WITH grouped AS (
+      SELECT COALESCE(NULLIF(trim(c.p308), ''), 'Sin ocupación informada') AS occupation,
+             c.final_code AS code, count(*)::int AS count
+      FROM epen.survey_cases c
+      WHERE c.dataset_id = $1
+      GROUP BY 1, c.final_code
+    ), ranked AS (
+      SELECT occupation, code, count,
+             sum(count) OVER (PARTITION BY occupation)::int AS occupation_count,
+             row_number() OVER (PARTITION BY occupation ORDER BY count DESC, code NULLS LAST) AS code_rank
+      FROM grouped
+    )
+    SELECT occupation, occupation_count, code AS dominant_code, count AS dominant_count
+    FROM ranked WHERE code_rank = 1
+    ORDER BY occupation_count DESC, occupation LIMIT 12
+  `, [datasetId]);
+  return {
+    ...summary,
+    contexts: result.rows.map(row => ({
+      occupation: row.occupation, count: Number(row.occupation_count), dominantCode: row.dominant_code,
+      dominantShare: Number(row.occupation_count) ? Number(row.dominant_count) / Number(row.occupation_count) : 0,
+    })),
   };
 }
 
@@ -178,12 +223,12 @@ async function qualitySummary(db, datasetId) {
 function summaryAnswer(summary) {
   const t = summary.totals;
   const top = summary.topCodes.slice(0, 3).map(item => `${item.code} (${item.count})`).join(', ') || 'sin códigos finales';
-  return `${summary.dataset.name} · ${summary.dataset.period} · v${summary.dataset.version} contiene ${t.total} registros: ${t.resolved} resueltos, ${t.review} en revisión y ${t.pending} pendientes. Origen de la última decisión: ${t.automatic} clasificación automática, ${t.ai} asistencia de IA y ${t.human} personas. Códigos más frecuentes: ${top}.`;
+  return `${summary.dataset.name} · ${summary.dataset.period} · v${summary.dataset.version} contiene ${t.total} registros: ${t.resolved} resueltos, ${t.review} en revisión y ${t.pending} pendientes. La cobertura automática es ${(summary.rates.automatic * 100).toFixed(1)} % y P309 está completo en ${(summary.rates.completeness * 100).toFixed(1)} %. Origen de la última decisión: ${t.automatic} clasificación automática, ${t.ai} asistencia de IA y ${t.human} personas. Hay ${t.uniqueCodes} códigos distintos; los cinco más frecuentes concentran ${(summary.rates.topFiveConcentration * 100).toFixed(1)} %. Principales códigos: ${top}.`;
 }
 
 function comparisonAnswer(value) {
   const changes = value.codeChanges.slice(0, 3).map(item => `${item.code}: ${(item.change * 100).toFixed(1)} puntos porcentuales`).join('; ') || 'sin variaciones calculables';
-  return `Comparación entre ${value.left.dataset.period} y ${value.right.dataset.period}. Registros resueltos: ${value.left.totals.resolved} frente a ${value.right.totals.resolved}. Mayores cambios relativos: ${changes}. Estas diferencias describen la distribución observada y no prueban por sí solas un cambio económico o un error.`;
+  return `Comparación entre ${value.left.dataset.period} y ${value.right.dataset.period}. Registros: ${value.left.totals.total} frente a ${value.right.totals.total}; cobertura resuelta: ${(value.left.rates.resolved * 100).toFixed(1)} % frente a ${(value.right.rates.resolved * 100).toFixed(1)} %; cobertura automática: ${(value.left.rates.automatic * 100).toFixed(1)} % frente a ${(value.right.rates.automatic * 100).toFixed(1)} %. P309 incompleto: ${value.left.totals.missingP309} frente a ${value.right.totals.missingP309}. Mayores cambios de participación CIIU: ${changes}. Estas diferencias describen la distribución observada y no prueban por sí solas un cambio económico o un error.`;
 }
 
 function qualityAnswer(value) {
@@ -192,13 +237,20 @@ function qualityAnswer(value) {
   return `La base tiene decisiones humanas de ${value.coders.length} codificador(es). Existen ${reviewed} revisiones formales y ${incorrect} observaciones marcadas como incorrectas. Las tasas de error solo se muestran cuando hay revisión formal; una concentración por rama es una señal para revisar, no una conclusión de sesgo.`;
 }
 
+function variableAnswer(value) {
+  const t = value.totals;
+  const contexts = value.contexts.slice(0, 3).map(item => `${item.occupation}: ${item.count} registros${item.dominantCode ? `, código frecuente ${item.dominantCode}` : ''}`).join('; ');
+  return `Cruce de actividad y contexto ocupacional para ${value.dataset.period}. P309 está completo en ${t.total - t.missingP309} de ${t.total} registros; ${t.missingContext} no tienen ocupación o tareas completas. Contextos más frecuentes: ${contexts || 'no hay contexto suficiente'}. La frecuencia de un código orienta la revisión, pero no reemplaza la lectura de P309.`;
+}
+
 export function createInsightsRouter() {
   const router = express.Router();
 
   router.get('/api/analytics/datasets/:id/summary', requireRole('analista', 'supervisor', 'auditor', 'admin'), async (req, res) => {
     const id = validId(req.params.id);
     if (!id) throw httpError(400, 'Base no válida.');
-    res.json(await datasetSummary(getPool(), id));
+    const [summary, indicators] = await Promise.all([datasetSummary(getPool(), id), workspaceIndicators(getPool(), id)]);
+    res.json({ ...summary, indicators });
   });
 
   router.get('/api/analytics/compare', requireRole('supervisor', 'auditor', 'admin'), async (req, res) => {
@@ -234,6 +286,9 @@ export function createInsightsRouter() {
     if (intent === 'dataset_summary') {
       if (!datasetId) throw httpError(400, 'Selecciona una base para calcular estadísticas.');
       data = await datasetSummary(getPool(), datasetId); answer = summaryAnswer(data);
+    } else if (intent === 'variable_profile') {
+      if (!datasetId) throw httpError(400, 'Selecciona una base para cruzar sus variables.');
+      data = await variableProfile(getPool(), datasetId); answer = variableAnswer(data);
     } else if (intent === 'compare_datasets') {
       if (!datasetId || !compareDatasetId || datasetId === compareDatasetId) throw httpError(400, 'Selecciona dos bases distintas para comparar.');
       data = await compareDatasets(getPool(), datasetId, compareDatasetId); answer = comparisonAnswer(data);

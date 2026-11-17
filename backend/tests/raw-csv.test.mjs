@@ -4,14 +4,14 @@ import { parseRawEpenCsv } from '../src/raw-csv.js';
 
 test('acepta una base original sin candidatos R2', () => {
   const rows = parseRawEpenCsv('id_registro,p309,p308,p308a\nA-1,"Vende frutas, verduras y bebidas",Vendedora,Atiende clientes\n');
-  assert.deepEqual(rows, [{ id_registro: 'A-1', p309: 'Vende frutas, verduras y bebidas', p308: 'Vendedora', p308a: 'Atiende clientes', c310: '', c311: '', c366: '' }]);
+  assert.deepEqual(rows, [{ id_registro: 'A-1', p309: 'Vende frutas, verduras y bebidas', p308: 'Vendedora', p308a: 'Atiende clientes', c309_1: '', c310: '', c311: '', c366: '' }]);
 });
 
 test('acepta variables EPEN nativas y descarta la etiqueta del archivo de entrada', () => {
-  const rows = parseRawEpenCsv('ID_C200,C309,C308,C308A,C310,C311,C366,C309_COD\nA-2,Servicio de limpieza,Limpiadora,Limpia oficinas,3,5,6,8121\n');
+  const rows = parseRawEpenCsv('ID_C200,C309,C308,C308A,C309_1,C310,C311,C366,C309_COD\nA-2,Servicio de limpieza,Limpiadora,Limpia oficinas,2,3,5,6,8121\n');
   assert.deepEqual(rows[0], {
     id_registro: 'A-2', p309: 'Servicio de limpieza', p308: 'Limpiadora', p308a: 'Limpia oficinas',
-    c310: '3', c311: '5', c366: '6',
+    c309_1: '2', c310: '3', c311: '5', c366: '6',
   });
   assert.equal('codigo' in rows[0], false);
 });

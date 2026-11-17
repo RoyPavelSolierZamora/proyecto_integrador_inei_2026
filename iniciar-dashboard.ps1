@@ -179,8 +179,8 @@ try {
     $r2Mode = Get-DotEnvValue 'R2_MODE'
     if (-not $r2Mode) { $r2Mode = 'simulator' }
     $r2Mode = $r2Mode.Trim().ToLowerInvariant()
-    if ($r2Mode -notin @('simulator', 'baseline', 'advanced')) {
-        throw 'R2_MODE debe ser simulator, baseline o advanced.'
+    if ($r2Mode -notin @('simulator', 'baseline', 'advanced', 'beto')) {
+        throw 'R2_MODE debe ser simulator, baseline, advanced o beto.'
     }
     $r2FeatureSet = Get-DotEnvValue 'R2_FEATURE_SET'
     if (-not $r2FeatureSet) { $r2FeatureSet = 'basic' }
@@ -231,11 +231,13 @@ try {
     # --- R2 -----------------------------------------------------------------
     Write-Paso 'Microservicio R2'
     $r2Service = switch ($r2Mode) {
+        'beto' { 'r2-beto' }
         'advanced' { 'r2-advanced' }
         'baseline' { 'r2-baseline' }
         default { 'r2-simulator' }
     }
     $r2Root = switch ($r2Mode) {
+        'beto' { Join-Path $projectRoot 'backend\r2_beto' }
         'advanced' { Join-Path $projectRoot 'backend\r2_advanced' }
         'baseline' { Join-Path $projectRoot 'backend\r2_baseline' }
         default { Join-Path $projectRoot 'backend\r2_simulator' }
@@ -254,25 +256,36 @@ try {
         }
         $env:R2_TRAINING_CSV = [IO.Path]::GetFullPath($r2TrainingCsv)
     }
-    if ($r2Mode -eq 'advanced') {
+    if ($r2Mode -in @('advanced', 'beto')) {
         & $python -c 'import joblib, numpy, scipy, sklearn'
         if ($LASTEXITCODE -ne 0) {
             throw 'Faltan dependencias de R2 avanzado. Ejecuta: python -m pip install -r backend\r2_advanced\requirements.txt'
         }
+    }
+    if ($r2Mode -eq 'beto') {
+        $betoPath = Get-DotEnvValue 'R2_BETO_MODEL_PATH'
+        if (-not $betoPath) { throw 'Configura R2_BETO_MODEL_PATH con la carpeta local del modelo BETO de confianza.' }
+        if (-not [IO.Path]::IsPathRooted($betoPath)) { $betoPath = Join-Path $projectRoot $betoPath }
+        if (-not (Test-Path -LiteralPath (Join-Path $betoPath 'model.safetensors') -PathType Leaf)) { throw 'No se encontro el modelo BETO en R2_BETO_MODEL_PATH.' }
+        $env:R2_BETO_MODEL_PATH = [IO.Path]::GetFullPath($betoPath)
+        & $python -c 'import torch, transformers, safetensors'
+        if ($LASTEXITCODE -ne 0) { throw 'Faltan dependencias BETO: instala torch, transformers y safetensors en el Python del proyecto.' }
     }
     $r2 = Get-HttpJson 'http://127.0.0.1:8100/salud'
     $r2Expected = [bool]($r2 -and $r2.servicio -eq $r2Service -and $r2.contrato_version -eq '1.0')
     Assert-FreeOrExpected 8100 $r2Expected 'R2'
     if (-not $r2Expected) {
         $null = Start-ManagedProcess 'r2' $python @('servicio_r2.py') $r2Root 8100
-        $r2Attempts = if ($r2Mode -eq 'advanced') { 720 } else { 40 }
+        $r2Attempts = if ($r2Mode -in @('advanced', 'beto')) { 720 } else { 40 }
         for ($i = 0; $i -lt $r2Attempts -and -not (Get-HttpJson 'http://127.0.0.1:8100/salud'); $i++) { Start-Sleep -Milliseconds 500 }
     }
     $r2 = Get-HttpJson 'http://127.0.0.1:8100/salud'
     if (-not $r2 -or $r2.servicio -ne $r2Service -or $r2.contrato_version -ne '1.0') {
         throw ('R2 no respondio correctamente. Revisa ' + (Join-Path $logsRoot 'r2.err.log'))
     }
-    if ($r2Mode -eq 'advanced') {
+    if ($r2Mode -eq 'beto') {
+        Write-Ok 'BETO experimental operativo; sin cierre automatico del clasificador'
+    } elseif ($r2Mode -eq 'advanced') {
         Write-Ok ('R2 avanzado operativo con ' + $r2.casos_historicos + ' antecedentes y calibracion ' + $r2.calibracion)
     } elseif ($r2Mode -eq 'baseline') {
         Write-Ok ('R2 baseline operativo con ' + $r2.casos_entrenamiento + ' casos historicos')

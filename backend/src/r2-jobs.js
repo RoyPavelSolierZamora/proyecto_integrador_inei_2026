@@ -16,6 +16,13 @@ export function requiresDirectHumanReview(result) {
   return Array.isArray(quality?.motivos) && quality.motivos.some(reason => QWEN_BLOCKING_QUALITY_REASONS.has(reason));
 }
 
+// El cierre automático depende solo del umbral τ elegido en cada trabajo. El modelo BETO
+// (sin calibrar) cierra con el mismo criterio que los demás clasificadores; la asistencia de IA
+// nunca cierra por sí sola (ver qwenResolutionPolicy).
+export function canResolveAutomatically(modelVersion, confidence, threshold) {
+  return Number(confidence) >= Number(threshold);
+}
+
 export function mapJob(row) {
   const qwenPending = Number(row.qwen_pending_count || 0);
   const qwenProcessed = Number(row.qwen_processed_count || 0);
@@ -31,6 +38,7 @@ export function mapJob(row) {
     period: row.period,
     status: row.status,
     threshold: Number(row.threshold),
+    aiThreshold: row.ai_threshold === null || row.ai_threshold === undefined ? null : Number(row.ai_threshold),
     total: Number(row.total_records),
     processed: Number(row.processed_records),
     automatic: Number(row.automatic_count),
@@ -115,10 +123,11 @@ async function processR2Job(jobId, config) {
   if (claimed.cancellation_pending) return cancelJob(jobId, claimed.dataset_id);
 
   try {
+    let jobModelVersion = claimed.model_version || null;
     while (true) {
       if (await cancellationRequested(jobId)) return cancelJob(jobId, claimed.dataset_id);
       const batch = await getPool().query(`
-        SELECT id, external_id, p309, p308, p308a, c310, c311, c366
+        SELECT id, external_id, p309, p308, p308a, c309_1, c310, c311, c366
         FROM epen.survey_cases
         WHERE dataset_id = $1 AND candidates IS NULL AND status = 'pending'
         ORDER BY id LIMIT $2
@@ -126,11 +135,15 @@ async function processR2Job(jobId, config) {
       if (!batch.rowCount) break;
       const records = batch.rows.map(row => ({
         id_registro: row.external_id, p309: row.p309, p308: row.p308 || '', p308a: row.p308a || '',
-        c310: row.c310 || '', c311: row.c311 || '', c366: row.c366 || '',
+        c309_1: row.c309_1 || '', c310: row.c310 || '', c311: row.c311 || '', c366: row.c366 || '',
       }));
       const prediction = await predictR2Batch(config, {
         runId: `r2-job-${jobId}`, datasetId: Number(claimed.dataset_id), records,
       });
+      if (jobModelVersion && prediction.modelVersion !== jobModelVersion) {
+        throw new Error('El modelo del clasificador cambió durante el trabajo. Inicie una nueva versión para conservar la trazabilidad.');
+      }
+      jobModelVersion = prediction.modelVersion;
       const returnedCodes = [...new Set(prediction.results.flatMap(item => item.candidatos?.map(candidate => candidate.codigo) || []))];
       if (returnedCodes.length) {
         const catalog = await getPool().query('SELECT code FROM epen.ciiu_catalog WHERE active = true AND code::text = ANY($1::text[])', [returnedCodes]);
@@ -152,7 +165,8 @@ async function processR2Job(jobId, config) {
             await client.query("INSERT INTO epen.decisions (case_id, run_id, source, decision, justification, model) VALUES ($1, $2, 'ml', 'derivation', $3, $4)", [row.id, `r2-job-${jobId}`, reason, prediction.modelVersion]);
             continue;
           }
-          const isAutomatic = result.confianza_ml >= Number(claimed.threshold);
+          // BETO V2 aún no tiene calibración independiente: no cerrar automáticamente.
+          const isAutomatic = canResolveAutomatically(prediction.modelVersion, result.confianza_ml, claimed.threshold);
           if (isAutomatic) automatic += 1;
           else qwenPending += 1;
           await client.query(`
@@ -203,7 +217,11 @@ async function processR2Job(jobId, config) {
         activeQwenRequests.set(Number(jobId), qwenController);
         try {
           qwen = await classifyWithQwen(config, item, { signal: qwenController.signal });
-          policy = qwenResolutionPolicy(item.candidates, qwen);
+          policy = qwenResolutionPolicy(item.candidates, qwen, {
+            modelVersion: jobModelVersion,
+            confidence: item.confianza_ml,
+            aiThreshold: claimed.ai_threshold === null || claimed.ai_threshold === undefined ? null : Number(claimed.ai_threshold),
+          });
         } catch (cause) {
           if (cause.code === 'QWEN_CANCELLED' || await cancellationRequested(jobId)) {
             return cancelJob(jobId, claimed.dataset_id);

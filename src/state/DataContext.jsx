@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { activateDatasetReal, consultQwenReal, importDatasetReal, loadDatasetWorkspaceReal, loadOperationalData, saveDecisionReal, searchCatalogPageReal, searchCatalogReal, simulateR2Real } from '../services/dataClient';
+import { activateDatasetReal, consultQwenReal, importDatasetReal, loadDatasetWorkspaceReal, loadOperationalData, saveDecisionReal, searchCatalogPageReal, searchCatalogReal, simulateR2Real, updateDatasetSyntheticReal } from '../services/dataClient';
 import { useAuth } from './AuthContext';
 
 const DataContext = createContext(null);
@@ -71,6 +71,11 @@ export function DataProvider({ children }) {
     return result;
   }
 
+  async function updateDatasetSynthetic(datasetId, synthetic) {
+    await updateDatasetSyntheticReal(datasetId, synthetic);
+    await reload({ silent: true });
+  }
+
   async function searchCatalog(query) {
     return searchCatalogReal(query);
   }
@@ -119,6 +124,7 @@ export function DataProvider({ children }) {
     activateDataset,
     importDataset,
     simulateR2,
+    updateDatasetSynthetic,
     searchCatalog,
     searchCatalogPage,
   }), [workspace, activeCases, activeDataset, metrics, loading, error]);

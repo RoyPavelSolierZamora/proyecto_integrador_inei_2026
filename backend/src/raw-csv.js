@@ -38,7 +38,7 @@ export function parseRawEpenCsv(text, { maxRows = 50_000 } = {}) {
   const aliases = {
     id_registro: ['id_registro', 'id_c200'], p309: ['p309', 'c309'],
     p308: ['p308', 'c308'], p308a: ['p308a', 'c308a'],
-    c310: ['c310'], c311: ['c311'], c366: ['c366'],
+    c309_1: ['c309_1'], c310: ['c310'], c311: ['c311'], c366: ['c366'],
   };
   const missing = ['id_registro', 'p309'].filter(name => !aliases[name].some(alias => headers.includes(alias)));
   if (missing.length) throw new Error(`Faltan columnas obligatorias: ${missing.join(', ')}.`);
@@ -54,7 +54,7 @@ export function parseRawEpenCsv(text, { maxRows = 50_000 } = {}) {
     if (identifier.length > 120) throw new Error(`Fila ${line}: id_registro supera 120 caracteres.`);
     if (seen.has(identifier)) throw new Error(`Fila ${line}: id_registro duplicado.`);
     seen.add(identifier);
-    const multivariate = Object.fromEntries(['c310', 'c311', 'c366'].map(name => [name, value(name)]));
+    const multivariate = Object.fromEntries(['c309_1', 'c310', 'c311', 'c366'].map(name => [name, value(name)]));
     for (const [name, content] of Object.entries(multivariate)) {
       if (content.length > 160) throw new Error(`Fila ${line}: ${name.toUpperCase()} supera 160 caracteres.`);
     }

@@ -16,5 +16,6 @@ backend/r2_baseline/modelos/
 # Artefactos de compilacion y ejecucion local
 .preview-pages/
 .runtime/
+.taste-skill/
 r3_local/salidas/
 r3_local/datos/*.db

@@ -30,6 +30,7 @@ export default function LoginPage() {
           <p className="eyebrow">Proyecto Integrador PEU-CD</p>
           <h1 id="login-title">Codificación asistida de actividades económicas</h1>
           <p>Acceso local para revisar candidatos CIIU, consultar la asistencia de IA y registrar decisiones trazables.</p>
+          <div className="login-facts" aria-label="Características del sistema"><div><strong>417</strong><span>clases CIIU</span></div><div><strong>Auditable</strong><span>cada decisión</span></div><div><strong>Por roles</strong><span>cada acceso</span></div></div>
         </div>
         <form onSubmit={submit} className="login-form">
           <div className="access-notice"><strong>Acceso protegido</strong><span>Ingresa con la cuenta asignada por el administrador.</span></div>

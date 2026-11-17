@@ -15,7 +15,8 @@ export function detectAssistantIntent(question, { compareDatasetId, caseExternal
   if (/observacion|registro|caso|otros anos|histor|parecid|similar/.test(text)) return 'similar_cases';
   if (/compar|diferencia|cambio|variacion|versus| vs /.test(` ${text} `)) return 'compare_datasets';
   if (/codificador|persona|sesgo|calidad|error|correccion|desacuerdo/.test(text)) return 'quality_control';
-  if (/resum|estadistic|cuantos|cantidad|porcentaje|frecuen|distribucion|pendiente|top/.test(text)) return 'dataset_summary';
+  if (/cruz|relacion|ocupacion|tarea|contexto|variable|p308|p309/.test(text)) return 'variable_profile';
+  if (/resum|estadistic|cuantos|cantidad|porcentaje|frecuen|distribucion|pendiente|top|indicador|panorama|cobertura|automat|avance|analiz/.test(text)) return 'dataset_summary';
   return 'help';
 }
 

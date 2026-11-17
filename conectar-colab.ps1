@@ -40,7 +40,15 @@ if ($baseUrl -notmatch '^https://[a-z0-9.-]+(?::\d+)?(?:/.*)?$') {
     throw 'La URL debe comenzar con https:// y no debe contener espacios.'
 }
 
-$token = (Read-SecretText 'Token de Colab (R3_API_TOKEN)').Trim()
+$token = (Read-SecretText 'Token de Colab (Enter para reutilizar el token guardado)').Trim()
+if (-not $token) {
+    foreach ($line in [IO.File]::ReadAllLines($envPath)) {
+        if ($line -match '^\s*R3_API_TOKEN\s*=\s*(.*)$') {
+            $token = $Matches[1].Trim().Trim('"')
+            break
+        }
+    }
+}
 if ($token.Length -lt 24) { throw 'El token debe tener al menos 24 caracteres.' }
 
 Write-Host 'Comprobando la conexión pública...' -ForegroundColor Yellow

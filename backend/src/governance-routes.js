@@ -44,6 +44,15 @@ function mapRule(row) {
   };
 }
 
+function mapCatalogRequest(row) {
+  return {
+    id: Number(row.id), type: row.request_type, code: row.code, description: row.description || '',
+    justification: row.justification, sourceReference: row.source_reference, status: row.status,
+    createdBy: row.created_by_name, reviewedBy: row.reviewed_by_name || null,
+    reviewNotes: row.review_notes || '', createdAt: row.created_at, reviewedAt: row.reviewed_at,
+  };
+}
+
 const RULE_SELECT = `
   SELECT r.*, cat.description AS code_description,
     creator.full_name AS created_by_name, approver.full_name AS approved_by_name
@@ -171,6 +180,73 @@ export function createGovernanceRouter() {
     });
     const result = await getPool().query(`${RULE_SELECT} WHERE r.id = $1`, [id]);
     res.json({ rule: mapRule(result.rows[0]) });
+  });
+
+  router.get('/api/catalog-change-requests', requireRole('supervisor', 'auditor', 'admin'), async (_req, res) => {
+    const result = await getPool().query(`
+      SELECT r.*, creator.full_name AS created_by_name, reviewer.full_name AS reviewed_by_name
+      FROM epen.catalog_change_requests r
+      JOIN epen.users creator ON creator.id = r.created_by
+      LEFT JOIN epen.users reviewer ON reviewer.id = r.reviewed_by
+      ORDER BY CASE r.status WHEN 'pending' THEN 0 ELSE 1 END, r.created_at DESC, r.id DESC
+      LIMIT 200
+    `);
+    res.json({ requests: result.rows.map(mapCatalogRequest) });
+  });
+
+  router.post('/api/catalog-change-requests', requireRole('supervisor', 'admin'), requireCsrf, async (req, res) => {
+    const type = String(req.body?.type || '');
+    const code = String(req.body?.code || '').trim();
+    const description = cleanText(req.body?.description, 500, type !== 'deactivate');
+    const justification = cleanText(req.body?.justification, 2000, true);
+    const sourceReference = cleanText(req.body?.sourceReference, 1000, true);
+    if (!['add', 'update', 'deactivate'].includes(type) || !/^\d{4}$/.test(code)) throw httpError(400, 'Selecciona un tipo de cambio y un código CIIU de cuatro dígitos.');
+    const existing = await getPool().query('SELECT code, active FROM epen.ciiu_catalog WHERE code = $1', [code]);
+    if (type === 'add' && existing.rowCount && existing.rows[0].active) throw httpError(409, 'Ese código ya existe en el catálogo activo.');
+    if (type !== 'add' && !existing.rowCount) throw httpError(409, 'El código no existe en el catálogo actual.');
+    let id;
+    try {
+      const result = await getPool().query(`
+        INSERT INTO epen.catalog_change_requests
+          (request_type, code, description, justification, source_reference, created_by)
+        VALUES ($1, $2, $3, $4, $5, $6) RETURNING id
+      `, [type, code, description, justification, sourceReference, req.auth.user.id]);
+      id = result.rows[0].id;
+    } catch (cause) {
+      if (cause.code === '23505') throw httpError(409, 'Ya existe una solicitud pendiente para ese código.');
+      throw cause;
+    }
+    await audit(getPool(), req, 'catalog_change.requested', 'catalog_change_request', id, { type, code });
+    res.status(201).json({ id: Number(id) });
+  });
+
+  router.patch('/api/catalog-change-requests/:id/status', requireRole('admin'), requireCsrf, async (req, res) => {
+    const id = validId(req.params.id);
+    const status = String(req.body?.status || '');
+    const reviewNotes = cleanText(req.body?.reviewNotes, 1500, status === 'rejected');
+    if (!id || !['approved', 'rejected'].includes(status)) throw httpError(400, 'Revisión de catálogo no válida.');
+    await transaction(async client => {
+      const current = await client.query('SELECT * FROM epen.catalog_change_requests WHERE id = $1 FOR UPDATE', [id]);
+      if (!current.rowCount) throw httpError(404, 'Solicitud no encontrada.');
+      const request = current.rows[0];
+      if (request.status !== 'pending') throw httpError(409, 'La solicitud ya fue revisada.');
+      if (status === 'approved') {
+        if (request.request_type === 'add') {
+          await client.query(`INSERT INTO epen.ciiu_catalog (code, description, active) VALUES ($1, $2, true)
+            ON CONFLICT (code) DO UPDATE SET description = EXCLUDED.description, active = true, updated_at = now()`, [request.code, request.description]);
+        } else if (request.request_type === 'update') {
+          const changed = await client.query('UPDATE epen.ciiu_catalog SET description = $1, updated_at = now() WHERE code = $2', [request.description, request.code]);
+          if (!changed.rowCount) throw httpError(409, 'El código ya no existe en el catálogo.');
+        } else {
+          const changed = await client.query('UPDATE epen.ciiu_catalog SET active = false, updated_at = now() WHERE code = $1', [request.code]);
+          if (!changed.rowCount) throw httpError(409, 'El código ya no existe en el catálogo.');
+        }
+      }
+      await client.query(`UPDATE epen.catalog_change_requests SET status = $1, reviewed_by = $2,
+        review_notes = $3, reviewed_at = now() WHERE id = $4`, [status, req.auth.user.id, reviewNotes, id]);
+      await audit(client, req, `catalog_change.${status}`, 'catalog_change_request', id, { type: request.request_type, code: request.code });
+    });
+    res.json({ ok: true });
   });
 
   router.get('/api/datasets/:datasetId/cases/:externalId/quality-reviews', requireRole('supervisor', 'auditor', 'admin'), async (req, res) => {
