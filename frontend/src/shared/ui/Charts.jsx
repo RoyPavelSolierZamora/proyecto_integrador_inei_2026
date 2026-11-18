@@ -141,3 +141,56 @@ export function Donut({ segments, total, centerLabel, ariaLabel }) {
     </div>
   );
 }
+
+// Columnas agrupadas: dos valores por categoría (por ejemplo, dos periodos). Los valores se leen
+// debajo de cada grupo, para que no se encimen en pantallas angostas. Alturas relativas al máximo.
+// groups: [{ label, values: [{ value (0–1), display, color }], badge: { text, tone } }]
+// legend: [{ label, color }]
+export function GroupedBars({ groups, legend, ariaLabel }) {
+  const max = Math.max(0.0001, ...groups.flatMap(group => group.values.map(item => item.value)));
+  const toneClass = { up: 'bg-[#e4f7ec] text-[#05603a]', down: 'bg-danger-soft text-danger', flat: 'bg-line text-muted' };
+  return (
+    <figure aria-label={ariaLabel} className="grid min-w-0 gap-3">
+      <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink">
+        {legend.map(item => (
+          <li key={item.label} className="flex items-center gap-1.5">
+            <span aria-hidden="true" className="size-2.5 rounded-sm" style={{ background: item.color }} />
+            {item.label}
+          </li>
+        ))}
+      </ul>
+      <div className="flex h-40 items-end gap-1.5">
+        {groups.map(group => (
+          <div key={group.label} className="flex h-full min-w-0 flex-1 flex-col">
+            <div className="flex flex-1 items-end justify-center gap-0.5">
+              {group.values.map((item, index) => {
+                const height = (item.value / max) * 100;
+                return (
+                  <div
+                    key={index}
+                    role="img"
+                    aria-label={`${group.label}, ${legend[index]?.label ?? ''}: ${item.display}`}
+                    title={`${group.label} · ${legend[index]?.label ?? ''}: ${item.display}`}
+                    className="w-full max-w-4 rounded-t-[3px] transition-[height] duration-500"
+                    style={{ height: `${height}%`, minHeight: item.value > 0 ? 2 : 0, background: item.color }}
+                  />
+                );
+              })}
+            </div>
+            <div className="mt-2 grid justify-items-center gap-0.5 text-center">
+              <span className="text-[11px] font-semibold leading-none text-ink">{group.label}</span>
+              {group.values.map((item, index) => (
+                <span key={index} className="text-[10px] leading-tight tabular-nums text-muted" style={{ color: item.color }}>{item.display}</span>
+              ))}
+              {group.badge && (
+                <span className={`mt-0.5 rounded-full px-1 py-0.5 text-[10px] font-semibold leading-none tabular-nums ${toneClass[group.badge.tone] || toneClass.flat}`}>
+                  {group.badge.text}
+                </span>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </figure>
+  );
+}

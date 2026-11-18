@@ -3,28 +3,14 @@ import { Link } from 'react-router-dom';
 import EpenIcon from '../../shared/ui/EpenIcon.jsx';
 import Button from '../../shared/ui/Button.jsx';
 import { inputClass } from '../../shared/ui/Field.jsx';
+import { GroupedBars, VerticalBars, chartColors, formatNumber } from '../../shared/ui/Charts.jsx';
 import { askAssistantReal } from '../../shared/api/dataClient.js';
 import { useAuth } from '../../app/state/AuthContext.jsx';
 import { useData } from '../../app/state/DataContext.jsx';
 
-const pct = value => `${(Number(value || 0) * 100).toFixed(1)} %`;
-
-// Fila de barra con etiqueta, valor y relleno proporcional.
-function Bar({ label, detail, value, max, tone = 'bg-brand', display }) {
-  const width = max ? Math.max(2, (value / max) * 100) : 0;
-  return (
-    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 text-sm">
-      <span className="grid min-w-0">
-        <strong className="truncate text-ink-strong" title={label}>{label}</strong>
-        {detail && <small className="truncate text-xs text-muted">{detail}</small>}
-      </span>
-      <strong className="text-ink-strong">{display ?? value}</strong>
-      <span className="col-span-2 h-2 overflow-hidden rounded-full bg-line">
-        <span className={`block h-full rounded-full ${tone}`} style={{ width: `${width}%` }} />
-      </span>
-    </div>
-  );
-}
+// Espacio no separable: el porcentaje no se parte en dos líneas en pantallas angostas.
+const shortPct = value => `${(Number(value || 0) * 100).toFixed(1)} %`;
+const panelClass = 'grid grid-cols-1 gap-3 rounded-xl border border-line bg-[#f8fbff] p-3';
 
 // Gráficos que la respuesta del asistente puede incluir. Cada uno se muestra solo si hay datos.
 function AssistantChart({ response }) {
@@ -35,34 +21,38 @@ function AssistantChart({ response }) {
     const rows = data.topCodes.slice(0, 6);
     const maximum = Math.max(...rows.map(row => row.count), 1);
     return (
-      <section aria-label="Códigos más frecuentes" className="grid grid-cols-1 gap-3 rounded-xl border border-line bg-[#f8fbff] p-3">
+      <section aria-label="Códigos más frecuentes" className={panelClass}>
         <h3 className="text-sm font-bold text-ink-strong">Códigos más frecuentes</h3>
-        {rows.map(row => <Bar key={row.code} label={`${row.code} · ${row.description}`} value={row.count} max={maximum} />)}
+        <VerticalBars
+          ariaLabel="Códigos más frecuentes"
+          items={rows.map(row => ({ label: row.code, height: row.count / maximum, display: formatNumber(row.count), color: chartColors.primary }))}
+          axis={false}
+        />
       </section>
     );
   }
 
   if (response.intent === 'compare_datasets' && data.codeChanges?.length) {
+    const left = data.left.dataset.period;
+    const right = data.right.dataset.period;
     return (
-      <section aria-label="Cambios principales" className="grid grid-cols-1 gap-3 rounded-xl border border-line bg-[#f8fbff] p-3">
-        <header className="flex flex-wrap items-baseline justify-between gap-2">
-          <h3 className="text-sm font-bold text-ink-strong">Cambios principales</h3>
-          <div className="flex gap-3 text-xs text-muted"><span>{data.left.dataset.period}</span><span>{data.right.dataset.period}</span></div>
-        </header>
-        {data.codeChanges.slice(0, 6).map(row => (
-          <article key={row.code} className="grid grid-cols-1 gap-1.5 border-t border-line pt-2 first:border-0 first:pt-0">
-            <div className="flex items-baseline justify-between gap-2 text-sm">
-              <span className="min-w-0"><strong className="text-ink-strong">{row.code}</strong> <span className="truncate text-muted" title={row.description}>{row.description}</span></span>
-              <b className={['shrink-0 text-xs', row.change > 0 ? 'text-[#05603a]' : row.change < 0 ? 'text-danger' : 'text-muted'].join(' ')}>
-                {row.change > 0 ? '+' : ''}{(row.change * 100).toFixed(1)} pp
-              </b>
-            </div>
-            <div className="grid grid-cols-2 gap-2 text-xs text-muted">
-              <span>{pct(row.leftShare)}</span>
-              <span className="text-right">{pct(row.rightShare)}</span>
-            </div>
-          </article>
-        ))}
+      <section aria-label="Cambios principales" className={panelClass}>
+        <h3 className="text-sm font-bold text-ink-strong">Cambios principales</h3>
+        <GroupedBars
+          ariaLabel={`Cambios por código entre ${left} y ${right}`}
+          legend={[{ label: left, color: chartColors.neutral }, { label: right, color: chartColors.primary }]}
+          groups={data.codeChanges.slice(0, 6).map(row => {
+            const pp = (row.change * 100).toFixed(1);
+            return {
+              label: row.code,
+              values: [
+                { value: row.leftShare, display: shortPct(row.leftShare), color: chartColors.neutral },
+                { value: row.rightShare, display: shortPct(row.rightShare), color: chartColors.primary },
+              ],
+              badge: { text: `${row.change > 0 ? '+' : ''}${pp} pp`, tone: row.change > 0 ? 'up' : row.change < 0 ? 'down' : 'flat' },
+            };
+          })}
+        />
       </section>
     );
   }
@@ -70,11 +60,12 @@ function AssistantChart({ response }) {
   if (response.intent === 'quality_control' && data.coders?.some(row => row.reviewed)) {
     const rows = data.coders.filter(row => row.reviewed).slice(0, 6);
     return (
-      <section aria-label="Error confirmado sobre revisados" className="grid grid-cols-1 gap-3 rounded-xl border border-line bg-[#f8fbff] p-3">
+      <section aria-label="Error confirmado sobre revisados" className={panelClass}>
         <h3 className="text-sm font-bold text-ink-strong">Error confirmado</h3>
-        {rows.map(row => (
-          <Bar key={row.id} label={row.name} detail={`${row.reviewed} revisados`} value={Number(row.errorRate || 0) * 100} max={100} tone="bg-danger" display={pct(row.errorRate)} />
-        ))}
+        <VerticalBars
+          ariaLabel="Error confirmado por codificador"
+          items={rows.map(row => ({ label: row.name, height: Number(row.errorRate || 0), display: shortPct(row.errorRate), color: chartColors.secondary, detail: `${row.reviewed} rev.` }))}
+        />
       </section>
     );
   }
@@ -83,11 +74,13 @@ function AssistantChart({ response }) {
     const rows = data.contexts.slice(0, 6);
     const maximum = Math.max(...rows.map(row => row.count), 1);
     return (
-      <section aria-label="Cruce de ocupación y actividad" className="grid grid-cols-1 gap-3 rounded-xl border border-line bg-[#f8fbff] p-3">
+      <section aria-label="Cruce de ocupación y actividad" className={panelClass}>
         <h3 className="text-sm font-bold text-ink-strong">Contextos ocupacionales</h3>
-        {rows.map(row => (
-          <Bar key={row.occupation} label={row.occupation} detail={row.dominantCode ? `Código frecuente ${row.dominantCode}` : 'Sin código final'} value={row.count} max={maximum} />
-        ))}
+        <VerticalBars
+          ariaLabel="Cruce de ocupación y actividad"
+          items={rows.map(row => ({ label: row.occupation, height: row.count / maximum, display: formatNumber(row.count), color: chartColors.primary, detail: row.dominantCode ? `cód. ${row.dominantCode}` : 'sin código' }))}
+          axis={false}
+        />
       </section>
     );
   }
@@ -109,7 +102,7 @@ function downloadComparison(response) {
   URL.revokeObjectURL(url);
 }
 
-// Selectores de base principal y de comparación. Se reutilizan en la vista completa y en el diálogo.
+// Selectores de base principal y de comparación. Se reutilizan en la vista completa y en el panel.
 function DatasetSelects({ datasets, datasetId, setDatasetId, compareDatasetId, setCompareDatasetId, elevated, id }) {
   const others = datasets.filter(item => String(item.id) !== String(datasetId));
   return (
@@ -145,7 +138,6 @@ export default function AssistantWorkspace({ compact = false, caseExternalId = n
   const [question, setQuestion] = useState('');
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [copied, setCopied] = useState(null);
   const endRef = useRef(null);
   const inputId = compact ? 'asistente-pregunta-compacta' : 'asistente-pregunta';
 
@@ -169,12 +161,6 @@ export default function AssistantWorkspace({ compact = false, caseExternalId = n
     } catch (error) {
       setMessages(current => [...current, { role: 'assistant', text: error.message, error: true }]);
     } finally { setLoading(false); }
-  }
-
-  async function copyAnswer(text, index) {
-    await navigator.clipboard.writeText(text);
-    setCopied(index);
-    setTimeout(() => setCopied(null), 1400);
   }
 
   const suggestions = [
@@ -263,11 +249,8 @@ export default function AssistantWorkspace({ compact = false, caseExternalId = n
               >
                 <p className="whitespace-pre-line">{message.text}</p>
                 <AssistantChart response={message.meta} />
-                {message.role === 'assistant' && !message.error && (
+                {message.role === 'assistant' && !message.error && (message.meta?.intent === 'compare_datasets' || message.meta) && (
                   <footer className="flex flex-wrap items-center gap-3 text-xs text-muted">
-                    <button type="button" className="font-semibold text-brand hover:underline" onClick={() => copyAnswer(message.text, index)}>
-                      {copied === index ? 'Copiado' : 'Copiar respuesta'}
-                    </button>
                     {message.meta?.intent === 'compare_datasets' && (
                       <button type="button" className="font-semibold text-brand hover:underline" onClick={() => downloadComparison(message.meta)}>Descargar comparación</button>
                     )}
