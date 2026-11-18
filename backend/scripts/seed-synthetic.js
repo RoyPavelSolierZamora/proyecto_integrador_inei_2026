@@ -7,12 +7,12 @@ const here = dirname(fileURLToPath(import.meta.url));
 const seed = JSON.parse(await readFile(join(here, '..', 'seeds', 'epen-synthetic-2026.json'), 'utf8'));
 
 /**
- * Catalogo CIIU. La copia canonica viaja dentro del repositorio (r3_local); la
+ * Catalogo CIIU. La copia canonica viaja dentro del repositorio (motores/r3); la
  * ruta del workspace original queda solo como respaldo para el equipo de R3.
  */
 const catalogCandidates = [
   join(here, '..', 'seeds', 'catalogo_ciiu.csv'),
-  resolve(here, '..', '..', 'r3_local', 'datos', 'catalogo_ciiu.csv'),
+  resolve(here, '..', '..', 'motores/r3', 'datos', 'catalogo_ciiu.csv'),
   resolve(here, '..', '..', '..', 'Codigos', 'pipeline_llm', 'datos', 'catalogo_ciiu.csv'),
 ];
 

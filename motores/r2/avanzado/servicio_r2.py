@@ -14,8 +14,8 @@ from motor import MODEL_FAMILY, MotorR2Avanzado, cargar_catalogo, cargar_casos
 
 
 BASE = Path(__file__).resolve().parent
-PROJECT = BASE.parent.parent
-DEFAULT_CATALOG = PROJECT / "r3_local" / "datos" / "catalogo_ciiu.csv"
+PROJECT = BASE.parents[2]
+DEFAULT_CATALOG = PROJECT / "motores" / "r3" / "datos" / "catalogo_ciiu.csv"
 DEFAULT_CACHE = PROJECT / ".runtime" / "r2-models"
 MAX_BODY_BYTES = 4 * 1024 * 1024
 

@@ -40,11 +40,11 @@ La guía detallada, las credenciales y la solución de problemas están en
 | `src/` | SPA React, navegación responsive y flujos por rol |
 | `backend/src/` | API Express, seguridad, auditoría, trabajos R2 y persistencia |
 | `backend/migrations/` | Esquema versionado de PostgreSQL |
-| `backend/r2_simulator/` | Simulador léxico temporal del contrato R2; no es un modelo ML |
-| `backend/r2_baseline/` | Baseline TF-IDF con casos históricos y API compatible; requiere calibración real |
-| `backend/r2_advanced/` | R2 vectorizado, calibración temporal, caché local y antecedentes históricos |
+| `motores/r2/simulador/` | Simulador léxico temporal del contrato R2; no es un modelo ML |
+| `motores/r2/baseline/` | Baseline TF-IDF con casos históricos y API compatible; requiere calibración real |
+| `motores/r2/avanzado/` | R2 vectorizado, calibración temporal, caché local y antecedentes históricos |
 | `backend/seeds/` | Base pequeña y archivos exclusivamente sintéticos |
-| `r3_local/` | API mínima de Qwen/Ollama, contrato y catálogo CIIU |
+| `motores/r3/` | API mínima de Qwen/Ollama, contrato y catálogo CIIU |
 | `colab/` | Qwen GPU temporal y evaluación BETO temporal sin fuga |
 | `docs/` | Instalación y contrato de integración con el R2 real |
 | `tests/`, `backend/tests/` | Pruebas automatizadas de importación, seguridad y políticas |
@@ -55,12 +55,12 @@ La instalación vacía carga seis casos sintéticos para comprobar login, Qwen, 
 historial y métricas. Para probar la carga original por lotes utiliza
 `public/plantilla_base_original.csv` desde **Bases de datos**.
 
-`backend/r2_simulator/servicio_r2.py` solo permite desarrollar y verificar el contrato mientras
+`motores/r2/simulador/servicio_r2.py` solo permite desarrollar y verificar el contrato mientras
 el equipo R2 prepara el modelo estadístico real. Para sustituirlo se configura `R2_BASE_URL`; no
 es necesario modificar React, PostgreSQL ni Qwen si se respeta el contrato documentado en
 [`docs/INTEGRACION_R2_DASHBOARD.md`](docs/INTEGRACION_R2_DASHBOARD.md).
 
-`backend/r2_baseline/` ofrece un primer motor híbrido reproducible para pruebas con históricos
+`motores/r2/baseline/` ofrece un primer motor híbrido reproducible para pruebas con históricos
 etiquetados. Combina TF-IDF por clase, vecinos históricos, n-gramas de caracteres, una firma
 fonética de bajo peso y controles de calidad para abreviaturas, errores y texto insuficiente.
 Su confianza está limitada a 0,69 hasta calibrarla con un trimestre posterior independiente, por
@@ -68,13 +68,13 @@ lo que inicialmente genera candidatos para Qwen o revisión humana y no cierres 
 seleccionarse localmente con `R2_MODE=baseline` y `R2_TRAINING_CSV` en `.env`; el simulador continúa
 siendo el valor predeterminado.
 
-`backend/r2_advanced/` es la versión estadística recomendada cuando existe un histórico anual.
+`motores/r2/avanzado/` es la versión estadística recomendada cuando existe un histórico anual.
 La versión 0.5 usa P309/P308/P308A, n-gramas de palabras y caracteres, LinearSVC y calibración
 isotónica sobre el último periodo cronológico. Entrenada hasta noviembre de 2025 y calibrada con
 diciembre de 2025 obtuvo 91,4 % Top-1 y 96,6 % Top-3 sobre enero-agosto de 2026. Con `tau=0,95`
 cubrió 68,0 % con 99,3 % de precisión. El umbral predeterminado del dashboard es 0,95, pero el
 operador puede cambiarlo por trabajo. Se activa con `R2_MODE=advanced`; sus instrucciones están en
-[`backend/r2_advanced/README.md`](backend/r2_advanced/README.md).
+[`motores/r2/avanzado/README.md`](motores/r2/avanzado/README.md).
 
 R3 usa el contrato 1.1 y el prompt versionado `prompt_v5_contexto_historico.txt`: recibe P309, el
 contexto P308/P308A, rango y puntaje R2, y hasta tres antecedentes validados. Qwen sigue limitado al Top-K y cualquier

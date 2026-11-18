@@ -13,9 +13,9 @@ const requiredFiles = [
   'conectar-colab.ps1',
   'usar-ia-local.bat',
   'usar-ia-local.ps1',
-  'backend/r2_simulator/servicio_r2.py',
-  'backend/r2_advanced/servicio_r2.py',
-  'backend/r2_advanced/requirements.txt',
+  'motores/r2/simulador/servicio_r2.py',
+  'motores/r2/avanzado/servicio_r2.py',
+  'motores/r2/avanzado/requirements.txt',
   'backend/migrations/006_job_control.sql',
   'backend/migrations/007_multivariate_fields.sql',
   'backend/migrations/008_expand_multivariate_fields.sql',
@@ -25,19 +25,19 @@ const requiredFiles = [
   'colab/r2_beto_temporal.py',
   'backend/scripts/seed-synthetic.js',
   'backend/seeds/epen-synthetic-2026.json',
-  'r3_local/servicio.py',
-  'r3_local/datos/catalogo_ciiu.csv',
+  'motores/r3/servicio.py',
+  'motores/r3/datos/catalogo_ciiu.csv',
 ];
 
 test('la distribución contiene todos los componentes usados por los lanzadores', async () => {
   await Promise.all(requiredFiles.map(path => access(path)));
   const installer = await readFile('instalar.ps1', 'utf8');
   const launcher = await readFile('iniciar-dashboard.ps1', 'utf8');
-  const localR3 = await readFile('r3_local/servicio.py', 'utf8');
+  const localR3 = await readFile('motores/r3/servicio.py', 'utf8');
   const colabR3 = await readFile('colab/r3_gpu_service.py', 'utf8');
-  assert.match(installer, /backend\\r2_simulator/);
+  assert.match(installer, /motores\\r2\\simulador/);
   assert.match(installer, /backend\/scripts\/seed-synthetic\.js/);
-  assert.match(launcher, /backend\\r2_simulator/);
+  assert.match(launcher, /motores\\r2\\simulador/);
   assert.match(localR3, /prompt_v5_contexto_historico\.txt/);
   assert.match(colabR3, /prompt-colab-v2-contexto-historico/);
 });

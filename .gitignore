@@ -8,8 +8,8 @@ __pycache__/
 backend/config-backup/
 backend/uploads/
 backend/downloads/
-backend/r2_baseline/datos/
-backend/r2_baseline/modelos/
+motores/r2/baseline/datos/
+motores/r2/baseline/modelos/
 *.db
 *.sqlite
 *.sqlite3
@@ -17,5 +17,5 @@ backend/r2_baseline/modelos/
 .preview-pages/
 .runtime/
 .taste-skill/
-r3_local/salidas/
-r3_local/datos/*.db
+motores/r3/salidas/
+motores/r3/datos/*.db

@@ -2,7 +2,7 @@
 
 Esta guía deja una máquina Windows ejecutando el flujo real **R2 → R3 (Qwen) → R4** con
 PostgreSQL, sin depender de la carpeta `Codigos/pipeline_llm` del equipo de R3: esa capa viaja
-dentro del repositorio en `r3_local/`.
+dentro del repositorio en `motores/r3/`.
 
 ## Qué se instala
 
@@ -11,7 +11,7 @@ dentro del repositorio en `r3_local/`.
 | React SPA (Vite) | Interfaz del dashboard | 5174 |
 | Backend Express | Autenticación, datos y API | 8080 |
 | PostgreSQL 18 | Persistencia real | 5432 |
-| R3 (`r3_local`) | Puente Python hacia Ollama | 8000 |
+| R3 (`motores/r3`) | Puente Python hacia Ollama | 8000 |
 | Ollama + Qwen3 4B | Codificación con LLM local | 11434 |
 | R2 simulado | Contrato HTTP del motor R2 | 8100 |
 
@@ -32,7 +32,7 @@ No hace falta instalar Node.js, Python, PostgreSQL ni Ollama a mano: el instalad
 ## Instalación en un paso
 
 La carpeta completa puede estar en cualquier ruta local, pero `instalar.bat` debe permanecer junto
-a `instalar.ps1`, `package.json`, `backend`, `src` y `r3_local`. No lo ejecutes dentro del ZIP ni
+a `instalar.ps1`, `package.json`, `backend`, `src` y `motores/r3`. No lo ejecutes dentro del ZIP ni
 copies únicamente el `.bat`. Descomprime o clona el repositorio y haz doble clic en:
 
 ```text
@@ -133,7 +133,7 @@ Para probar el camino completo:
 
 El contrato exacto que debe cumplir el motor R2 real está en
 [`INTEGRACION_R2_DASHBOARD.md`](INTEGRACION_R2_DASHBOARD.md). El servicio incluido en
-`backend/r2_simulator/` es un **simulador léxico**, no un modelo estadístico: para usar el motor real
+`motores/r2/simulador/` es un **simulador léxico**, no un modelo estadístico: para usar el motor real
 del equipo R2 basta cambiar `R2_BASE_URL` en `.env`.
 
 ## Qué es sintético
@@ -169,7 +169,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\instalar.ps1" -SinMod
 | El backend no arranca | Puerto 8080 ocupado | Ejecuta `detener-dashboard.bat` y vuelve a intentar. |
 | El enlace `127.0.0.1:5174` no abre | El dashboard no está iniciado | Ejecuta `iniciar-dashboard.bat` desde la carpeta descomprimida y espera el mensaje `Interfaz disponible`. |
 | El iniciador pide la clave de `epen_app` | Falta la credencial local cifrada | Escríbela en esa ventana de PowerShell. Se guarda cifrada con DPAPI para los siguientes inicios y no se copia a `.env`. |
-| Faltan dependencias de R2 avanzado | Se activó `R2_MODE=advanced` sin scikit-learn | Ejecuta `python -m pip install -r backend\r2_advanced\requirements.txt`. |
+| Faltan dependencias de R2 avanzado | Se activó `R2_MODE=advanced` sin scikit-learn | Ejecuta `python -m pip install -r motores\r2\avanzado\requirements.txt`. |
 | La instalación avisa que el dashboard está ejecutándose | Vite o el backend mantienen archivos abiertos | Ejecuta `detener-dashboard.bat`; si fueron iniciados manualmente, cierra sus terminales. |
 | Un puerto está ocupado por otro servicio | Otro programa usa 5174, 8080, 8000 o 8100 | Cierra ese programa. El lanzador ya no reutiliza servicios que no reconoce. |
 | `Blocked request. This host is not allowed` | El túnel usa un dominio no autorizado | Configura `TUNNEL_HOST`, cierra Vite y relanza `iniciar-dashboard.bat`. |

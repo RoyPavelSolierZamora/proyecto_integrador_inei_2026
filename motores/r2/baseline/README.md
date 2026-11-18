@@ -16,10 +16,10 @@ Acepta los campos internos (`id_registro,p309,p308,p308a,codigo_ciiu_esperado`) 
 nunca debe viajar en una solicitud de predicción.
 
 ```powershell
-cd backend\r2_baseline
+cd motores\r2\baseline
 python -m unittest -v test_motor.py
 python servicio_r2.py --datos "C:\ruta\historico_codificado.csv"
-python evaluar_robustez.py --entrenamiento "C:\ruta\historico_codificado.csv" --catalogo "..\..\r3_local\datos\catalogo_ciiu.csv"
+python evaluar_robustez.py --entrenamiento "C:\ruta\historico_codificado.csv" --catalogo "..\..\motores/r3\datos\catalogo_ciiu.csv"
 ```
 
 El servicio conserva el contrato del dashboard:

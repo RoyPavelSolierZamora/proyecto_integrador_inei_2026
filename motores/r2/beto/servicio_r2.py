@@ -12,7 +12,7 @@ import torch
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
 BASE = Path(__file__).resolve().parent
-sys.path.insert(0, str(BASE.parent / 'r2_advanced'))
+sys.path.insert(0, str(BASE.parent / 'avanzado'))
 from motor import cargar_catalogo, evaluar_calidad  # noqa: E402
 from servicio_r2 import build_handler  # noqa: E402
 
@@ -81,7 +81,7 @@ def main():
     if not args.modelo:
         parser.error('Indica --modelo o R2_BETO_MODEL_PATH.')
     folder = Path(args.modelo).resolve()
-    catalog = cargar_catalogo(BASE.parent.parent / 'r3_local' / 'datos' / 'catalogo_ciiu.csv')
+    catalog = cargar_catalogo(BASE.parent.parent / 'r3' / 'datos' / 'catalogo_ciiu.csv')
     engine = BetoEngine(folder, catalog)
     # Salud distinta evita que el iniciador confunda este motor con R2 avanzado.
     handler = build_handler(engine)

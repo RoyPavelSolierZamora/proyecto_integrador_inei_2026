@@ -36,8 +36,8 @@ la contraseña en `.env`.
 
 ## Integraciones privadas
 
-- R2 temporal: `backend/r2_simulator/servicio_r2.py`, en `127.0.0.1:8100`.
-- R3/Qwen: `r3_local/servicio.py`, en `127.0.0.1:8000`.
+- R2 temporal: `motores/r2/simulador/servicio_r2.py`, en `127.0.0.1:8100`.
+- R3/Qwen: `motores/r3/servicio.py`, en `127.0.0.1:8000`.
 - PostgreSQL: `127.0.0.1:5432`.
 
 Para conectar el motor estadístico real consulta

@@ -36,13 +36,13 @@ como ganadora hasta repetir esta misma evaluación temporal.
 ## Instalación
 
 ```powershell
-python -m pip install -r backend\r2_advanced\requirements.txt
+python -m pip install -r motores\r2\avanzado\requirements.txt
 ```
 
 Primero crea un histórico que no contenga el periodo de prueba:
 
 ```powershell
-python backend\r2_advanced\preparar_historico.py `
+python motores\r2\avanzado\preparar_historico.py `
   --entrada "C:\ruta\data_historica-epen_2022_2026.csv" `
   --salida "C:\ruta\data_epen_2022_2025.csv" `
   --hasta 2025-12
@@ -63,10 +63,10 @@ en `.runtime/r2-models/`, fuera de Git. Los siguientes inicios reutilizan ese ca
 ## Evaluación reproducible
 
 ```powershell
-python backend\r2_advanced\evaluar_temporal.py `
+python motores\r2\avanzado\evaluar_temporal.py `
   --entrenamiento "C:\ruta\data_epen_2025.csv" `
   --prueba "C:\ruta\data_2026_01.csv" `
-  --catalogo "r3_local\datos\catalogo_ciiu.csv"
+  --catalogo "motores/r3\datos\catalogo_ciiu.csv"
 ```
 
 El servicio conserva `GET /salud` y `POST /v1/predict-batch` del contrato R2 v1.0. Un futuro

@@ -169,15 +169,15 @@ Después inicia el backend del dashboard. Para usar otra dirección:
 $env:R2_BASE_URL='http://127.0.0.1:8100'
 ```
 
-El repositorio incluye `backend/r2_simulator/servicio_r2.py`. Es únicamente un simulador léxico del
+El repositorio incluye `motores/r2/simulador/servicio_r2.py`. Es únicamente un simulador léxico del
 contrato. Reemplázalo con tu servicio sin modificar el dashboard.
 
-También incluye `backend/r2_baseline/`, un baseline TF-IDF de biblioteca estándar que acepta los
+También incluye `motores/r2/baseline/`, un baseline TF-IDF de biblioteca estándar que acepta los
 campos reales `ID_C200,C308,C308A,C309,C309_COD`, recupera casos históricos similares y conserva
 este contrato HTTP. Se inicia con:
 
 ```powershell
-cd backend\r2_baseline
+cd motores\r2\baseline
 python servicio_r2.py --datos "C:\ruta\historico_codificado.csv"
 ```
 
@@ -208,7 +208,7 @@ Con `R2_MODE=simulator` o sin esa variable se conserva el simulador predetermina
 Cuando exista un histórico anual etiquetado puede utilizarse el motor vectorizado y calibrado:
 
 ```powershell
-python -m pip install -r backend\r2_advanced\requirements.txt
+python -m pip install -r motores\r2\avanzado\requirements.txt
 ```
 
 ```dotenv

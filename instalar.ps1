@@ -442,9 +442,9 @@ $do$;
     Write-Paso 'Comprobando los servicios internos'
     $env:QWEN_MODEL = $Modelo
 
-    $r3Root = Join-Path $projectRoot 'r3_local'
+    $r3Root = Join-Path $projectRoot 'motores/r3'
     if (-not (Get-HttpJson 'http://127.0.0.1:8000/salud')) {
-        if (-not (Test-Path -LiteralPath (Join-Path $r3Root 'servicio.py'))) { throw 'Falta r3_local/servicio.py en el repositorio.' }
+        if (-not (Test-Path -LiteralPath (Join-Path $r3Root 'servicio.py'))) { throw 'Falta motores/r3/servicio.py en el repositorio.' }
         $verifyProcesses += Start-Process -FilePath $python -ArgumentList @('servicio.py', '--puerto', '8000') -WorkingDirectory $r3Root -WindowStyle Hidden -PassThru
         if (-not (Wait-Http 'http://127.0.0.1:8000/salud' 40)) { throw 'La API R3 no respondio en http://127.0.0.1:8000.' }
     }
@@ -454,7 +454,7 @@ $do$;
     }
     Write-Ok ('R3 operativo: ' + $r3Health.catalogo_clases + ' clases CIIU, modelo ' + $r3Health.modelo)
 
-    $r2Root = Join-Path $projectRoot 'backend\r2_simulator'
+    $r2Root = Join-Path $projectRoot 'motores\r2\simulador'
     if (-not (Get-HttpJson 'http://127.0.0.1:8100/salud')) {
         $verifyProcesses += Start-Process -FilePath $python -ArgumentList @('servicio_r2.py') -WorkingDirectory $r2Root -WindowStyle Hidden -PassThru
         if (-not (Wait-Http 'http://127.0.0.1:8100/salud' 20)) { throw 'El simulador R2 no respondio en http://127.0.0.1:8100.' }

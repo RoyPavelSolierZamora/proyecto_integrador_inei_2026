@@ -210,8 +210,8 @@ try {
         $r3Expected = [bool]($r3 -and $r3.catalogo_clases -eq 417 -and $r3.modelo -eq $configuredModel)
         Assert-FreeOrExpected 8000 $r3Expected 'R3'
         if (-not $r3Expected) {
-            $r3Root = Join-Path $projectRoot 'r3_local'
-            if (-not (Test-Path -LiteralPath (Join-Path $r3Root 'servicio.py'))) { throw 'Falta r3_local/servicio.py.' }
+            $r3Root = Join-Path $projectRoot 'motores/r3'
+            if (-not (Test-Path -LiteralPath (Join-Path $r3Root 'servicio.py'))) { throw 'Falta motores/r3/servicio.py.' }
             $null = Start-ManagedProcess 'r3' $python @('servicio.py', '--puerto', '8000') $r3Root 8000
             for ($i = 0; $i -lt 40 -and -not (Get-HttpJson 'http://127.0.0.1:8000/salud'); $i++) { Start-Sleep -Milliseconds 500 }
         }
@@ -237,10 +237,10 @@ try {
         default { 'r2-simulator' }
     }
     $r2Root = switch ($r2Mode) {
-        'beto' { Join-Path $projectRoot 'backend\r2_beto' }
-        'advanced' { Join-Path $projectRoot 'backend\r2_advanced' }
-        'baseline' { Join-Path $projectRoot 'backend\r2_baseline' }
-        default { Join-Path $projectRoot 'backend\r2_simulator' }
+        'beto' { Join-Path $projectRoot 'motores\r2\beto' }
+        'advanced' { Join-Path $projectRoot 'motores\r2\avanzado' }
+        'baseline' { Join-Path $projectRoot 'motores\r2\baseline' }
+        default { Join-Path $projectRoot 'motores\r2\simulador' }
     }
     if ($r2Mode -in @('baseline', 'advanced')) {
         $r2TrainingCsv = Get-DotEnvValue 'R2_TRAINING_CSV'
@@ -259,7 +259,7 @@ try {
     if ($r2Mode -in @('advanced', 'beto')) {
         & $python -c 'import joblib, numpy, scipy, sklearn'
         if ($LASTEXITCODE -ne 0) {
-            throw 'Faltan dependencias de R2 avanzado. Ejecuta: python -m pip install -r backend\r2_advanced\requirements.txt'
+            throw 'Faltan dependencias de R2 avanzado. Ejecuta: python -m pip install -r motores\r2\avanzado\requirements.txt'
         }
     }
     if ($r2Mode -eq 'beto') {
