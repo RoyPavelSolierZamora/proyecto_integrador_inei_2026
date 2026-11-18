@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import PageHeader from '../../shared/ui/PageHeader.jsx';
 import PanelHeading from '../../shared/ui/PanelHeading.jsx';
+import Panel from '../../shared/ui/Panel.jsx';
+import Button from '../../shared/ui/Button.jsx';
+import Notice from '../../shared/ui/Notice.jsx';
 import { getR3Health } from '../../shared/api/dataClient.js';
 
 export default function SystemPage() {
@@ -10,40 +13,60 @@ export default function SystemPage() {
   const executionLabel = health?.execution === 'remote' ? 'Colab / GPU remota' : health?.execution === 'local' ? 'Equipo local' : 'Por verificar';
 
   async function check() {
-    setChecking(true); setError('');
-    try { setHealth(await getR3Health()); }
-    catch (err) { setHealth(null); setError(err.message || 'No se pudo comprobar el servicio de IA.'); }
-    finally { setChecking(false); }
+    setChecking(true);
+    setError('');
+    try {
+      setHealth(await getR3Health());
+    } catch (err) {
+      setHealth(null);
+      setError(err.message || 'No se pudo comprobar el servicio de IA.');
+    } finally {
+      setChecking(false);
+    }
   }
 
+  const settings = [
+    ['Datos y acceso', 'PostgreSQL local'],
+    ['Asistente de IA', executionLabel],
+    ['Acceso a la IA', 'Solo mediante el sistema autenticado'],
+    ['Backend seguro', '127.0.0.1:8080'],
+  ];
+
   return (
-    <div className="page">
+    <div className="grid gap-6">
       <PageHeader
         icon="gear"
-        eyebrow="Administración técnica"
         title="Estado del sistema"
         description="Comprueba el asistente de IA sin exponer servicios internos al navegador."
       />
-      <div className="system-grid">
-        <section className="panel">
-          <PanelHeading eyebrow="Configuración activa" title="Entorno de procesamiento" />
-          <dl className="system-list">
-            <div><dt>Datos y acceso</dt><dd>PostgreSQL local</dd></div>
-            <div><dt>Asistente de IA</dt><dd>{executionLabel}</dd></div>
-            <div><dt>Acceso a la IA</dt><dd>Solo mediante el sistema autenticado</dd></div>
-            <div><dt>Backend seguro</dt><dd>127.0.0.1:8080</dd></div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Panel className="p-5">
+          <PanelHeading title="Entorno de procesamiento" />
+          <dl className="divide-y divide-line">
+            {settings.map(([term, value]) => (
+              <div key={term} className="grid gap-1 py-3 sm:grid-cols-[180px_1fr]">
+                <dt className="text-sm font-semibold text-muted">{term}</dt>
+                <dd className="m-0 text-sm text-ink-strong">{value}</dd>
+              </div>
+            ))}
           </dl>
-        </section>
-        <section className="panel">
+        </Panel>
+
+        <Panel className="grid content-start gap-4 p-5">
           <PanelHeading
-            eyebrow="Comprobación en vivo"
             title="Asistente de IA"
-            actions={<button type="button" className="button button--secondary" disabled={checking} onClick={check}>{checking ? 'Comprobando…' : 'Comprobar ahora'}</button>}
+            description="Verifica si el servicio responde y qué equipo lo ejecuta."
+            actions={<Button variant="secondary" disabled={checking} onClick={check}>{checking ? 'Comprobando…' : 'Comprobar ahora'}</Button>}
           />
-          {health && <div className="notice notice--success" role="status"><strong>{health.estado === 'ok' ? 'Operativo' : 'Degradado'} · {executionLabel}</strong><span>{health.ollama} · {health.modelo}{health.gpu ? ` · ${health.gpu}` : ''}</span></div>}
-          {error && <div className="notice notice--error" role="alert">{error}</div>}
-          {!health && !error && <p className="empty-state empty-state--compact">Todavía no se ejecutó la comprobación.</p>}
-        </section>
+          {health && (
+            <Notice tone="success" title={`${health.estado === 'ok' ? 'Operativo' : 'Degradado'} · ${executionLabel}`}>
+              {`${health.ollama} · ${health.modelo}${health.gpu ? ` · ${health.gpu}` : ''}`}
+            </Notice>
+          )}
+          {error && <Notice tone="error">{error}</Notice>}
+          {!health && !error && <p className="text-sm text-muted">Todavía no se ejecutó la comprobación.</p>}
+        </Panel>
       </div>
     </div>
   );
