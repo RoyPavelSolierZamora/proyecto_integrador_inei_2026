@@ -195,7 +195,7 @@ test('bases conserva seguimiento, cancelación, versiones, exportación y herram
  await versions.getByRole('button',{name:/Usar la base/}).click();await expect(page.getByRole('status')).toContainText('Base activa actualizada');
  await page.getByText('Importar un resultado procesado fuera del sistema',{exact:true}).click();
  const advanced=page.locator('.advanced-disclosure').filter({hasText:'Importar un resultado procesado fuera del sistema'});
- const processed=readFileSync('public/plantilla_importacion.csv');await advanced.getByLabel('Archivos CSV procesados').setInputFiles([{name:'procesado-a.csv',mimeType:'text/csv',buffer:processed},{name:'procesado-b.csv',mimeType:'text/csv',buffer:processed}]);
+ const processed=readFileSync('frontend/public/plantilla_importacion.csv');await advanced.getByLabel('Archivos CSV procesados').setInputFiles([{name:'procesado-a.csv',mimeType:'text/csv',buffer:processed},{name:'procesado-b.csv',mimeType:'text/csv',buffer:processed}]);
  await advanced.getByLabel('Nombre de la base').nth(0).fill('Importación A');await advanced.getByLabel('Nombre de la base').nth(1).fill('Importación B');
  await advanced.getByLabel('Periodo',{exact:true}).nth(0).fill('2026-T3');await advanced.getByLabel('Periodo',{exact:true}).nth(1).fill('2026-T4');
  await advanced.getByRole('button',{name:'Importar 2 archivos'}).click();

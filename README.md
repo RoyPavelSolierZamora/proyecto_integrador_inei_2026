@@ -37,7 +37,7 @@ La guía detallada, las credenciales y la solución de problemas están en
 
 | Carpeta | Responsabilidad |
 |---|---|
-| `src/` | SPA React, navegación responsive y flujos por rol |
+| `frontend/src/` | SPA React, navegación responsive y flujos por rol |
 | `backend/src/` | API Express, seguridad, auditoría, trabajos R2 y persistencia |
 | `backend/migrations/` | Esquema versionado de PostgreSQL |
 | `motores/r2/simulador/` | Simulador léxico temporal del contrato R2; no es un modelo ML |

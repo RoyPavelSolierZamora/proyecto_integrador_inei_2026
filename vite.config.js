@@ -1,5 +1,11 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { fileURLToPath } from 'node:url';
+
+// La SPA vive en frontend/ (src, public, index.html). El build sigue saliendo en dist/
+// de la raíz para no cambiar los lanzadores ni la documentación.
+const frontendRoot = fileURLToPath(new URL('./frontend', import.meta.url));
+const distDir = fileURLToPath(new URL('./dist', import.meta.url));
 
 /**
  * Acceso temporal mediante un túnel HTTPS.
@@ -22,8 +28,13 @@ function normalizeHost(value) {
 const tunnelHost = normalizeHost(process.env.TUNNEL_HOST);
 
 export default defineConfig({
+  root: frontendRoot,
   base: process.env.VITE_BASE_PATH || '/',
   plugins: [react()],
+  build: {
+    outDir: distDir,
+    emptyOutDir: true,
+  },
   server: {
     port: 5174,
     // Si el 5174 esta ocupado, fallar en vez de saltar a 5175: el tunel siempre

@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
-import { parseR2Csv, parseRawEpenCsv } from '../src/services/csvImport.js';
+import { parseR2Csv, parseRawEpenCsv } from '../frontend/src/shared/lib/csvImport.js';
 
 test('la plantilla de R2 se importa sin observaciones', async () => {
-  const csv = await readFile(new URL('../public/plantilla_importacion.csv', import.meta.url), 'utf8');
+  const csv = await readFile(new URL('../frontend/public/plantilla_importacion.csv', import.meta.url), 'utf8');
   const result = parseR2Csv(csv);
   assert.deepEqual(result.errors, []);
   assert.equal(result.rows.length, 1);
