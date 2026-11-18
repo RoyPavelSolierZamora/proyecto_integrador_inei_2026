@@ -48,3 +48,12 @@ test('separa los temas de ayuda conocidos de las preguntas abiertas', async () =
   assert.equal(hasHelpTopic('Explica en palabras sencillas el grupo 7223'), false);
   assert.deepEqual(codesInQuestion('Qué es la 7223 y diferencia entre 2310 y 2320'), ['7223', '2310', '2320']);
 });
+
+test('el contexto del chat usa las notas oficiales de cada clase mencionada', async () => {
+  const { ciiuContext, notesFor } = await import('../src/services/ciiu-notas.js');
+  assert.ok(notesFor('4711').notas.length > 100);
+  assert.equal(notesFor('9999'), null);
+  const text = ciiuContext([{ code: '4711', description: 'Venta al por menor en comercios no especializados' }]);
+  assert.match(text, /^CIIU 4711 · Venta al por menor/);
+  assert.match(text, /Notas oficiales: Esta clase comprende/);
+});

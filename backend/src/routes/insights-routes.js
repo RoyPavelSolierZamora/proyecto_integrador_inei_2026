@@ -4,6 +4,7 @@ import { getPool } from '../db/pool.js';
 import { requireAuth, requireCsrf, requireRole } from '../security/middleware.js';
 import { compareCodeRows, codesInQuestion, detectAssistantIntent, greetingAnswer, hasHelpTopic, helpAnswer } from '../services/insights.js';
 import { askQwenChat } from '../clients/qwen-client.js';
+import { ciiuContext } from '../services/ciiu-notas.js';
 import { getConfig } from '../config.js';
 import { workspaceIndicators } from '../services/workspace-indicators.js';
 
@@ -312,7 +313,7 @@ export function createInsightsRouter() {
       const catalog = codes.length
         ? await getPool().query('SELECT code, description FROM epen.ciiu_catalog WHERE code = ANY($1::text[]) AND active = true', [codes])
         : { rows: [] };
-      const context = catalog.rows.map(row => `CIIU ${row.code}: ${row.description}`).join('\n');
+      const context = ciiuContext(catalog.rows);
       try {
         answer = await askQwenChat(getConfig(), { question, context });
       } catch {
