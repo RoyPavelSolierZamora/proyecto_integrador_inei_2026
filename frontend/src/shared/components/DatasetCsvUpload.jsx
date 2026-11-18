@@ -8,14 +8,14 @@ export default function DatasetCsvUpload({ file, disabled, reading, onSelect, on
   const [showGuide, setShowGuide] = useState(false);
 
   return (
-    <div className="grid grid-cols-1 gap-3">
+    <div className="flex h-full flex-col gap-3">
       <div
         aria-label="Soltar CSV original"
         onDragOver={event => { event.preventDefault(); if (!disabled) setDragging(true); }}
         onDragLeave={() => setDragging(false)}
         onDrop={event => { event.preventDefault(); setDragging(false); if (!disabled) onSelect(event.dataTransfer.files); }}
         className={[
-          'grid justify-items-center gap-2 rounded-xl border-2 border-dashed p-6 text-center',
+          'grid min-h-64 flex-1 content-center justify-items-center gap-2 rounded-xl border-2 border-dashed p-6 text-center',
           dragging ? 'border-brand bg-brand-soft' : 'border-[#b9c8cf] bg-[#f8fbff]',
         ].join(' ')}
       >

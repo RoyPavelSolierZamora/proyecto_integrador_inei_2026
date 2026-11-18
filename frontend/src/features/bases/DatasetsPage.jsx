@@ -14,7 +14,7 @@ import Field, { inputClass } from '../../shared/ui/Field.jsx';
 import { operationalText } from '../../shared/lib/operationalText.js';
 import DatasetCsvUpload from '../../shared/components/DatasetCsvUpload.jsx';
 import DatasetHistoryTable from '../../shared/components/DatasetHistoryTable.jsx';
-import { DEFAULT_R2_THRESHOLD, R2_THRESHOLD_GUIDANCE } from '../../shared/config/r2.js';
+import { DEFAULT_R2_THRESHOLD } from '../../shared/config/r2.js';
 
 const DATASETS_PER_PAGE = 5;
 const RECENT_JOBS = 2;
@@ -262,26 +262,20 @@ export default function DatasetsPage() {
       <PageHeader
         icon="database"
         title="Bases de datos"
-        description="Gestiona las bases EPEN, ejecuta la codificación automática y consulta las versiones registradas."
-        meta="Las versiones anteriores se conservan para trazabilidad."
+        description="Procesa bases EPEN y consulta sus versiones."
+        actions={betoActive ? <span className="inline-flex items-center gap-1.5 rounded-full bg-[#fff4d6] px-3 py-1.5 text-xs font-semibold text-[#7a4b00]"><span aria-hidden="true" className="size-1.5 rounded-full bg-[#d99a1e]" />BETO activo</span> : null}
       />
 
       {message && <Notice tone={message.type}>{message.text}</Notice>}
-      {betoActive && (
-        <Notice title="BETO está activo.">
-          BETO cierra automáticamente los casos con puntaje igual o superior al umbral de cada trabajo. Si el trabajo define un umbral de IA, la IA puede cerrar la primera propuesta de los casos cuyo puntaje alcance ese umbral. Lo demás va a revisión humana.
-        </Notice>
-      )}
 
       {real && (
         <Panel className="p-5">
           <PanelHeading
             icon="cloud-arrow-up"
             title="Cargar nueva base"
-            description="Selecciona el CSV original y configura el procesamiento."
             actions={<a className="text-sm font-semibold text-brand hover:underline" href={`${import.meta.env.BASE_URL}plantilla_base_original.csv`} download>Descargar plantilla original</a>}
           />
-          <form className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]" onSubmit={submitRaw}>
+          <form className="grid grid-cols-1 items-stretch gap-5 lg:grid-cols-2" onSubmit={submitRaw}>
             <DatasetCsvUpload
               file={rawFile}
               inputRef={rawInput}
@@ -298,10 +292,10 @@ export default function DatasetsPage() {
                 <input id="base-periodo" className={inputClass} maxLength={40} value={rawPeriod} onChange={event => setRawPeriod(event.target.value)} placeholder="Ej. 2027-T2" required />
               </Field>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <Field id="base-tau" label="Nivel mínimo de confianza (τ)" hint={R2_THRESHOLD_GUIDANCE}>
+                <Field id="base-tau" label="Nivel mínimo de confianza (τ)">
                   <input id="base-tau" className={inputClass} type="number" min="0" max="1" step="0.01" value={threshold} onChange={event => setThreshold(event.target.value)} required aria-describedby="base-tau-ayuda" />
                 </Field>
-                <Field id="base-umbral-ia" label="Umbral de cierre por IA (opcional)" hint="Vacío: la IA solo sugiere.">
+                <Field id="base-umbral-ia" label="Umbral de cierre por IA (opcional)">
                   <input id="base-umbral-ia" className={inputClass} type="number" min="0" max="1" step="0.01" value={aiThreshold} onChange={event => setAiThreshold(event.target.value)} placeholder="Ej. 0,90" aria-describedby="base-umbral-ia-ayuda" />
                 </Field>
               </div>
@@ -329,7 +323,6 @@ export default function DatasetsPage() {
                 <EpenIcon name="file-earmark-code" />
                 {saving ? 'Iniciando proceso…' : 'Iniciar clasificación automática'}
               </Button>
-              <p className="text-sm text-muted">El sistema procesa el CSV por lotes. Puedes seguir el avance y el tiempo estimado en la sección inferior.</p>
             </div>
           </form>
         </Panel>
@@ -338,10 +331,6 @@ export default function DatasetsPage() {
       {real && (
         <Panel className="p-5">
           <PanelHeading icon="bar-chart" title="Procesos recientes" />
-          <ContextHelp title="Ayuda sobre los estados">
-            <p><strong className="text-ink-strong">En cola:</strong> espera su turno. <strong className="text-ink-strong">Clasificando:</strong> analiza los registros. <strong className="text-ink-strong">Consultando IA:</strong> solicita apoyo para los casos pendientes.</p>
-            <p><strong className="text-ink-strong">Completado:</strong> terminó el proceso; puede haber casos por revisar. <strong className="text-ink-strong">Falló:</strong> revisa el error indicado. <strong className="text-ink-strong">Cancelado:</strong> conserva los resultados parciales. <strong className="text-ink-strong">Cancelando:</strong> la interrupción está solicitada.</p>
-          </ContextHelp>
 
           <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
             {visibleJobs.map(job => {
