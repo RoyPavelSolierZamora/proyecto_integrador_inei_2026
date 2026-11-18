@@ -5,6 +5,7 @@ import PanelHeading from '../../shared/ui/PanelHeading.jsx';
 import Panel from '../../shared/ui/Panel.jsx';
 import Button from '../../shared/ui/Button.jsx';
 import Notice from '../../shared/ui/Notice.jsx';
+import { tableClasses as t } from '../../shared/ui/tableClasses.js';
 import Field, { inputClass } from '../../shared/ui/Field.jsx';
 import { useAuth } from '../../app/state/AuthContext.jsx';
 
@@ -153,35 +154,35 @@ export default function UsersPage() {
         {!loading && !loadError && (
           <>
             <p role="status" className="text-sm text-muted">{filtered.length} de {users.length} usuarios</p>
-            <div tabIndex={0} role="region" aria-label="Tabla de usuarios" className="overflow-x-auto rounded-xl border border-line bg-surface">
-              <table className="w-full min-w-[760px] text-left text-sm">
+            <div tabIndex={0} role="region" aria-label="Tabla de usuarios" className={t.wrap}>
+              <table className={t.table}>
                 <caption className="sr-only">Cuentas de usuario y acciones permitidas</caption>
-                <thead className="bg-[#f5f8fd] text-muted">
+                <thead className={t.head}>
                   <tr>
-                    <th scope="col" className="px-4 py-3 font-semibold">Nombre</th>
-                    <th scope="col" className="px-4 py-3 font-semibold">Nombre de usuario</th>
-                    <th scope="col" className="px-4 py-3 font-semibold">Tipo de usuario</th>
-                    <th scope="col" className="px-4 py-3 font-semibold">Estado</th>
-                    <th scope="col" className="px-4 py-3 font-semibold">Fecha de creación</th>
-                    <th scope="col" className="px-4 py-3 font-semibold">Acciones</th>
+                    <th scope="col" className={t.th}>Nombre</th>
+                    <th scope="col" className={t.th}>Nombre de usuario</th>
+                    <th scope="col" className={t.th}>Tipo de usuario</th>
+                    <th scope="col" className={t.th}>Estado</th>
+                    <th scope="col" className={t.th}>Fecha de creación</th>
+                    <th scope="col" className={t.th}>Acciones</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className={t.body}>
                   {filtered.map(item => (
-                    <tr key={item.id} className="border-t border-line align-middle">
-                      <td className="px-4 py-3">
+                    <tr key={item.id} className={t.row}>
+                      <td data-label="Nombre" className={t.cell}>
                         <strong className="text-ink-strong">{item.name}</strong>
                         {isOwn(item) && <small className="ml-2 rounded-full bg-brand-soft px-2 py-0.5 text-xs font-semibold text-navy">Tu cuenta</small>}
                       </td>
-                      <td className="px-4 py-3">{item.username}</td>
-                      <td className="px-4 py-3">{ROLE_LABELS[item.role] || item.role}</td>
-                      <td className="px-4 py-3">
+                      <td data-label="Nombre de usuario" className={t.cell}>{item.username}</td>
+                      <td data-label="Tipo de usuario" className={t.cell}>{ROLE_LABELS[item.role] || item.role}</td>
+                      <td data-label="Estado" className={t.cell}>
                         <span className={['rounded-full px-2.5 py-1 text-xs font-semibold', item.active ? 'bg-[#e4f7ec] text-[#05603a]' : 'bg-line text-muted'].join(' ')}>
                           {item.active ? 'Activo' : 'Inactivo'}
                         </span>
                       </td>
-                      <td className="px-4 py-3">{formatDate(item.createdAt)}</td>
-                      <td className="px-4 py-3">
+                      <td data-label="Fecha de creaciÃ³n" className={t.cell}>{formatDate(item.createdAt)}</td>
+                      <td data-label="Acciones" className={t.cell}>
                         <div className="flex flex-wrap gap-2">
                           <Button variant="secondary" size="sm" disabled={busy || isOwn(item)} onClick={() => toggle(item)} aria-label={`${item.active ? 'Desactivar' : 'Activar'} a ${item.username}`}>
                             {item.active ? 'Desactivar' : 'Activar'}
