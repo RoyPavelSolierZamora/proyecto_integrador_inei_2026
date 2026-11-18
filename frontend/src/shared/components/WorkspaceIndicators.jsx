@@ -1,41 +1,36 @@
 import Panel from '../ui/Panel.jsx';
+import { Meter, chartColors } from '../ui/Charts.jsx';
 
-const percent = new Intl.NumberFormat('es-PE', { maximumFractionDigits: 2 });
-const formatPercent = value => `${percent.format(value * 100)} %`;
-
-// Tres barras por clasificador. La altura es proporcional al valor y el número
-// siempre aparece como texto, así que no depende solo del color.
-function IndicatorChart({ id, title, data, loading }) {
-  const metrics = [
-    { label: 'Exactitud', value: data?.accuracy },
-    { label: 'Aprobación automática', value: data?.automaticApproval },
-    { label: 'F1 macro', value: data?.macroF1 },
-  ];
+// Indicadores de cada clasificador de la base. Cada barra muestra la cifra en texto;
+// la marca vertical en "aprobación automática" indica el umbral vigente como referencia.
+function IndicatorCard({ id, title, subtitle, data, loading }) {
+  const evaluated = data?.evaluated;
+  const threshold = Number.isFinite(data?.threshold) ? data.threshold : undefined;
 
   return (
-    <Panel as="section" aria-labelledby={id} className="grid grid-cols-1 gap-3 p-5">
-      <h2 id={id} className="text-base font-bold text-ink-strong">{title}</h2>
-      <p className="text-sm text-muted">Registros evaluados: {loading ? 'Cargando…' : data?.evaluated ?? 'No disponible'}</p>
-      <div className="grid grid-cols-3 gap-3">
-        {metrics.map(({ label, value }) => {
-          const height = Math.max(4, Math.min(100, (value ?? 0) * 100));
-          return (
-            <div key={label} className="grid justify-items-center gap-2">
-              <div className="relative flex h-32 w-full items-end justify-center rounded-lg bg-[#f5f8fd]">
-                <div className="flex w-full items-start justify-center rounded-t-md bg-brand px-1 pt-1.5 transition-[height]" style={{ height: `${height}%` }}>
-                  <strong className="text-xs leading-tight text-white">
-                    {loading ? '…' : Number.isFinite(value) ? formatPercent(value) : 'N/D'}
-                  </strong>
-                </div>
-              </div>
-              <span className="text-center text-xs font-semibold text-muted">{label}</span>
-            </div>
-          );
-        })}
+    <Panel as="section" aria-labelledby={id} className="grid grid-cols-1 content-start gap-5 p-5">
+      <header className="flex items-start justify-between gap-3">
+        <div className="grid gap-0.5">
+          <h2 id={id} className="text-base font-bold text-ink-strong">{title}</h2>
+          <span className="text-xs text-muted">{subtitle}</span>
+        </div>
+        <span className="shrink-0 rounded-full bg-brand-soft px-2.5 py-1 text-xs font-semibold tabular-nums text-navy">
+          {loading ? 'Cargando…' : Number.isFinite(evaluated) ? `${evaluated.toLocaleString('es-PE')} evaluados` : 'Sin evaluación'}
+        </span>
+      </header>
+
+      <div className="grid grid-cols-1 gap-4">
+        <Meter label="Exactitud" value={loading ? undefined : data?.accuracy} color={chartColors.primary} detail="Porcentaje de códigos que coinciden con la decisión humana." />
+        <Meter
+          label="Aprobación automática"
+          value={loading ? undefined : data?.automaticApproval}
+          color={chartColors.positive}
+          marker={threshold}
+          markerLabel={threshold !== undefined ? `Umbral ${(threshold * 100).toFixed(0)} %` : undefined}
+          detail={threshold !== undefined ? `Umbral de aprobación: ${(threshold * 100).toFixed(0)} %` : 'Sin umbral registrado'}
+        />
+        <Meter label="F1 macro" value={loading ? undefined : data?.macroF1} color={chartColors.neutral} detail="Equilibra todas las clases, también las poco frecuentes." />
       </div>
-      {Number.isFinite(data?.threshold) && (
-        <p className="text-sm text-muted">Umbral de confianza para la aprobación automática: ≥ {formatPercent(data.threshold)}</p>
-      )}
     </Panel>
   );
 }
@@ -43,8 +38,8 @@ function IndicatorChart({ id, title, data, loading }) {
 export default function WorkspaceIndicators({ indicators, loading }) {
   return (
     <div aria-busy={loading} className="grid grid-cols-1 gap-4 md:grid-cols-2">
-      <IndicatorChart id="indicadores-clasificador" title="Clasificador automático" data={indicators?.r2} loading={loading} />
-      <IndicatorChart id="indicadores-ia" title="Asistencia de IA" data={indicators?.r3} loading={loading} />
+      <IndicatorCard id="indicadores-clasificador" title="Clasificador automático" subtitle="Decisiones del modelo sobre la base" data={indicators?.r2} loading={loading} />
+      <IndicatorCard id="indicadores-ia" title="Asistencia de IA" subtitle="Propuestas del asistente de IA" data={indicators?.r3} loading={loading} />
     </div>
   );
 }

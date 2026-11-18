@@ -5,51 +5,14 @@ import PanelHeading from '../../shared/ui/PanelHeading.jsx';
 import Panel from '../../shared/ui/Panel.jsx';
 import Button from '../../shared/ui/Button.jsx';
 import Notice from '../../shared/ui/Notice.jsx';
+import { Donut, Meter, StackedBar, chartColors, formatNumber } from '../../shared/ui/Charts.jsx';
 import { getDatasetSummaryReal } from '../../shared/api/dataClient.js';
 import { useData } from '../../app/state/DataContext.jsx';
 
 const pct = value => value === null || value === undefined ? 'Sin muestra' : `${(Number(value) * 100).toFixed(1)} %`;
 const number = value => Number(value || 0).toLocaleString('es-PE');
 
-const barTone = { brand: 'bg-brand', ai: 'bg-[#d99a1e]', human: 'bg-[#2f9e6b]', danger: 'bg-danger' };
-
-// Barra horizontal con etiqueta, cifra y proporción.
-function MetricBar({ label, value, total, tone = 'brand' }) {
-  const share = total ? Math.min(1, Number(value) / Number(total)) : 0;
-  return (
-    <div className="grid grid-cols-1 gap-1.5">
-      <div className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
-        <span className="text-ink">{label}</span>
-        <strong className="text-ink-strong">{number(value)} · {pct(share)}</strong>
-      </div>
-      <div aria-hidden="true" className="h-2.5 overflow-hidden rounded-full bg-line">
-        <span className={`block h-full rounded-full ${barTone[tone]}`} style={{ width: `${share * 100}%` }} />
-      </div>
-    </div>
-  );
-}
-
-// Columnas verticales para comparar pocas categorías.
-function ColumnChart({ rows, total, label }) {
-  const max = Math.max(1, ...rows.map(row => Number(row.value) || 0));
-  return (
-    <div role="img" aria-label={label} className="grid grid-cols-3 gap-3">
-      {rows.map(row => (
-        <div key={row.label} className="grid justify-items-center gap-1.5 text-center">
-          <strong className="text-sm text-ink-strong">{number(row.value)}</strong>
-          <div className="flex h-36 w-full items-end rounded-lg bg-[#f5f8fd] px-2 pb-0">
-            <span
-              className={`block w-full rounded-t-md ${barTone[row.tone || 'brand']}`}
-              style={{ height: `${Math.max(row.value ? 3 : 0, (row.value / max) * 100)}%` }}
-            />
-          </div>
-          <span className="text-xs font-semibold text-muted">{row.label}</span>
-          <small className="text-xs text-muted">{pct(total ? row.value / total : 0)}</small>
-        </div>
-      ))}
-    </div>
-  );
-}
+const share = (value, total) => (total ? Math.min(1, Number(value) / Number(total)) : 0);
 
 // Métricas de una base: operación, calidad de entrada y desempeño evaluado.
 // La cobertura y la exactitud se leen juntas; la confianza sola no prueba corrección.
@@ -117,24 +80,29 @@ export default function MetricsPage() {
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <Panel className="grid content-start gap-4 p-5">
               <PanelHeading title="Estado del procesamiento" description="Distribución de todos los registros de esta versión." />
-              <ColumnChart
-                label="Estado de los registros"
+              <Donut
+                ariaLabel="Estado de los registros"
+                centerLabel="registros"
                 total={t.total}
-                rows={[
-                  { label: 'Resueltos', value: t.resolved },
-                  { label: 'En revisión', value: t.review, tone: 'human' },
-                  { label: 'Pendientes', value: t.pending, tone: 'ai' },
+                segments={[
+                  { label: 'Resueltos', value: t.resolved, color: chartColors.primary },
+                  { label: 'En revisión', value: t.review, color: chartColors.secondary },
+                  { label: 'Pendientes', value: t.pending, color: chartColors.neutral },
                 ]}
               />
             </Panel>
 
             <Panel className="grid content-start gap-4 p-5">
               <PanelHeading title="Cómo se resolvió" description="Origen de la última decisión registrada." />
-              <div className="grid grid-cols-1 gap-4">
-                <MetricBar label="Clasificador automático" value={t.automatic} total={sourceTotal} />
-                <MetricBar label="Asistencia de IA" value={t.ai} total={sourceTotal} tone="ai" />
-                <MetricBar label="Codificación humana" value={t.human} total={sourceTotal} tone="human" />
-              </div>
+              <StackedBar
+                ariaLabel="Origen de las decisiones"
+                total={sourceTotal}
+                segments={[
+                  { label: 'Clasificador', value: t.automatic, color: chartColors.primary },
+                  { label: 'IA', value: t.ai, color: chartColors.secondary },
+                  { label: 'Persona', value: t.human, color: chartColors.positive },
+                ]}
+              />
               {!sourceTotal && <p className="text-sm text-muted">Todavía no hay decisiones registradas.</p>}
             </Panel>
           </div>
@@ -161,10 +129,10 @@ export default function MetricsPage() {
             <Panel className="grid content-start gap-4 p-5">
               <PanelHeading title="Confianza del clasificador" description="Distribución operativa; no equivale a exactitud." />
               <div className="grid grid-cols-1 gap-4">
-                <MetricBar label="0,95 o más" value={t.confidenceBands.high} total={t.total} />
-                <MetricBar label="0,90 a 0,94" value={t.confidenceBands.medium} total={t.total} tone="ai" />
-                <MetricBar label="Menos de 0,90" value={t.confidenceBands.low} total={t.total} tone="human" />
-                {t.confidenceBands.missing > 0 && <MetricBar label="Sin confianza registrada" value={t.confidenceBands.missing} total={t.total} tone="danger" />}
+                <Meter label="0,95 o más" value={share(t.confidenceBands.high, t.total)} color={chartColors.primary} detail={`${formatNumber(t.confidenceBands.high)} registros`} />
+                <Meter label="0,90 a 0,94" value={share(t.confidenceBands.medium, t.total)} color={chartColors.secondary} detail={`${formatNumber(t.confidenceBands.medium)} registros`} />
+                <Meter label="Menos de 0,90" value={share(t.confidenceBands.low, t.total)} color={chartColors.neutral} detail={`${formatNumber(t.confidenceBands.low)} registros`} />
+                {t.confidenceBands.missing > 0 && <Meter label="Sin confianza registrada" value={share(t.confidenceBands.missing, t.total)} color={chartColors.neutral} detail={`${formatNumber(t.confidenceBands.missing)} registros`} />}
               </div>
             </Panel>
 
