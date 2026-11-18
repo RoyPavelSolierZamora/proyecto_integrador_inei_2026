@@ -176,10 +176,12 @@ async function pagedHistory(db, datasetId, { limit, offset, query, source }) {
   const [rows, total, summary] = await Promise.all([
     db.query(`
       SELECT d.id, c.external_id, d.source, d.decision, d.code, d.created_at,
-        COALESCE(u.full_name, CASE WHEN d.source = 'llm' THEN 'Asistente de IA' WHEN d.source = 'ml' THEN 'Clasificador automático' ELSE 'Sistema' END) AS actor
+        COALESCE(u.full_name, ju.full_name, 'Sistema') AS actor
       FROM epen.decisions d
       JOIN epen.survey_cases c ON c.id = d.case_id
       LEFT JOIN epen.users u ON u.id = d.decided_by
+      LEFT JOIN epen.processing_jobs pj ON d.run_id = ('r2-job-' || pj.id::text)
+      LEFT JOIN epen.users ju ON ju.id = pj.created_by
       WHERE ${where}
       ORDER BY d.created_at DESC, d.id DESC LIMIT $4 OFFSET $5
     `, params),
@@ -188,6 +190,8 @@ async function pagedHistory(db, datasetId, { limit, offset, query, source }) {
       FROM epen.decisions d
       JOIN epen.survey_cases c ON c.id = d.case_id
       LEFT JOIN epen.users u ON u.id = d.decided_by
+      LEFT JOIN epen.processing_jobs pj ON d.run_id = ('r2-job-' || pj.id::text)
+      LEFT JOIN epen.users ju ON ju.id = pj.created_by
       WHERE ${where}
     `, params.slice(0, 3)),
     db.query(`

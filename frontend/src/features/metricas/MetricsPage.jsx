@@ -144,9 +144,9 @@ export default function MetricsPage() {
               />
             </Panel>
 
-            <Panel className="flex flex-col gap-4 p-5">
+            <Panel className="grid grid-rows-[auto_1fr] gap-4 p-5">
               <PanelHeading title="Códigos más frecuentes" description="Distribución entre registros resueltos." />
-              <div className="flex flex-1 items-center justify-center">
+              <div className="grid place-items-center">
                 <Donut
                   ariaLabel="Códigos más frecuentes"
                   centerLabel="resueltos"
