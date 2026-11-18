@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import DatasetWorkspaceSelector from '../../shared/components/DatasetWorkspaceSelector.jsx';
 import WorkspaceIndicators from '../../shared/components/WorkspaceIndicators.jsx';
-import ContextHelp from '../../shared/ui/ContextHelp.jsx';
 import StatusBadge from '../../shared/ui/StatusBadge.jsx';
 import PageHeader from '../../shared/ui/PageHeader.jsx';
 import Panel from '../../shared/ui/Panel.jsx';
@@ -59,7 +58,7 @@ export default function CasesPage() {
   };
 
   return (
-    <div className="grid grid-cols-1 gap-6">
+    <div className="grid grid-cols-1 gap-4">
       <PageHeader
         icon="clipboard-check"
         title="Codificación y revisión"
@@ -72,9 +71,6 @@ export default function CasesPage() {
       {loading && <Notice>Cargando la base seleccionada…</Notice>}
       {error && <Notice tone="error">{error}</Notice>}
 
-      <ContextHelp title="¿Qué muestra cada vista?">
-        <p>“Requieren atención” reúne pendientes y revisión humana. Las otras vistas muestran todos los registros o los procesados por clasificación automática, IA o una persona, siempre dentro de la base seleccionada.</p>
-      </ContextHelp>
 
       <Panel className="grid grid-cols-1 gap-3 p-4 md:grid-cols-[minmax(0,1fr)_260px_auto] md:items-end">
         <Field id="casos-buscar" label="Buscar">

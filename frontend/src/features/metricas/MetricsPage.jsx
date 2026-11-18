@@ -144,14 +144,16 @@ export default function MetricsPage() {
               />
             </Panel>
 
-            <Panel className="grid content-start gap-4 p-5">
+            <Panel className="flex flex-col gap-4 p-5">
               <PanelHeading title="Códigos más frecuentes" description="Distribución entre registros resueltos." />
-              <Donut
-                ariaLabel="Códigos más frecuentes"
-                centerLabel="resueltos"
-                total={t?.resolved || 0}
-                segments={codeSegments}
-              />
+              <div className="flex flex-1 items-center justify-center">
+                <Donut
+                  ariaLabel="Códigos más frecuentes"
+                  centerLabel="resueltos"
+                  total={t?.resolved || 0}
+                  segments={codeSegments}
+                />
+              </div>
               {!summary.topCodes.length && <p className="text-sm text-muted">Aún no hay códigos finales.</p>}
             </Panel>
           </div>
