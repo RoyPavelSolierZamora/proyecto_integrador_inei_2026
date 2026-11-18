@@ -309,11 +309,11 @@ export function createInsightsRouter() {
     else {
       // Pregunta abierta: el chat responde con el contexto oficial del catálogo CIIU.
       // Es independiente de la clasificación; si el chat no está disponible, se explica sin inventar.
-      const codes = codesInQuestion(question);
-      const catalog = codes.length
-        ? await getPool().query('SELECT code, description FROM epen.ciiu_catalog WHERE code = ANY($1::text[]) AND active = true', [codes])
+      const refs = codesInQuestion(question);
+      const catalog = refs.clases.length
+        ? await getPool().query('SELECT code, description FROM epen.ciiu_catalog WHERE code = ANY($1::text[]) AND active = true', [refs.clases])
         : { rows: [] };
-      const context = ciiuContext(catalog.rows);
+      const context = ciiuContext(catalog.rows, { divisiones: refs.divisiones, grupos: refs.grupos });
       try {
         answer = await askQwenChat(getConfig(), { question, context });
       } catch {

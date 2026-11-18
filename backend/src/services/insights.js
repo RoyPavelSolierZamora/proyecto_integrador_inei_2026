@@ -36,9 +36,17 @@ export function hasHelpTopic(question) {
   return HELP_TOPICS.some(topic => topic.terms.some(term => text.includes(normalizeQuestion(term))));
 }
 
-// Códigos de cuatro dígitos que aparecen en la pregunta (para dar contexto oficial al chat).
+// Referencias CIIU que aparecen en la pregunta: clases (4 dígitos), grupos (3) y divisiones (2),
+// nombradas o sueltas. Sirven para buscar el texto oficial que recibe el chat.
 export function codesInQuestion(question) {
-  return [...new Set(String(question || '').match(/\b\d{4}\b/g) || [])].slice(0, 5);
+  const text = normalizeQuestion(question);
+  const unique = list => [...new Set(list)].slice(0, 5);
+  const named = (word, size) => [...text.matchAll(new RegExp(`\\b${word}\\s+(\\d{${size}})\\b`, 'g'))].map(match => match[1]);
+  return {
+    clases: unique([...(text.match(/\b\d{4}\b/g) || []), ...named('clase', 4)]),
+    grupos: unique([...named('grupo', 3)]),
+    divisiones: unique([...named('division', 2)]),
+  };
 }
 
 export function helpAnswer(question) {
