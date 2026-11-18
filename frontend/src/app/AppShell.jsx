@@ -79,7 +79,7 @@ export default function AppShell() {
             <strong className="block truncate text-sm text-ink-strong">{user.name}</strong>
             <small className="block text-xs text-muted">{ROLE_LABELS[user.role]}</small>
           </span>
-          <Button variant="quiet" onClick={logout} className="min-h-9 px-3 text-sm">
+          <Button variant="quiet" onClick={logout} size="sm">
             <EpenIcon name="box-arrow-right" />
             <span>Salir</span>
           </Button>

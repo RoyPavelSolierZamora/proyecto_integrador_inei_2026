@@ -59,11 +59,11 @@ export default function LoginPage() {
             <strong className="text-ink-strong">Acceso protegido</strong>
             <span className="text-muted">Ingresa con la cuenta asignada por el administrador.</span>
           </div>
-          <Field label="Usuario">
-            <input className={inputClass} autoComplete="username" value={username} onChange={event => setUsername(event.target.value)} />
+          <Field id="login-usuario" label="Usuario">
+            <input id="login-usuario" className={inputClass} autoComplete="username" value={username} onChange={event => setUsername(event.target.value)} />
           </Field>
-          <Field label="Clave">
-            <input className={inputClass} type="password" autoComplete="current-password" value={password} onChange={event => setPassword(event.target.value)} />
+          <Field id="login-clave" label="Clave">
+            <input id="login-clave" className={inputClass} type="password" autoComplete="current-password" value={password} onChange={event => setPassword(event.target.value)} />
           </Field>
           {error && <p role="alert" className="rounded-lg bg-danger-soft px-3 py-2 text-sm font-semibold text-danger">{error}</p>}
           <Button type="submit" block disabled={submitting || sessionLoading}>

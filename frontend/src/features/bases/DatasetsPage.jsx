@@ -3,18 +3,23 @@ import { parseR2Csv, parseRawEpenCsv } from '../../shared/lib/csvImport.js';
 import { cancelR2JobReal, exportDatasetReal, getR2Health, listR2JobsReal, startR2JobReal } from '../../shared/api/dataClient.js';
 import { useAuth } from '../../app/state/AuthContext.jsx';
 import { useData } from '../../app/state/DataContext.jsx';
-
 import EpenIcon from '../../shared/ui/EpenIcon.jsx';
 import PageHeader from '../../shared/ui/PageHeader.jsx';
 import PanelHeading from '../../shared/ui/PanelHeading.jsx';
 import ContextHelp from '../../shared/ui/ContextHelp.jsx';
+import Panel from '../../shared/ui/Panel.jsx';
+import Button from '../../shared/ui/Button.jsx';
+import Notice from '../../shared/ui/Notice.jsx';
+import Field, { inputClass } from '../../shared/ui/Field.jsx';
 import { operationalText } from '../../shared/lib/operationalText.js';
 import DatasetCsvUpload from '../../shared/components/DatasetCsvUpload.jsx';
 import DatasetHistoryTable from '../../shared/components/DatasetHistoryTable.jsx';
 import { DEFAULT_R2_THRESHOLD, R2_THRESHOLD_GUIDANCE } from '../../shared/config/r2.js';
+
 const DATASETS_PER_PAGE = 5;
 const RECENT_JOBS = 2;
 const JOBS_PAGE_SIZE = 4;
+
 const formatDuration = seconds => {
   if (!Number.isFinite(seconds) || seconds <= 0) return null;
   const minutes = Math.max(1, Math.round(seconds / 60));
@@ -23,6 +28,7 @@ const formatDuration = seconds => {
   const rest = minutes % 60;
   return `aprox. ${hours} h${rest ? ` ${rest} min` : ''}`;
 };
+
 const formatModelVersion = version => {
   if (!version) return 'Preparando el clasificador';
   if (/^beto-v2-experimental-no-calibrado/i.test(version)) return 'BETO V2 · puntaje sin calibrar';
@@ -32,6 +38,18 @@ const formatModelVersion = version => {
   if (/^r2-baseline/i.test(version)) return 'Clasificador automático básico';
   return 'Clasificador automático';
 };
+
+const jobStatusLabel = {
+  queued: 'En cola', running: 'Clasificando', qwen_running: 'Consultando IA', completed: 'Completado', failed: 'Falló', cancelled: 'Cancelado',
+};
+
+// Estilo de la etiqueta de estado de un trabajo.
+function jobTone(job) {
+  if (job.cancelRequested) return 'bg-line text-muted';
+  if (job.status === 'completed') return 'bg-[#e4f7ec] text-[#05603a]';
+  if (job.status === 'failed') return 'bg-danger-soft text-danger';
+  return 'bg-brand-soft text-navy';
+}
 
 export default function DatasetsPage() {
   const { user } = useAuth();
@@ -229,131 +247,303 @@ export default function DatasetsPage() {
         records += item.preview.rows.length;
       }
       setMessage({ type: 'success', text: `Se importaron ${processedFiles.length} archivo(s) y ${records.toLocaleString('es-PE')} registros. La última versión quedó en uso.` });
-      setProcessedFiles([]); setSynthetic(false);
+      setProcessedFiles([]);
+      setSynthetic(false);
       form.reset();
     } catch (cause) {
       setMessage({ type: 'error', text: cause.message || 'No se pudo importar la base.' });
     } finally { setSaving(false); }
   }
 
+  const uploadBlocked = saving || reading || !rawPreview || rawPreview.errors.length > 0;
+
   return (
-    <div className="page epen-datasets">
+    <div className="grid gap-6">
       <PageHeader
         icon="database"
-        eyebrow="Datos y procesamiento"
         title="Bases de datos"
         description="Gestiona las bases EPEN, ejecuta la codificación automática y consulta las versiones registradas."
         meta="Las versiones anteriores se conservan para trazabilidad."
       />
-      {message && <div className={`notice notice--${message.type}`} role={message.type === 'error' ? 'alert' : 'status'}>{message.text}</div>}
-      {betoActive && <div className="notice" role="status">BETO está activo. BETO cierra automáticamente los casos con puntaje igual o superior al umbral de cada trabajo. Si el trabajo define un umbral de IA, la IA puede cerrar la primera propuesta de los casos cuyo puntaje alcance ese umbral. Lo demás va a revisión humana.</div>}
-      {real && <div className="epen-datasets-upload-grid"><section className="panel r2-upload-panel">
-        <PanelHeading icon="cloud-arrow-up" title="Cargar nueva base" description="Selecciona el CSV original y configura el procesamiento." actions={<a className="text-link" href={`${import.meta.env.BASE_URL}plantilla_base_original.csv`} download>Descargar plantilla original</a>} />
-        <form className="r2-upload-form" onSubmit={submitRaw}>
-          <DatasetCsvUpload file={rawFile} inputRef={rawInput} disabled={saving || reading} reading={reading} onSelect={selectRawFile} onRemove={() => { setRawFile(null); setRawText(''); setRawPreview(null); setMessage(null); rawInput.current.value = ''; }}/>
-          <label>Nombre de la encuesta<input maxLength={160} value={rawName} onChange={event => setRawName(event.target.value)} placeholder="Ej. EPEN Lima y Callao" required /></label>
-          <label>Periodo<input maxLength={40} value={rawPeriod} onChange={event => setRawPeriod(event.target.value)} placeholder="Ej. 2027-T2" required /></label>
-          <label>Nivel mínimo de confianza (τ)<input type="number" min="0" max="1" step="0.01" value={threshold} onChange={event => setThreshold(event.target.value)} required /></label>
-          <label>Asistencia de IA<select value={qwenMode} onChange={event => setQwenMode(event.target.value)}><option value="automatic">Automática (segura)</option><option value="manual">Manual (a demanda)</option></select></label>
-          <label>Umbral de cierre por IA (opcional)<input type="number" min="0" max="1" step="0.01" value={aiThreshold} onChange={event => setAiThreshold(event.target.value)} placeholder="Vacío: la IA solo sugiere" /></label>
-          <label className="checkbox-field"><input type="checkbox" checked={rawSynthetic} onChange={event => setRawSynthetic(event.target.checked)} /><span>Marcar como datos sintéticos de prueba</span></label>
-          {rawPreview && <div className={`import-summary ${rawPreview.errors.length ? 'import-summary--error' : ''}`}><strong>{rawPreview.rows.length} registros detectados</strong><span>{rawPreview.errors.length ? `${rawPreview.errors.length} filas requieren corrección` : 'Archivo validado y listo para iniciar'}</span></div>}
-          <button className="button button--primary" type="submit" disabled={saving || reading || !rawPreview || rawPreview.errors.length > 0}><EpenIcon name="file-earmark-code"/>{saving ? 'Iniciando proceso…' : 'Iniciar clasificación automática'}</button>
-          {rawPreview?.errors.length > 0 && <ul className="validation-list">{rawPreview.errors.slice(0, 5).map((error,index)=><li key={index}>{error}</li>)}</ul>}
-        </form>
-        <p className="epen-upload-note">El sistema procesa el CSV por lotes. Puedes seguir el avance y el tiempo estimado en la sección inferior.</p>
-      </section></div>}
-      {real && <section className="panel jobs-panel">
-        <PanelHeading eyebrow="Seguimiento" title="Procesos recientes" />
-        <ContextHelp title="Ayuda sobre los estados"><p><strong>En cola:</strong> espera su turno. <strong>Clasificando:</strong> analiza los registros. <strong>Consultando IA:</strong> solicita apoyo para los casos pendientes.</p><p><strong>Completado:</strong> terminó el proceso; puede haber casos por revisar. <strong>Falló:</strong> revisa el error indicado. <strong>Cancelado:</strong> conserva los resultados parciales. <strong>Cancelando:</strong> la interrupción está solicitada.</p></ContextHelp>
-        <div className="job-list">{visibleJobs.map(job => {
-          const tracksAi = job.qwenMode === 'automatic' && job.qwenPending > 0;
-          const totalUnits = job.total + (tracksAi ? job.qwenPending : 0);
-          const doneUnits = job.processed + (tracksAi ? job.qwenProcessed : 0);
-          const percentage = job.status === 'completed' ? 100 : (totalUnits ? Math.min(100, Math.round(doneUnits / totalUnits * 100)) : 0);
-          const label = { queued: 'En cola', running: 'Clasificando', qwen_running: 'Consultando IA', completed: 'Completado', failed: 'Falló', cancelled: 'Cancelado' }[job.status] || job.status;
-          const eta = formatDuration(job.estimatedSecondsRemaining);
-          const activeJob = ['queued', 'running', 'qwen_running'].includes(job.status);
-          const cancellationAvailable = typeof job.cancelRequested === 'boolean';
-          const canCancel = cancellationAvailable && activeJob && !job.cancelRequested;
-          const numericThreshold = Number(job.threshold);
-          const jobThreshold = Number.isFinite(numericThreshold) ? numericThreshold.toFixed(2).replace('.', ',') : '—';
-          const reviewPending = job.manual + job.qwenReview + (job.qwenMode === 'manual' ? job.qwenPending : 0);
-          return <article className="job-card" key={job.id} data-status={job.status}>
-            <header className="job-card__head">
-              <div className="job-card__title"><strong>#{job.id} · {job.datasetName}</strong><span>{job.period}</span></div>
-              <span className={`access-state ${job.status === 'completed' ? 'access-state--active' : ''}`}>{job.cancelRequested ? 'Cancelando…' : label}</span>
-            </header>
-            <dl className="job-card__facts">
-              <div><dt>Umbral</dt><dd>{jobThreshold}</dd></div>
-              <div><dt>Umbral de IA</dt><dd>{job.aiThreshold === null || job.aiThreshold === undefined ? 'Sin cierre por IA' : Number(job.aiThreshold).toFixed(2).replace('.', ',')}</dd></div>
-              <div><dt>Asistencia de IA</dt><dd>{job.qwenMode === 'automatic' ? 'Automática' : 'Manual'}</dd></div>
-              <div className="job-card__facts-wide"><dt>Clasificador</dt><dd title={job.modelVersion || undefined}>{formatModelVersion(job.modelVersion)}</dd></div>
-            </dl>
-            <section className="job-phase">
-              <div className="job-phase__head"><span>Avance del trabajo</span><strong>{percentage} %</strong></div>
-              <div className="job-progress" role="progressbar" aria-label={`Avance del trabajo ${job.id}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={percentage}><span style={{ width: `${percentage}%` }} /></div>
-              <ul className="job-phase__metrics">
-                <li><strong>{job.automatic}</strong> resueltos automáticamente</li>
-                {tracksAi && <li><strong>{job.qwenResolved}</strong> con asistencia de IA</li>}
-                <li><strong>{reviewPending}</strong> por revisar</li>
-                {eta && <li>Restante <strong>{eta}</strong></li>}
-              </ul>
-            </section>
-            {(canCancel || (activeJob && !cancellationAvailable) || job.error) && <footer className="job-card__footer">
-              {canCancel && <button className="button button--danger-secondary" type="button" disabled={cancellingId === job.id} onClick={() => cancelJob(job)}>{cancellingId === job.id ? 'Solicitando…' : 'Cancelar trabajo'}</button>}
-              {activeJob && !cancellationAvailable && <p className="job-compatibility-note">La cancelación y el tiempo estimado no están disponibles. Solicita al administrador que revise la versión del servicio.</p>}
-              {job.error && <p className="job-error">{operationalText(job.error)}</p>}
-            </footer>}
-          </article>;
-        })}{!jobs.length && <p className="empty-state empty-state--compact">Todavía no se iniciaron trabajos.</p>}</div>
-        {jobs.length > RECENT_JOBS && <div className="jobs-pager">
-          {showAllJobs ? <>
-            <button className="button button--quiet" type="button" disabled={currentJobsPage === 1} onClick={() => setJobsPage(page => Math.max(1, page - 1))}>Anterior</button>
-            <span className="jobs-pager__status">Página {currentJobsPage} de {jobsPageCount}</span>
-            <button className="button button--quiet" type="button" disabled={currentJobsPage === jobsPageCount} onClick={() => setJobsPage(page => Math.min(jobsPageCount, page + 1))}>Siguiente</button>
-            <button className="button button--quiet" type="button" onClick={() => { setShowAllJobs(false); setJobsPage(1); }}>Mostrar solo los {RECENT_JOBS} más recientes</button>
-          </> : <button className="button button--quiet" type="button" onClick={() => { setShowAllJobs(true); setJobsPage(1); }}>Ver los {jobs.length} trabajos</button>}
-        </div>}
-      </section>}
-      <section className="panel versions-panel">
-          <PanelHeading eyebrow="Historial de bases" title={`${datasets.length} versiones registradas`} description="La base en uso aparece primero. Las versiones anteriores se conservan para auditoría." />
-          <div className="version-toolbar" aria-label="Filtros de versiones">
-            <label>Buscar<input type="search" value={datasetQuery} onChange={event => setDatasetQuery(event.target.value)} placeholder="Nombre, periodo o archivo" /></label>
-            <label>Estado<select value={datasetStatus} onChange={event => setDatasetStatus(event.target.value)}><option value="todos">Todos</option><option value="activa">En uso</option><option value="archived">Anteriores</option><option value="staging">Procesando</option><option value="cancelled">Canceladas</option><option value="failed">Fallidas</option></select></label>
+
+      {message && <Notice tone={message.type}>{message.text}</Notice>}
+      {betoActive && (
+        <Notice title="BETO está activo.">
+          BETO cierra automáticamente los casos con puntaje igual o superior al umbral de cada trabajo. Si el trabajo define un umbral de IA, la IA puede cerrar la primera propuesta de los casos cuyo puntaje alcance ese umbral. Lo demás va a revisión humana.
+        </Notice>
+      )}
+
+      {real && (
+        <Panel className="p-5">
+          <PanelHeading
+            icon="cloud-arrow-up"
+            title="Cargar nueva base"
+            description="Selecciona el CSV original y configura el procesamiento."
+            actions={<a className="text-sm font-semibold text-brand hover:underline" href={`${import.meta.env.BASE_URL}plantilla_base_original.csv`} download>Descargar plantilla original</a>}
+          />
+          <form className="grid gap-5 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]" onSubmit={submitRaw}>
+            <DatasetCsvUpload
+              file={rawFile}
+              inputRef={rawInput}
+              disabled={saving || reading}
+              reading={reading}
+              onSelect={selectRawFile}
+              onRemove={() => { setRawFile(null); setRawText(''); setRawPreview(null); setMessage(null); rawInput.current.value = ''; }}
+            />
+            <div className="grid content-start gap-4">
+              <Field id="base-nombre" label="Nombre de la encuesta">
+                <input id="base-nombre" className={inputClass} maxLength={160} value={rawName} onChange={event => setRawName(event.target.value)} placeholder="Ej. EPEN Lima y Callao" required />
+              </Field>
+              <Field id="base-periodo" label="Periodo">
+                <input id="base-periodo" className={inputClass} maxLength={40} value={rawPeriod} onChange={event => setRawPeriod(event.target.value)} placeholder="Ej. 2027-T2" required />
+              </Field>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field id="base-tau" label="Nivel mínimo de confianza (τ)" hint={R2_THRESHOLD_GUIDANCE}>
+                  <input id="base-tau" className={inputClass} type="number" min="0" max="1" step="0.01" value={threshold} onChange={event => setThreshold(event.target.value)} required aria-describedby="base-tau-ayuda" />
+                </Field>
+                <Field id="base-umbral-ia" label="Umbral de cierre por IA (opcional)" hint="Vacío: la IA solo sugiere.">
+                  <input id="base-umbral-ia" className={inputClass} type="number" min="0" max="1" step="0.01" value={aiThreshold} onChange={event => setAiThreshold(event.target.value)} placeholder="Ej. 0,90" aria-describedby="base-umbral-ia-ayuda" />
+                </Field>
+              </div>
+              <Field id="base-ia" label="Asistencia de IA">
+                <select id="base-ia" className={inputClass} value={qwenMode} onChange={event => setQwenMode(event.target.value)}>
+                  <option value="automatic">Automática (segura)</option>
+                  <option value="manual">Manual (a demanda)</option>
+                </select>
+              </Field>
+              <label className="flex items-center gap-2 text-sm text-ink">
+                <input type="checkbox" className="size-4" checked={rawSynthetic} onChange={event => setRawSynthetic(event.target.checked)} />
+                <span>Marcar como datos sintéticos de prueba</span>
+              </label>
+              {rawPreview && (
+                <Notice tone={rawPreview.errors.length ? 'error' : 'success'} title={`${rawPreview.rows.length} registros detectados`}>
+                  {rawPreview.errors.length ? `${rawPreview.errors.length} filas requieren corrección` : 'Archivo validado y listo para iniciar'}
+                </Notice>
+              )}
+              {rawPreview?.errors.length > 0 && (
+                <ul className="grid list-disc gap-1 pl-5 text-sm text-danger">
+                  {rawPreview.errors.slice(0, 5).map((error, index) => <li key={index}>{error}</li>)}
+                </ul>
+              )}
+              <Button type="submit" block disabled={uploadBlocked}>
+                <EpenIcon name="file-earmark-code" />
+                {saving ? 'Iniciando proceso…' : 'Iniciar clasificación automática'}
+              </Button>
+              <p className="text-sm text-muted">El sistema procesa el CSV por lotes. Puedes seguir el avance y el tiempo estimado en la sección inferior.</p>
+            </div>
+          </form>
+        </Panel>
+      )}
+
+      {real && (
+        <Panel className="p-5">
+          <PanelHeading icon="bar-chart" title="Procesos recientes" />
+          <ContextHelp title="Ayuda sobre los estados">
+            <p><strong className="text-ink-strong">En cola:</strong> espera su turno. <strong className="text-ink-strong">Clasificando:</strong> analiza los registros. <strong className="text-ink-strong">Consultando IA:</strong> solicita apoyo para los casos pendientes.</p>
+            <p><strong className="text-ink-strong">Completado:</strong> terminó el proceso; puede haber casos por revisar. <strong className="text-ink-strong">Falló:</strong> revisa el error indicado. <strong className="text-ink-strong">Cancelado:</strong> conserva los resultados parciales. <strong className="text-ink-strong">Cancelando:</strong> la interrupción está solicitada.</p>
+          </ContextHelp>
+
+          <div className="grid gap-3 lg:grid-cols-2">
+            {visibleJobs.map(job => {
+              const tracksAi = job.qwenMode === 'automatic' && job.qwenPending > 0;
+              const totalUnits = job.total + (tracksAi ? job.qwenPending : 0);
+              const doneUnits = job.processed + (tracksAi ? job.qwenProcessed : 0);
+              const percentage = job.status === 'completed' ? 100 : (totalUnits ? Math.min(100, Math.round(doneUnits / totalUnits * 100)) : 0);
+              const label = job.cancelRequested ? 'Cancelando…' : (jobStatusLabel[job.status] || job.status);
+              const eta = formatDuration(job.estimatedSecondsRemaining);
+              const activeJob = ['queued', 'running', 'qwen_running'].includes(job.status);
+              const cancellationAvailable = typeof job.cancelRequested === 'boolean';
+              const canCancel = cancellationAvailable && activeJob && !job.cancelRequested;
+              const numericThreshold = Number(job.threshold);
+              const jobThreshold = Number.isFinite(numericThreshold) ? numericThreshold.toFixed(2).replace('.', ',') : '—';
+              const reviewPending = job.manual + job.qwenReview + (job.qwenMode === 'manual' ? job.qwenPending : 0);
+              const hasFooter = canCancel || (activeJob && !cancellationAvailable) || job.error;
+              return (
+                <article key={job.id} data-status={job.status} className="grid content-start gap-4 rounded-xl border border-line bg-surface p-4">
+                  <header className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <strong className="block truncate text-ink-strong">#{job.id} · {job.datasetName}</strong>
+                      <span className="text-sm text-muted">{job.period}</span>
+                    </div>
+                    <span className={['shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold', jobTone(job)].join(' ')}>{label}</span>
+                  </header>
+
+                  <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-3">
+                    <div><dt className="text-xs text-muted">Umbral</dt><dd className="m-0 font-semibold text-ink-strong">{jobThreshold}</dd></div>
+                    <div><dt className="text-xs text-muted">Umbral de IA</dt><dd className="m-0 font-semibold text-ink-strong">{job.aiThreshold === null || job.aiThreshold === undefined ? 'Sin cierre por IA' : Number(job.aiThreshold).toFixed(2).replace('.', ',')}</dd></div>
+                    <div><dt className="text-xs text-muted">Asistencia de IA</dt><dd className="m-0 font-semibold text-ink-strong">{job.qwenMode === 'automatic' ? 'Automática' : 'Manual'}</dd></div>
+                    <div className="col-span-2 sm:col-span-3"><dt className="text-xs text-muted">Clasificador</dt><dd className="m-0 font-semibold text-ink-strong" title={job.modelVersion || undefined}>{formatModelVersion(job.modelVersion)}</dd></div>
+                  </dl>
+
+                  <section className="grid gap-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted">Avance del trabajo</span>
+                      <strong className="text-ink-strong">{percentage} %</strong>
+                    </div>
+                    <div role="progressbar" aria-label={`Avance del trabajo ${job.id}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={percentage} className="h-2 overflow-hidden rounded-full bg-line">
+                      <span className="block h-full rounded-full bg-brand transition-[width]" style={{ width: `${percentage}%` }} />
+                    </div>
+                    <ul className="grid gap-1 text-sm text-muted">
+                      <li><strong className="text-ink-strong">{job.automatic}</strong> resueltos automáticamente</li>
+                      {tracksAi && <li><strong className="text-ink-strong">{job.qwenResolved}</strong> con asistencia de IA</li>}
+                      <li><strong className="text-ink-strong">{reviewPending}</strong> por revisar</li>
+                      {eta && <li>Restante <strong className="text-ink-strong">{eta}</strong></li>}
+                    </ul>
+                  </section>
+
+                  {hasFooter && (
+                    <footer className="grid gap-2 border-t border-line pt-3">
+                      {canCancel && (
+                        <div>
+                          <Button variant="danger" size="sm" disabled={cancellingId === job.id} onClick={() => cancelJob(job)}>
+                            {cancellingId === job.id ? 'Solicitando…' : 'Cancelar trabajo'}
+                          </Button>
+                        </div>
+                      )}
+                      {activeJob && !cancellationAvailable && <p className="text-sm text-muted">La cancelación y el tiempo estimado no están disponibles. Solicita al administrador que revise la versión del servicio.</p>}
+                      {job.error && <p className="text-sm text-danger">{operationalText(job.error)}</p>}
+                    </footer>
+                  )}
+                </article>
+              );
+            })}
           </div>
-          <DatasetHistoryTable datasets={visibleDatasets} activeId={activeDataset?.id} admin={admin} saving={saving} exportingId={exportingId} onExport={exportDataset} onActivate={async id => { setSaving(true); try { await activateDataset(id); setMessage({ type: 'success', text: 'Base activa actualizada.' }); } catch (cause) { setMessage({ type: 'error', text: cause.message }); } finally { setSaving(false); } }}/>
-          {filteredDatasets.length > 0 && <nav className="pagination" aria-label="Páginas del historial de bases"><button className="button button--secondary" type="button" disabled={datasetPage === 1} onClick={() => setDatasetPage(page => page - 1)}>Anterior</button><span>Página <strong>{datasetPage}</strong> de <strong>{totalDatasetPages}</strong> · {filteredDatasets.length} resultado{filteredDatasets.length === 1 ? '' : 's'}</span><button className="button button--secondary" type="button" disabled={datasetPage === totalDatasetPages} onClick={() => setDatasetPage(page => page + 1)}>Siguiente</button></nav>}
-      </section>
-      {admin && <section className="panel advanced-tools">
-        <PanelHeading eyebrow="Solo administradores" title="Herramientas avanzadas" description="No son necesarias para el procesamiento habitual." />
-        <details className="advanced-disclosure">
-          <summary>Corregir el tipo de datos de una versión</summary>
-          <div className="advanced-disclosure__body dataset-type-tool">
-            <p>“Datos de prueba” habilita simulaciones y evita confundir resultados sintéticos con información real.</p>
-            <label>Versión<select value={datasetTypeId} onChange={event => setDatasetTypeId(event.target.value)}><option value="">Seleccionar base</option>{datasets.map(dataset => <option key={dataset.id} value={dataset.id}>{dataset.name} · {dataset.period} · {dataset.synthetic ? 'Prueba' : 'Real'}</option>)}</select></label>
-            {datasetTypeId && (() => { const selected = datasets.find(dataset => String(dataset.id) === String(datasetTypeId)); return selected ? <button className="button button--secondary" type="button" disabled={saving} onClick={() => toggleSynthetic(selected)}>{selected.synthetic ? 'Marcar como datos reales' : 'Marcar como datos de prueba'}</button> : null; })()}
-          </div>
-        </details>
-        <details className="advanced-disclosure">
-          <summary>Importar un resultado procesado fuera del sistema</summary>
-          <div className="advanced-disclosure__body">
-            <div className="panel-heading panel-heading--compact"><p>Utiliza esta opción únicamente para migraciones o integraciones externas.</p><a className="text-link" href={`${import.meta.env.BASE_URL}plantilla_importacion.csv`} download>Descargar plantilla avanzada</a></div>
-            <form className="stack-form processed-import-form" onSubmit={submit}>
-              <label className="file-field">Archivos CSV procesados<input type="file" multiple accept=".csv,text/csv" onChange={selectFile} /></label>
-              {reading && <p className="helper-text">Validando archivo…</p>}
-              {processedFiles.length > 0 && <div className="processed-import-list">{processedFiles.map(item => <article key={item.key} className={item.preview.errors.length ? 'is-invalid' : ''}>
-                <header><strong>{item.file.name}</strong><span>{item.preview.rows.length.toLocaleString('es-PE')} registros</span></header>
-                <div><label>Nombre de la base<input value={item.name} onChange={event => updateProcessedFile(item.key, 'name', event.target.value)} required /></label><label>Periodo<input value={item.period} onChange={event => updateProcessedFile(item.key, 'period', event.target.value)} placeholder="Ej. 2027-T1" required /></label></div>
-                {item.preview.errors.length > 0 && <small>{item.preview.errors.length} observación(es): {item.preview.errors.slice(0, 2).join(' ')}</small>}
-              </article>)}</div>}
-              <label className="checkbox-field"><input type="checkbox" checked={synthetic} onChange={event => setSynthetic(event.target.checked)} /><span>Marcar todo este lote como datos de prueba</span></label>
-              <p className="helper-text">Cada archivo crea una versión independiente. Se importan en orden y la última queda en uso.</p>
-              <button className="button button--primary" type="submit" disabled={reading || saving || !processedFiles.length || processedFiles.some(item => item.preview.errors.length > 0)}>{saving ? 'Importando lote…' : `Importar ${processedFiles.length || ''} archivo${processedFiles.length === 1 ? '' : 's'}`}</button>
-            </form>
-          </div>
-        </details>
-      </section>}
+          {!jobs.length && <p className="py-6 text-center text-sm text-muted">Todavía no se iniciaron trabajos.</p>}
+
+          {jobs.length > RECENT_JOBS && (
+            <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
+              {showAllJobs ? (
+                <>
+                  <Button variant="quiet" size="sm" disabled={currentJobsPage === 1} onClick={() => setJobsPage(page => Math.max(1, page - 1))}>Anterior</Button>
+                  <span className="text-muted">Página {currentJobsPage} de {jobsPageCount}</span>
+                  <Button variant="quiet" size="sm" disabled={currentJobsPage === jobsPageCount} onClick={() => setJobsPage(page => Math.min(jobsPageCount, page + 1))}>Siguiente</Button>
+                  <Button variant="quiet" size="sm" onClick={() => { setShowAllJobs(false); setJobsPage(1); }}>Mostrar solo los {RECENT_JOBS} más recientes</Button>
+                </>
+              ) : (
+                <Button variant="quiet" size="sm" onClick={() => { setShowAllJobs(true); setJobsPage(1); }}>Ver los {jobs.length} trabajos</Button>
+              )}
+            </div>
+          )}
+        </Panel>
+      )}
+
+      <Panel className="p-5">
+        <PanelHeading
+          icon="clock-history"
+          title={`${datasets.length} versiones registradas`}
+          description="La base en uso aparece primero. Las versiones anteriores se conservan para auditoría."
+        />
+        <div aria-label="Filtros de versiones" className="mb-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_220px]">
+          <Field id="versiones-buscar" label="Buscar">
+            <input id="versiones-buscar" type="search" className={inputClass} value={datasetQuery} onChange={event => setDatasetQuery(event.target.value)} placeholder="Nombre, periodo o archivo" />
+          </Field>
+          <Field id="versiones-estado" label="Estado">
+            <select id="versiones-estado" className={inputClass} value={datasetStatus} onChange={event => setDatasetStatus(event.target.value)}>
+              <option value="todos">Todos</option>
+              <option value="activa">En uso</option>
+              <option value="archived">Anteriores</option>
+              <option value="staging">Procesando</option>
+              <option value="cancelled">Canceladas</option>
+              <option value="failed">Fallidas</option>
+            </select>
+          </Field>
+        </div>
+        <DatasetHistoryTable
+          datasets={visibleDatasets}
+          activeId={activeDataset?.id}
+          admin={admin}
+          saving={saving}
+          exportingId={exportingId}
+          onExport={exportDataset}
+          onActivate={async id => {
+            setSaving(true);
+            try {
+              await activateDataset(id);
+              setMessage({ type: 'success', text: 'Base activa actualizada.' });
+            } catch (cause) {
+              setMessage({ type: 'error', text: cause.message });
+            } finally { setSaving(false); }
+          }}
+        />
+        {filteredDatasets.length > 0 && (
+          <nav aria-label="Páginas del historial de bases" className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-muted">
+            <Button variant="secondary" size="sm" disabled={datasetPage === 1} onClick={() => setDatasetPage(page => page - 1)}>Anterior</Button>
+            <span>Página <strong className="text-ink-strong">{datasetPage}</strong> de <strong className="text-ink-strong">{totalDatasetPages}</strong> · {filteredDatasets.length} resultado{filteredDatasets.length === 1 ? '' : 's'}</span>
+            <Button variant="secondary" size="sm" disabled={datasetPage === totalDatasetPages} onClick={() => setDatasetPage(page => page + 1)}>Siguiente</Button>
+          </nav>
+        )}
+      </Panel>
+
+      {admin && (
+        <Panel className="grid gap-3 p-5">
+          <PanelHeading icon="gear" title="Herramientas avanzadas" description="Solo administradores. No son necesarias para el procesamiento habitual." />
+          <details className="rounded-lg border border-line p-4">
+            <summary className="cursor-pointer font-semibold text-ink-strong">Corregir el tipo de datos de una versión</summary>
+            <div className="mt-4 grid gap-3 text-sm text-muted">
+              <p>“Datos de prueba” habilita simulaciones y evita confundir resultados sintéticos con información real.</p>
+              <Field id="tipo-version" label="Versión">
+                <select id="tipo-version" className={inputClass} value={datasetTypeId} onChange={event => setDatasetTypeId(event.target.value)}>
+                  <option value="">Seleccionar base</option>
+                  {datasets.map(dataset => <option key={dataset.id} value={dataset.id}>{dataset.name} · {dataset.period} · {dataset.synthetic ? 'Prueba' : 'Real'}</option>)}
+                </select>
+              </Field>
+              {datasetTypeId && (() => {
+                const selected = datasets.find(dataset => String(dataset.id) === String(datasetTypeId));
+                return selected ? (
+                  <div><Button variant="secondary" disabled={saving} onClick={() => toggleSynthetic(selected)}>{selected.synthetic ? 'Marcar como datos reales' : 'Marcar como datos de prueba'}</Button></div>
+                ) : null;
+              })()}
+            </div>
+          </details>
+
+          <details className="rounded-lg border border-line p-4">
+            <summary className="cursor-pointer font-semibold text-ink-strong">Importar un resultado procesado fuera del sistema</summary>
+            <div className="mt-4 grid gap-4">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted">
+                <p>Utiliza esta opción únicamente para migraciones o integraciones externas.</p>
+                <a className="font-semibold text-brand hover:underline" href={`${import.meta.env.BASE_URL}plantilla_importacion.csv`} download>Descargar plantilla avanzada</a>
+              </div>
+              <form className="grid gap-4" onSubmit={submit}>
+                <Field id="lote-archivos" label="Archivos CSV procesados">
+                  <input id="lote-archivos" type="file" multiple accept=".csv,text/csv" onChange={selectFile} className="text-sm" />
+                </Field>
+                {reading && <p className="text-sm text-muted">Validando archivo…</p>}
+                {processedFiles.length > 0 && (
+                  <div className="grid gap-3">
+                    {processedFiles.map(item => (
+                      <article key={item.key} className={['grid gap-3 rounded-lg border p-3', item.preview.errors.length ? 'border-[#efc8c4] bg-danger-soft/40' : 'border-line bg-surface'].join(' ')}>
+                        <header className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                          <strong className="truncate text-ink-strong">{item.file.name}</strong>
+                          <span className="text-muted">{item.preview.rows.length.toLocaleString('es-PE')} registros</span>
+                        </header>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <Field id={`lote-${item.key}-nombre`} label="Nombre de la base">
+                            <input id={`lote-${item.key}-nombre`} className={inputClass} value={item.name} onChange={event => updateProcessedFile(item.key, 'name', event.target.value)} required />
+                          </Field>
+                          <Field id={`lote-${item.key}-periodo`} label="Periodo">
+                            <input id={`lote-${item.key}-periodo`} className={inputClass} value={item.period} onChange={event => updateProcessedFile(item.key, 'period', event.target.value)} placeholder="Ej. 2027-T1" required />
+                          </Field>
+                        </div>
+                        {item.preview.errors.length > 0 && <small className="text-xs text-danger">{item.preview.errors.length} observación(es): {item.preview.errors.slice(0, 2).join(' ')}</small>}
+                      </article>
+                    ))}
+                  </div>
+                )}
+                <label className="flex items-center gap-2 text-sm text-ink">
+                  <input type="checkbox" className="size-4" checked={synthetic} onChange={event => setSynthetic(event.target.checked)} />
+                  <span>Marcar todo este lote como datos de prueba</span>
+                </label>
+                <p className="text-sm text-muted">Cada archivo crea una versión independiente. Se importan en orden y la última queda en uso.</p>
+                <div>
+                  <Button type="submit" disabled={reading || saving || !processedFiles.length || processedFiles.some(item => item.preview.errors.length > 0)}>
+                    {saving ? 'Importando lote…' : `Importar ${processedFiles.length || ''} archivo${processedFiles.length === 1 ? '' : 's'}`}
+                  </Button>
+                </div>
+              </form>
+            </div>
+          </details>
+        </Panel>
+      )}
     </div>
   );
 }

@@ -60,7 +60,7 @@ export default function HomePage() {
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <StatusBadge status={item.estado} />
-                  {canCode && <Link to={`/casos/${item.id_registro}`} className={buttonClass({ variant: 'secondary', className: 'min-h-9 px-3' })}>Abrir</Link>}
+                  {canCode && <Link to={`/casos/${item.id_registro}`} className={buttonClass({ variant: 'secondary', size: 'sm' })}>Abrir</Link>}
                 </div>
               </li>
             ))}
