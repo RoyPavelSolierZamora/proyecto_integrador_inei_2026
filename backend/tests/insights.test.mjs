@@ -61,3 +61,11 @@ test('el contexto del chat usa las notas oficiales de cada clase mencionada', as
   assert.match(text, /^CIIU 4711 · Venta al por menor/);
   assert.match(text, /Notas oficiales: Esta clase comprende/);
 });
+
+test('busca en el índice oficial y rechaza temas ajenos', async () => {
+  const { indexStatus, searchKnowledge } = await import('../src/services/conocimiento.js');
+  if (!indexStatus().indexed) return; // El índice se genera localmente con el script de indexado.
+  const hits = searchKnowledge('qué clase CIIU corresponde a programación informática');
+  assert.ok(hits.length > 0);
+  assert.equal(searchKnowledge('capital de Francia y receta de cocina').length, 0);
+});

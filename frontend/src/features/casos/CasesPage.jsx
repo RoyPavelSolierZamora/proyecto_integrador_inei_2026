@@ -20,6 +20,8 @@ const views = [
   ['qwen', 'Procesados con IA'],
   ['humano', 'Revisados por persona'],
 ];
+// Estos nombres describen el origen, no a una persona: no se repiten como responsable.
+const GENERIC_ACTORS = new Set(['Asistente de IA', 'Clasificación automática', 'Clasificador automático', 'Sistema', 'Sin responsable']);
 const originLabel = { r2: 'Clasificación automática', qwen: 'Asistente de IA', humano: 'Persona', pendiente: 'Sin decisión' };
 
 // Origen de la decisión de un caso: clasificación automática, IA, persona o pendiente.
@@ -99,15 +101,15 @@ export default function CasesPage() {
           <tbody className={t.body}>
             {visible.map(item => (
               <tr key={item.id_registro} className={t.row}>
-                <td data-label="Registro" className={t.cell}><strong className="break-all text-ink-strong">{item.id_registro}</strong></td>
+                <td data-label="Registro" className={t.cell}><strong className="whitespace-nowrap text-ink-strong">{item.id_registro}</strong></td>
                 <td data-label="Actividad económica (P309)" className={t.cell}>{item.p309 || 'Sin respuesta P309'}</td>
                 <td data-label="Origen y responsable" className={t.cell}>
                   <span className="block font-semibold text-ink-strong">{originLabel[caseOrigin(item)] || 'Sin decisión'}</span>
-                  <small className="text-xs text-muted">{item.responsable_decision || '—'}</small>
+                  {item.responsable_decision && !GENERIC_ACTORS.has(item.responsable_decision) && <small className="text-xs text-muted">{item.responsable_decision}</small>}
                 </td>
                 <td data-label="Nivel de confianza" className={t.cell}>{item.confianza_ml ? `${Math.round(item.confianza_ml * 100)} %` : '—'}</td>
                 <td data-label="Estado" className={t.cell}><StatusBadge status={item.estado} /></td>
-                <td data-label="Acción" className={t.cell}>
+                <td data-label="Acción" className={`${t.cell} whitespace-nowrap`}>
                   <Link
                     className={buttonClass({ variant: 'secondary', size: 'sm' })}
                     to={`/casos/${encodeURIComponent(item.id_registro)}?dataset=${selectedDataset?.id}`}

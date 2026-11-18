@@ -5,6 +5,11 @@ import { requireAuth, requireCsrf, requireRole } from '../security/middleware.js
 import { compareCodeRows, codesInQuestion, detectAssistantIntent, greetingAnswer, hasHelpTopic, helpAnswer } from '../services/insights.js';
 import { askQwenChat } from '../clients/qwen-client.js';
 import { ciiuContext } from '../services/ciiu-notas.js';
+import { knowledgeContext } from '../services/conocimiento.js';
+
+// El chat solo responde sobre este proyecto: CIIU Rev.4, la clasificación de ocupaciones del INEI
+// y el uso del sistema. Cualquier otro tema recibe esta respuesta fija.
+const OUT_OF_SCOPE_ANSWER = 'Solo puedo responder sobre la codificación CIIU Rev.4, los documentos oficiales del INEI que usa el proyecto y el uso de este sistema. Prueba con una clase, grupo o división CIIU, o con una pregunta sobre cómo usar el sistema.';
 import { getConfig } from '../config.js';
 import { workspaceIndicators } from '../services/workspace-indicators.js';
 
@@ -313,13 +318,22 @@ export function createInsightsRouter() {
       const catalog = refs.clases.length
         ? await getPool().query('SELECT code, description FROM epen.ciiu_catalog WHERE code = ANY($1::text[]) AND active = true', [refs.clases])
         : { rows: [] };
-      const context = ciiuContext(catalog.rows, { divisiones: refs.divisiones, grupos: refs.grupos });
-      try {
-        answer = await askQwenChat(getConfig(), { question, context });
-      } catch {
-        answer = helpAnswer(question);
+      const notes = ciiuContext(catalog.rows, { divisiones: refs.divisiones, grupos: refs.grupos });
+      const knowledge = knowledgeContext(question, refs.clases);
+      const context = [notes, knowledge].filter(Boolean).join('\n\n');
+      if (!context) {
+        answer = OUT_OF_SCOPE_ANSWER;
+      } else {
+        try {
+          answer = await askQwenChat(getConfig(), { question, context });
+        } catch {
+          // Sin el modelo, se muestran los textos oficiales encontrados, sin inventar una respuesta.
+          answer = knowledge
+            ? `El asistente no está disponible ahora. Estos textos oficiales pueden ayudarte:\n\n${knowledge.slice(0, 1200)}`
+            : OUT_OF_SCOPE_ANSWER;
+        }
+        if (!answer) answer = OUT_OF_SCOPE_ANSWER;
       }
-      if (!answer) answer = helpAnswer(question);
     }
     await getPool().query(`
       INSERT INTO epen.assistant_query_log (user_id, role, dataset_id, compare_dataset_id, case_id, intent, question_hash)
