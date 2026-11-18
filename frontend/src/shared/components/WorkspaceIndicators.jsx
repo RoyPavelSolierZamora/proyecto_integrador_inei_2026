@@ -25,9 +25,7 @@ function IndicatorCard({ id, title, subtitle, data, loading }) {
           <h2 id={id} className="text-base font-bold text-ink-strong">{title}</h2>
           <span className="text-xs text-muted">{subtitle}</span>
         </div>
-        <span className="shrink-0 rounded-md border border-brand-soft bg-brand-soft/60 px-2 py-1 font-mono text-[11px] font-semibold tabular-nums text-navy">
-          n = {loading ? '…' : Number.isFinite(evaluated) ? evaluated.toLocaleString('es-PE') : '—'}
-        </span>
+        <span className="shrink-0 text-right text-xs tabular-nums text-muted">{loading ? "Cargando…" : Number.isFinite(evaluated) && evaluated > 0 ? `${evaluated.toLocaleString("es-PE")} casos evaluados` : "Sin muestra humana"}</span>
       </header>
 
       <VerticalBars
@@ -35,7 +33,6 @@ function IndicatorCard({ id, title, subtitle, data, loading }) {
         items={values}
         threshold={threshold}
         thresholdLabel={threshold !== undefined ? `umbral ${formatPercent(threshold)}` : undefined}
-        footnote="escala 0–100 %"
       />
     </Panel>
   );

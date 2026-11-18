@@ -5,7 +5,7 @@ import PanelHeading from '../../shared/ui/PanelHeading.jsx';
 import Panel from '../../shared/ui/Panel.jsx';
 import Button from '../../shared/ui/Button.jsx';
 import Notice from '../../shared/ui/Notice.jsx';
-import { VerticalBars, chartColors, formatNumber, formatPercent } from '../../shared/ui/Charts.jsx';
+import { Donut, VerticalBars, chartColors, formatNumber, formatPercent } from '../../shared/ui/Charts.jsx';
 import { getDatasetSummaryReal } from '../../shared/api/dataClient.js';
 import { useData } from '../../app/state/DataContext.jsx';
 
@@ -22,7 +22,6 @@ export default function MetricsPage() {
   const [summary, setSummary] = useState(null);
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
-  const [showAllCodes, setShowAllCodes] = useState(false);
 
   useEffect(() => {
     if (!datasetId) return undefined;
@@ -49,8 +48,14 @@ export default function MetricsPage() {
   const r3 = summary?.indicators?.r3;
   const evaluated = Number(r2?.evaluated || 0);
   const sourceTotal = t ? t.automatic + t.ai + t.human : 0;
-  const maxCode = Math.max(1, ...(summary?.topCodes || []).map(row => row.count));
-  const visibleCodes = summary?.topCodes?.slice(0, showAllCodes ? 15 : 6) || [];
+  const codePalette = [chartColors.primary, chartColors.secondary, chartColors.positive, '#5b6b82', '#9fb4cf'];
+  const topFive = summary?.topCodes?.slice(0, 5) || [];
+  const topFiveTotal = topFive.reduce((acc, row) => acc + row.count, 0);
+  const otherCodes = Math.max(0, (t?.resolved || 0) - topFiveTotal);
+  const codeSegments = [
+    ...topFive.map((row, index) => ({ label: `${row.code} · ${row.description}`, value: row.count, color: codePalette[index] })),
+    ...(otherCodes > 0 ? [{ label: 'Otros códigos', value: otherCodes, color: chartColors.faint }] : []),
+  ];
 
   return (
     <div className="grid grid-cols-1 gap-6">
@@ -141,25 +146,12 @@ export default function MetricsPage() {
 
             <Panel className="grid content-start gap-4 p-5">
               <PanelHeading title="Códigos más frecuentes" description="Distribución entre registros resueltos." />
-              <VerticalBars
+              <Donut
                 ariaLabel="Códigos más frecuentes"
-                axis={false}
-                footnote="altura relativa al código más frecuente"
-                items={visibleCodes.map(row => ({
-                  label: row.code,
-                  color: chartColors.primary,
-                  height: row.count / maxCode,
-                  display: formatNumber(row.count),
-                  detail: formatPercent(row.share),
-                }))}
+                centerLabel="resueltos"
+                total={t?.resolved || 0}
+                segments={codeSegments}
               />
-              {summary.topCodes.length > 6 && (
-                <div>
-                  <Button variant="quiet" size="sm" onClick={() => setShowAllCodes(value => !value)}>
-                    {showAllCodes ? 'Ver menos códigos' : 'Ver hasta 15 códigos'}
-                  </Button>
-                </div>
-              )}
               {!summary.topCodes.length && <p className="text-sm text-muted">Aún no hay códigos finales.</p>}
             </Panel>
           </div>
