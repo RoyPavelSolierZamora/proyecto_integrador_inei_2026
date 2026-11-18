@@ -59,7 +59,7 @@ export default function CasesPage() {
   };
 
   return (
-    <div className="grid gap-6">
+    <div className="grid grid-cols-1 gap-6">
       <PageHeader
         icon="clipboard-check"
         title="Codificación y revisión"
@@ -76,7 +76,7 @@ export default function CasesPage() {
         <p>“Requieren atención” reúne pendientes y revisión humana. Las otras vistas muestran todos los registros o los procesados por clasificación automática, IA o una persona, siempre dentro de la base seleccionada.</p>
       </ContextHelp>
 
-      <Panel className="grid gap-3 p-4 md:grid-cols-[minmax(0,1fr)_260px_auto] md:items-end">
+      <Panel className="grid grid-cols-1 gap-3 p-4 md:grid-cols-[minmax(0,1fr)_260px_auto] md:items-end">
         <Field id="casos-buscar" label="Buscar">
           <input id="casos-buscar" type="search" className={inputClass} value={query} onChange={event => setQuery(event.target.value)} placeholder="ID, actividad u ocupación" />
         </Field>

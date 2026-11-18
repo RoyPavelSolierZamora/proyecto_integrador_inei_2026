@@ -258,7 +258,7 @@ export default function DatasetsPage() {
   const uploadBlocked = saving || reading || !rawPreview || rawPreview.errors.length > 0;
 
   return (
-    <div className="grid gap-6">
+    <div className="grid grid-cols-1 gap-6">
       <PageHeader
         icon="database"
         title="Bases de datos"
@@ -281,7 +281,7 @@ export default function DatasetsPage() {
             description="Selecciona el CSV original y configura el procesamiento."
             actions={<a className="text-sm font-semibold text-brand hover:underline" href={`${import.meta.env.BASE_URL}plantilla_base_original.csv`} download>Descargar plantilla original</a>}
           />
-          <form className="grid gap-5 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]" onSubmit={submitRaw}>
+          <form className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]" onSubmit={submitRaw}>
             <DatasetCsvUpload
               file={rawFile}
               inputRef={rawInput}
@@ -297,7 +297,7 @@ export default function DatasetsPage() {
               <Field id="base-periodo" label="Periodo">
                 <input id="base-periodo" className={inputClass} maxLength={40} value={rawPeriod} onChange={event => setRawPeriod(event.target.value)} placeholder="Ej. 2027-T2" required />
               </Field>
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <Field id="base-tau" label="Nivel mínimo de confianza (τ)" hint={R2_THRESHOLD_GUIDANCE}>
                   <input id="base-tau" className={inputClass} type="number" min="0" max="1" step="0.01" value={threshold} onChange={event => setThreshold(event.target.value)} required aria-describedby="base-tau-ayuda" />
                 </Field>
@@ -343,7 +343,7 @@ export default function DatasetsPage() {
             <p><strong className="text-ink-strong">Completado:</strong> terminó el proceso; puede haber casos por revisar. <strong className="text-ink-strong">Falló:</strong> revisa el error indicado. <strong className="text-ink-strong">Cancelado:</strong> conserva los resultados parciales. <strong className="text-ink-strong">Cancelando:</strong> la interrupción está solicitada.</p>
           </ContextHelp>
 
-          <div className="grid gap-3 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
             {visibleJobs.map(job => {
               const tracksAi = job.qwenMode === 'automatic' && job.qwenPending > 0;
               const totalUnits = job.total + (tracksAi ? job.qwenPending : 0);
@@ -375,7 +375,7 @@ export default function DatasetsPage() {
                     <div className="col-span-2 sm:col-span-3"><dt className="text-xs text-muted">Clasificador</dt><dd className="m-0 font-semibold text-ink-strong" title={job.modelVersion || undefined}>{formatModelVersion(job.modelVersion)}</dd></div>
                   </dl>
 
-                  <section className="grid gap-2">
+                  <section className="grid grid-cols-1 gap-2">
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-muted">Avance del trabajo</span>
                       <strong className="text-ink-strong">{percentage} %</strong>
@@ -383,7 +383,7 @@ export default function DatasetsPage() {
                     <div role="progressbar" aria-label={`Avance del trabajo ${job.id}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={percentage} className="h-2 overflow-hidden rounded-full bg-line">
                       <span className="block h-full rounded-full bg-brand transition-[width]" style={{ width: `${percentage}%` }} />
                     </div>
-                    <ul className="grid gap-1 text-sm text-muted">
+                    <ul className="grid grid-cols-1 gap-1 text-sm text-muted">
                       <li><strong className="text-ink-strong">{job.automatic}</strong> resueltos automáticamente</li>
                       {tracksAi && <li><strong className="text-ink-strong">{job.qwenResolved}</strong> con asistencia de IA</li>}
                       <li><strong className="text-ink-strong">{reviewPending}</strong> por revisar</li>
@@ -392,7 +392,7 @@ export default function DatasetsPage() {
                   </section>
 
                   {hasFooter && (
-                    <footer className="grid gap-2 border-t border-line pt-3">
+                    <footer className="grid grid-cols-1 gap-2 border-t border-line pt-3">
                       {canCancel && (
                         <div>
                           <Button variant="danger" size="sm" disabled={cancellingId === job.id} onClick={() => cancelJob(job)}>
@@ -430,7 +430,7 @@ export default function DatasetsPage() {
       <Panel className="p-5">
         <PanelHeading
           icon="clock-history"
-          title={`${datasets.length} versiones registradas`}
+          title={`${datasets.length} ${datasets.length === 1 ? 'versión registrada' : 'versiones registradas'}`}
           description="La base en uso aparece primero. Las versiones anteriores se conservan para auditoría."
         />
         <div aria-label="Filtros de versiones" className="mb-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_220px]">
@@ -475,7 +475,7 @@ export default function DatasetsPage() {
       </Panel>
 
       {admin && (
-        <Panel className="grid gap-3 p-5">
+        <Panel className="grid grid-cols-1 gap-3 p-5">
           <PanelHeading icon="gear" title="Herramientas avanzadas" description="Solo administradores. No son necesarias para el procesamiento habitual." />
           <details className="rounded-lg border border-line p-4">
             <summary className="cursor-pointer font-semibold text-ink-strong">Corregir el tipo de datos de una versión</summary>
@@ -503,20 +503,20 @@ export default function DatasetsPage() {
                 <p>Utiliza esta opción únicamente para migraciones o integraciones externas.</p>
                 <a className="font-semibold text-brand hover:underline" href={`${import.meta.env.BASE_URL}plantilla_importacion.csv`} download>Descargar plantilla avanzada</a>
               </div>
-              <form className="grid gap-4" onSubmit={submit}>
+              <form className="grid grid-cols-1 gap-4" onSubmit={submit}>
                 <Field id="lote-archivos" label="Archivos CSV procesados">
                   <input id="lote-archivos" type="file" multiple accept=".csv,text/csv" onChange={selectFile} className="text-sm" />
                 </Field>
                 {reading && <p className="text-sm text-muted">Validando archivo…</p>}
                 {processedFiles.length > 0 && (
-                  <div className="grid gap-3">
+                  <div className="grid grid-cols-1 gap-3">
                     {processedFiles.map(item => (
                       <article key={item.key} className={['grid gap-3 rounded-lg border p-3', item.preview.errors.length ? 'border-[#efc8c4] bg-danger-soft/40' : 'border-line bg-surface'].join(' ')}>
                         <header className="flex flex-wrap items-center justify-between gap-2 text-sm">
                           <strong className="truncate text-ink-strong">{item.file.name}</strong>
                           <span className="text-muted">{item.preview.rows.length.toLocaleString('es-PE')} registros</span>
                         </header>
-                        <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                           <Field id={`lote-${item.key}-nombre`} label="Nombre de la base">
                             <input id={`lote-${item.key}-nombre`} className={inputClass} value={item.name} onChange={event => updateProcessedFile(item.key, 'name', event.target.value)} required />
                           </Field>

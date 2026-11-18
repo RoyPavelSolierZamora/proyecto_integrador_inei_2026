@@ -104,7 +104,7 @@ export default function UsersPage() {
   const isOwn = item => item.username === user.username;
 
   return (
-    <div className="grid gap-6">
+    <div className="grid grid-cols-1 gap-6">
       <PageHeader
         icon="people"
         title="Usuarios y credenciales"
@@ -131,8 +131,8 @@ export default function UsersPage() {
 
       {message && <Notice tone={message.type}>{message.text}</Notice>}
 
-      <section id="users-panel-list" role="tabpanel" aria-labelledby="users-tab-list" hidden={tab !== 'list'} tabIndex={0} className="grid gap-4">
-        <div aria-label="Filtros de usuarios" className="grid gap-3 md:grid-cols-[minmax(0,1fr)_220px_auto] md:items-end">
+      <section id="users-panel-list" role="tabpanel" aria-labelledby="users-tab-list" hidden={tab !== 'list'} tabIndex={0} className="grid grid-cols-1 gap-4">
+        <div aria-label="Filtros de usuarios" className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_220px_auto] md:items-end">
           <Field id="usuarios-buscar" label="Buscar usuario">
             <input id="usuarios-buscar" type="search" className={inputClass} value={query} onChange={event => setQuery(event.target.value)} placeholder="Nombre o nombre de usuario" />
           </Field>
@@ -209,7 +209,7 @@ export default function UsersPage() {
       <section id="users-panel-create" role="tabpanel" aria-labelledby="users-tab-create" hidden={tab !== 'create'} tabIndex={0}>
         <Panel className="max-w-2xl p-5">
           <PanelHeading title="Crear usuario" description="Todos los campos son obligatorios. La cuenta se creará activa." />
-          <form className="grid gap-4" onSubmit={submit}>
+          <form className="grid grid-cols-1 gap-4" onSubmit={submit}>
             <Field id="usuarios-nombre" label="Nombre completo">
               <input id="usuarios-nombre" name="name" className={inputClass} value={form.name} onChange={change} autoComplete="off" maxLength={120} required disabled={busy} />
             </Field>

@@ -54,7 +54,7 @@ export default function QualityPage() {
   const totalIncorrect = quality?.coders.reduce((sum, item) => sum + item.incorrect, 0) || 0;
 
   return (
-    <div className="grid gap-6">
+    <div className="grid grid-cols-1 gap-6">
       <PageHeader
         icon="shield-check"
         title="Control de calidad"
@@ -65,7 +65,7 @@ export default function QualityPage() {
       {message && <Notice tone="error">{message}</Notice>}
       {loading && <Notice>Calculando indicadores…</Notice>}
 
-      <section aria-label="Resumen de calidad" className="grid gap-4 sm:grid-cols-3">
+      <section aria-label="Resumen de calidad" className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Stat label="Revisiones formales" value={totalReviewed} hint="Decisiones con adjudicación registrada" />
         <Stat label="Errores confirmados" value={totalIncorrect} hint="No incluye simples desacuerdos" />
         <Stat label="Tasa sobre revisados" value={totalReviewed ? pct(totalIncorrect / totalReviewed) : 'Sin muestra'} hint="Interpretar junto al tamaño de muestra" />
@@ -102,7 +102,7 @@ export default function QualityPage() {
         </div>
       </Panel>
 
-      <Panel className="grid gap-4 p-5">
+      <Panel className="grid grid-cols-1 gap-4 p-5">
         <PanelHeading title="Variaciones de códigos CIIU" description="Selecciona otra versión para comparar distribuciones entre bases." />
         <DatasetWorkspaceSelector datasets={datasets.filter(item => String(item.id) !== String(datasetId))} selectedId={compareId} onChange={setCompareId} />
         <div>
@@ -110,8 +110,8 @@ export default function QualityPage() {
         </div>
 
         {comparison && (
-          <div className="grid gap-4">
-            <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Stat label={comparison.left.dataset.period} value={comparison.left.totals.resolved} hint="registros resueltos" />
               <Stat label={comparison.right.dataset.period} value={comparison.right.totals.resolved} hint="registros resueltos" />
             </div>

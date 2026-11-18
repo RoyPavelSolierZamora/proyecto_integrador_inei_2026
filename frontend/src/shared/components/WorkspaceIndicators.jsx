@@ -13,7 +13,7 @@ function IndicatorChart({ id, title, data, loading }) {
   ];
 
   return (
-    <Panel as="section" aria-labelledby={id} className="grid gap-3 p-5">
+    <Panel as="section" aria-labelledby={id} className="grid grid-cols-1 gap-3 p-5">
       <h2 id={id} className="text-base font-bold text-ink-strong">{title}</h2>
       <p className="text-sm text-muted">Registros evaluados: {loading ? 'Cargando…' : data?.evaluated ?? 'No disponible'}</p>
       <div className="grid grid-cols-3 gap-3">
@@ -42,7 +42,7 @@ function IndicatorChart({ id, title, data, loading }) {
 
 export default function WorkspaceIndicators({ indicators, loading }) {
   return (
-    <div aria-busy={loading} className="grid gap-4 md:grid-cols-2">
+    <div aria-busy={loading} className="grid grid-cols-1 gap-4 md:grid-cols-2">
       <IndicatorChart id="indicadores-clasificador" title="Clasificador automático" data={indicators?.r2} loading={loading} />
       <IndicatorChart id="indicadores-ia" title="Asistencia de IA" data={indicators?.r3} loading={loading} />
     </div>

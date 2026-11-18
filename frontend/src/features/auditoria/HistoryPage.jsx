@@ -61,7 +61,7 @@ export default function HistoryPage() {
   const chooseDataset = datasetId => setSearchParams({ dataset: String(datasetId) });
 
   return (
-    <div className="grid gap-6">
+    <div className="grid grid-cols-1 gap-6">
       <PageHeader
         icon="clock-history"
         title="Auditoría de decisiones"
@@ -70,13 +70,13 @@ export default function HistoryPage() {
 
       <DatasetWorkspaceSelector datasets={datasets} selectedId={selectedDataset?.id} onChange={chooseDataset} noun="auditar" />
 
-      <section aria-label="Resumen de auditoría" className="grid gap-4 sm:grid-cols-3">
+      <section aria-label="Resumen de auditoría" className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Stat label="Decisiones registradas" value={result.summary.events} />
         <Stat label="Registros intervenidos" value={result.summary.cases} />
         <Stat label="Decisiones humanas" value={result.summary.human} />
       </section>
 
-      <Panel aria-label="Filtros de auditoría" as="section" className="grid gap-3 p-4 md:grid-cols-[minmax(0,1fr)_220px_auto] md:items-end">
+      <Panel aria-label="Filtros de auditoría" as="section" className="grid grid-cols-1 gap-3 p-4 md:grid-cols-[minmax(0,1fr)_220px_auto] md:items-end">
         <Field id="auditoria-buscar" label="Buscar">
           <input id="auditoria-buscar" type="search" className={inputClass} value={query} onChange={event => setQuery(event.target.value)} placeholder="Registro, código o responsable" />
         </Field>

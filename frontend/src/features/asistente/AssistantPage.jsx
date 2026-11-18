@@ -7,7 +7,7 @@ export default function AssistantPage() {
   const caseExternalId = new URLSearchParams(location.search).get('case');
 
   return (
-    <div className="grid gap-6">
+    <div className="grid grid-cols-1 gap-6">
       <PageHeader
         icon="layers"
         title="Asistente de análisis"

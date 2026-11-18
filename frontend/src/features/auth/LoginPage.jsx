@@ -46,7 +46,7 @@ export default function LoginPage() {
           </p>
           <dl className="mt-7 grid grid-cols-3 gap-px overflow-hidden rounded-xl border border-white/20" aria-label="Características del sistema">
             {facts.map(fact => (
-              <div key={fact.label} className="grid gap-1 bg-[rgba(10,37,58,0.72)] p-3">
+              <div key={fact.label} className="grid grid-cols-1 gap-1 bg-[rgba(10,37,58,0.72)] p-3">
                 <dt className="m-0 text-xs text-[#d4e1e8]">{fact.label}</dt>
                 <dd className="m-0 text-sm font-bold text-white">{fact.value}</dd>
               </div>
@@ -55,7 +55,7 @@ export default function LoginPage() {
         </div>
 
         <form onSubmit={submit} className="grid content-center gap-4 p-8 md:p-10">
-          <div className="grid gap-1 rounded-xl border border-brand-soft bg-brand-soft/60 p-4 text-sm text-ink">
+          <div className="grid grid-cols-1 gap-1 rounded-xl border border-brand-soft bg-brand-soft/60 p-4 text-sm text-ink">
             <strong className="text-ink-strong">Acceso protegido</strong>
             <span className="text-muted">Ingresa con la cuenta asignada por el administrador.</span>
           </div>

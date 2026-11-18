@@ -17,7 +17,7 @@ const barTone = { brand: 'bg-brand', ai: 'bg-[#d99a1e]', human: 'bg-[#2f9e6b]', 
 function MetricBar({ label, value, total, tone = 'brand' }) {
   const share = total ? Math.min(1, Number(value) / Number(total)) : 0;
   return (
-    <div className="grid gap-1.5">
+    <div className="grid grid-cols-1 gap-1.5">
       <div className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
         <span className="text-ink">{label}</span>
         <strong className="text-ink-strong">{number(value)} · {pct(share)}</strong>
@@ -90,7 +90,7 @@ export default function MetricsPage() {
   const visibleCodes = summary?.topCodes?.slice(0, showAllCodes ? 15 : 6) || [];
 
   return (
-    <div className="grid gap-6">
+    <div className="grid grid-cols-1 gap-6">
       <PageHeader icon="bar-chart" title="Métricas" description="Operación, calidad de datos y desempeño evaluado de una base." />
 
       <DatasetWorkspaceSelector datasets={datasets} selectedId={datasetId} onChange={setDatasetId} />
@@ -99,7 +99,7 @@ export default function MetricsPage() {
 
       {summary && (
         <>
-          <section aria-label="Indicadores principales" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <section aria-label="Indicadores principales" className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {[
               { label: 'Registros', value: number(t.total), hint: `${summary.dataset.period} · versión ${summary.dataset.version}` },
               { label: 'Cobertura resuelta', value: pct(summary.rates.resolved), hint: `${number(t.resolved)} con código final` },
@@ -114,7 +114,7 @@ export default function MetricsPage() {
             ))}
           </section>
 
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <Panel className="grid content-start gap-4 p-5">
               <PanelHeading title="Estado del procesamiento" description="Distribución de todos los registros de esta versión." />
               <ColumnChart
@@ -130,7 +130,7 @@ export default function MetricsPage() {
 
             <Panel className="grid content-start gap-4 p-5">
               <PanelHeading title="Cómo se resolvió" description="Origen de la última decisión registrada." />
-              <div className="grid gap-4">
+              <div className="grid grid-cols-1 gap-4">
                 <MetricBar label="Clasificador automático" value={t.automatic} total={sourceTotal} />
                 <MetricBar label="Asistencia de IA" value={t.ai} total={sourceTotal} tone="ai" />
                 <MetricBar label="Codificación humana" value={t.human} total={sourceTotal} tone="human" />
@@ -139,16 +139,16 @@ export default function MetricsPage() {
             </Panel>
           </div>
 
-          <Panel className="grid gap-4 p-5">
+          <Panel className="grid grid-cols-1 gap-4 p-5">
             <PanelHeading title="Calidad de entrada" description="Campos necesarios antes de interpretar el desempeño." />
-            <dl className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
               {[
                 { term: 'P309 completo', value: pct(summary.rates.completeness), hint: `${number(t.missingP309)} vacíos` },
                 { term: 'Contexto incompleto', value: number(t.missingContext), hint: 'P308 o P308A vacío' },
                 { term: 'Clases observadas', value: number(t.uniqueCodes), hint: 'Con código final' },
                 { term: 'Concentración top 5', value: pct(summary.rates.topFiveConcentration), hint: 'Participación de 5 códigos' },
               ].map(item => (
-                <div key={item.term} className="grid gap-0.5 rounded-lg border border-line bg-[#f8fbff] p-4">
+                <div key={item.term} className="grid grid-cols-1 gap-0.5 rounded-lg border border-line bg-[#f8fbff] p-4">
                   <dt className="text-xs font-semibold text-muted">{item.term}</dt>
                   <dd className="m-0 text-2xl font-bold text-ink-strong">{item.value}</dd>
                   <small className="text-xs text-muted">{item.hint}</small>
@@ -157,10 +157,10 @@ export default function MetricsPage() {
             </dl>
           </Panel>
 
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <Panel className="grid content-start gap-4 p-5">
               <PanelHeading title="Confianza del clasificador" description="Distribución operativa; no equivale a exactitud." />
-              <div className="grid gap-4">
+              <div className="grid grid-cols-1 gap-4">
                 <MetricBar label="0,95 o más" value={t.confidenceBands.high} total={t.total} />
                 <MetricBar label="0,90 a 0,94" value={t.confidenceBands.medium} total={t.total} tone="ai" />
                 <MetricBar label="Menos de 0,90" value={t.confidenceBands.low} total={t.total} tone="human" />
@@ -170,9 +170,9 @@ export default function MetricsPage() {
 
             <Panel className="grid content-start gap-4 p-5">
               <PanelHeading title="Códigos más frecuentes" description="Distribución entre registros resueltos." />
-              <div className="grid gap-3">
+              <div className="grid grid-cols-1 gap-3">
                 {visibleCodes.map(row => (
-                  <div key={row.code} className="grid gap-1.5">
+                  <div key={row.code} className="grid grid-cols-1 gap-1.5">
                     <div className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
                       <span className="min-w-0 truncate text-ink" title={row.description}><strong className="text-ink-strong">{row.code}</strong> · {row.description}</span>
                       <strong className="shrink-0 text-ink-strong">{number(row.count)} · {pct(row.share)}</strong>
@@ -194,17 +194,17 @@ export default function MetricsPage() {
             </Panel>
           </div>
 
-          <Panel className="grid gap-4 p-5">
+          <Panel className="grid grid-cols-1 gap-4 p-5">
             <PanelHeading title="Calidad evaluada" description="Solo usa registros que también tienen una decisión humana de referencia." />
             {evaluated ? (
-              <dl className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 {[
                   { term: 'Casos evaluados', value: number(evaluated), hint: 'Tamaño real de la muestra' },
                   { term: 'Exactitud del clasificador', value: pct(r2.accuracy), hint: 'Top 1 frente a humano' },
                   { term: 'F1 macro del clasificador', value: pct(r2.macroF1), hint: 'Da igual peso a cada clase' },
                   { term: 'Exactitud de la IA', value: r3?.evaluated ? pct(r3.accuracy) : 'Sin muestra', hint: `${number(r3?.evaluated)} casos evaluados` },
                 ].map(item => (
-                  <div key={item.term} className="grid gap-0.5 rounded-lg border border-line bg-[#f8fbff] p-4">
+                  <div key={item.term} className="grid grid-cols-1 gap-0.5 rounded-lg border border-line bg-[#f8fbff] p-4">
                     <dt className="text-xs font-semibold text-muted">{item.term}</dt>
                     <dd className="m-0 text-2xl font-bold text-ink-strong">{item.value}</dd>
                     <small className="text-xs text-muted">{item.hint}</small>

@@ -52,7 +52,7 @@ export default function DatasetWorkspaceSelector({ datasets, selectedId, onChang
   };
 
   return (
-    <section aria-label="Base de datos seleccionada" className="grid gap-3 rounded-2xl border border-line bg-surface p-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] md:items-center">
+    <section aria-label="Base de datos seleccionada" className="grid grid-cols-1 gap-3 rounded-2xl border border-line bg-surface p-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] md:items-center">
       <div ref={root} className="relative grid gap-1.5">
         <span className="text-sm font-semibold text-ink">Base de datos a {noun}</span>
         <button
@@ -68,7 +68,7 @@ export default function DatasetWorkspaceSelector({ datasets, selectedId, onChang
 
         {open && (
           <div className="absolute inset-x-0 top-full z-30 mt-2 grid gap-2 rounded-xl border border-line bg-surface p-3 shadow-lg">
-            <label className="grid gap-1 text-sm font-semibold text-ink">
+            <label className="grid grid-cols-1 gap-1 text-sm font-semibold text-ink">
               Buscar base
               <input
                 ref={searchInput}

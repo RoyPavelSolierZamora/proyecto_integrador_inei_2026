@@ -161,7 +161,7 @@ export default function CriteriaPage() {
   const messageIsSuccess = /guardado|actualizado|enviada|aplicado/i.test(message);
 
   return (
-    <div className="grid gap-6">
+    <div className="grid grid-cols-1 gap-6">
       <PageHeader icon="journal-check" title="Catálogo y criterios" description="Gobierna códigos y reglas sin alterar silenciosamente decisiones anteriores." />
 
       <div role="tablist" aria-label="Gobierno de clasificación" className="flex gap-1 border-b border-line">
@@ -180,7 +180,7 @@ export default function CriteriaPage() {
             No reclasifica bases anteriores ni reentrena el modelo. Sus ejemplos deben incorporarse a un conjunto validado antes de entrenar una nueva versión.
           </Notice>
 
-          <Panel className="grid gap-4 p-5">
+          <Panel className="grid grid-cols-1 gap-4 p-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <PanelHeading title="Criterios registrados" description={`${rules.length} resultado${rules.length === 1 ? '' : 's'}`} />
               <div className="flex flex-wrap items-end gap-2">
@@ -202,15 +202,15 @@ export default function CriteriaPage() {
             </div>
 
             {showRuleForm && canEdit && (
-              <form className="grid gap-4 rounded-xl border border-line bg-[#f8fbff] p-4" onSubmit={submitRule}>
+              <form className="grid grid-cols-1 gap-4 rounded-xl border border-line bg-[#f8fbff] p-4" onSubmit={submitRule}>
                 <h3 className="text-base font-bold text-ink-strong">{editingId ? `Editar criterio #${editingId}` : 'Nuevo criterio'}</h3>
 
-                <div className="grid gap-2">
+                <div className="grid grid-cols-1 gap-2">
                   <Field id="criterio-codigo" label="Vincular código CIIU">
                     <input id="criterio-codigo" type="search" className={inputClass} value={catalogQuery} onChange={event => setCatalogQuery(event.target.value)} placeholder="Escribe código o actividad" required={!form.code} />
                   </Field>
                   {catalog.length > 0 && (
-                    <div className="grid gap-1 rounded-lg border border-line bg-surface p-1">
+                    <div className="grid grid-cols-1 gap-1 rounded-lg border border-line bg-surface p-1">
                       {catalog.map(item => (
                         <button
                           type="button"
@@ -264,20 +264,20 @@ export default function CriteriaPage() {
               </form>
             )}
 
-            <div className="grid gap-3">
+            <div className="grid grid-cols-1 gap-3">
               {rules.map(rule => {
                 const canManageOwn = user.role === 'admin' || Number(rule.createdById) === Number(user.id);
                 return (
-                  <article key={rule.id} className="grid gap-3 rounded-xl border border-line bg-surface p-4">
+                  <article key={rule.id} className="grid grid-cols-1 gap-3 rounded-xl border border-line bg-surface p-4">
                     <header className="flex flex-wrap items-start justify-between gap-2">
-                      <div className="grid gap-1">
+                      <div className="grid grid-cols-1 gap-1">
                         <Badge status={rule.status} />
                         <h3 className="text-base font-bold text-ink-strong">{rule.code} · {rule.title}</h3>
                         <p className="text-sm text-muted">{rule.codeDescription}</p>
                       </div>
                       <span className="text-xs text-muted">#{rule.id}</span>
                     </header>
-                    <div className="grid gap-1 rounded-lg bg-[#f8fbff] p-3 text-sm">
+                    <div className="grid grid-cols-1 gap-1 rounded-lg bg-[#f8fbff] p-3 text-sm">
                       <strong className="text-ink-strong">{rule.pattern}</strong>
                       <p className="text-ink">{rule.guidance}</p>
                     </div>
@@ -301,20 +301,20 @@ export default function CriteriaPage() {
 
       {tab === 'catalog' && (
         <>
-          <section aria-label="Impacto de un cambio de catálogo" className="grid gap-3 md:grid-cols-3">
-            <Panel className="grid gap-1 p-4"><strong className="text-sm text-ink-strong">Disponible de inmediato</strong><span className="text-sm text-muted">Selección manual y nuevos criterios.</span></Panel>
-            <Panel className="grid gap-1 p-4"><strong className="text-sm text-ink-strong">Requiere una nueva versión</strong><span className="text-sm text-muted">Reentrenar el clasificador y sincronizar el catálogo de la asistencia.</span></Panel>
-            <Panel className="grid gap-1 p-4"><strong className="text-sm text-ink-strong">No es retroactivo</strong><span className="text-sm text-muted">Las bases anteriores conservan su trazabilidad.</span></Panel>
+          <section aria-label="Impacto de un cambio de catálogo" className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <Panel className="grid grid-cols-1 gap-1 p-4"><strong className="text-sm text-ink-strong">Disponible de inmediato</strong><span className="text-sm text-muted">Selección manual y nuevos criterios.</span></Panel>
+            <Panel className="grid grid-cols-1 gap-1 p-4"><strong className="text-sm text-ink-strong">Requiere una nueva versión</strong><span className="text-sm text-muted">Reentrenar el clasificador y sincronizar el catálogo de la asistencia.</span></Panel>
+            <Panel className="grid grid-cols-1 gap-1 p-4"><strong className="text-sm text-ink-strong">No es retroactivo</strong><span className="text-sm text-muted">Las bases anteriores conservan su trazabilidad.</span></Panel>
           </section>
 
-          <Panel className="grid gap-4 p-5">
+          <Panel className="grid grid-cols-1 gap-4 p-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <PanelHeading title="Solicitudes de catálogo" description="Solo un administrador puede aplicar un cambio." />
               {canEdit && <Button onClick={() => setShowCatalogForm(value => !value)}>{showCatalogForm ? 'Cerrar formulario' : 'Solicitar cambio'}</Button>}
             </div>
 
             {showCatalogForm && canEdit && (
-              <form className="grid gap-4 rounded-xl border border-line bg-[#f8fbff] p-4" onSubmit={submitCatalogRequest}>
+              <form className="grid grid-cols-1 gap-4 rounded-xl border border-line bg-[#f8fbff] p-4" onSubmit={submitCatalogRequest}>
                 <h3 className="text-base font-bold text-ink-strong">Propuesta documentada</h3>
                 <Field id="catalogo-tipo" label="Tipo de cambio">
                   <select id="catalogo-tipo" className={inputClass} value={catalogForm.type} onChange={event => updateCatalog('type', event.target.value)}>
@@ -343,10 +343,10 @@ export default function CriteriaPage() {
               </form>
             )}
 
-            <div className="grid gap-3">
+            <div className="grid grid-cols-1 gap-3">
               {requests.map(request => (
-                <article key={request.id} className="grid gap-3 rounded-xl border border-line bg-surface p-4 md:grid-cols-2">
-                  <div className="grid gap-1">
+                <article key={request.id} className="grid grid-cols-1 gap-3 rounded-xl border border-line bg-surface p-4 md:grid-cols-2">
+                  <div className="grid grid-cols-1 gap-1">
                     <Badge status={request.status} />
                     <h3 className="text-base font-bold text-ink-strong">{request.code} · {typeLabel[request.type]}</h3>
                     <p className="text-sm text-muted">{request.description || 'Sin nueva descripción'}</p>

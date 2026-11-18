@@ -32,7 +32,7 @@ export default function HistoricalEvidence({ evidence }) {
   return (
     <Panel as="details" className={['group p-5', quality?.nivel === 'baja' ? 'border-[#efc8c4]' : ''].join(' ')}>
       <summary className="flex cursor-pointer list-none items-center justify-between gap-4">
-        <div className="grid gap-1">
+        <div className="grid grid-cols-1 gap-1">
           <p className="text-xs font-semibold uppercase tracking-wide text-brand">Referencia histórica</p>
           <h2 className="text-base font-bold text-ink-strong">{similarCases.length ? 'Casos anteriores similares' : 'Calidad de la respuesta'}</h2>
           <p className="text-sm text-muted">
@@ -46,13 +46,13 @@ export default function HistoricalEvidence({ evidence }) {
 
       <div className="mt-4 grid gap-3">
         {warning && (
-          <div role="note" className="grid gap-1 rounded-lg border border-[#efc8c4] bg-danger-soft p-3 text-sm text-danger">
+          <div role="note" className="grid grid-cols-1 gap-1 rounded-lg border border-[#efc8c4] bg-danger-soft p-3 text-sm text-danger">
             <strong>{qualityLabels[quality.nivel]}</strong>
             <span>{warning.replace(`${qualityLabels[quality.nivel]}: `, '').replace(`${qualityLabels[quality.nivel]}.`, 'Revisa el texto antes de decidir.')}</span>
           </div>
         )}
         {similarCases.length > 0 && (
-          <div className="grid gap-3 md:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
             {similarCases.map((item, index) => (
               <article key={`${item.codigo}-${index}`} className="grid content-start gap-2 rounded-lg border border-line bg-[#f8fbff] p-3">
                 <div className="flex items-center justify-between gap-2">

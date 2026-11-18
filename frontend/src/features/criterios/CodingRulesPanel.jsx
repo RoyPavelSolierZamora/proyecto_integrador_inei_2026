@@ -19,11 +19,11 @@ export default function CodingRulesPanel({ datasetId, caseId }) {
   }, [datasetId, caseId]);
 
   return (
-    <Panel className="grid gap-3 p-5">
+    <Panel className="grid grid-cols-1 gap-3 p-5">
       <PanelHeading title="Reglas vigentes relacionadas" description="Se muestran solo criterios aprobados. Son apoyo para revisar el contexto, no decisiones automáticas." />
       {error && <Notice tone="error">{error}</Notice>}
       {rules.length > 0 && (
-        <div className="grid gap-3 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           {rules.map(rule => (
             <article key={rule.id} className="grid content-start gap-1.5 rounded-lg border border-line bg-[#f8fbff] p-3">
               <header className="flex flex-wrap items-baseline justify-between gap-2">

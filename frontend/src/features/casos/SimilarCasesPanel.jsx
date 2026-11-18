@@ -18,13 +18,13 @@ export default function SimilarCasesPanel({ datasetId, caseId }) {
   }, [datasetId, caseId]);
 
   return (
-    <Panel className="grid gap-3 p-5">
+    <Panel className="grid grid-cols-1 gap-3 p-5">
       <PanelHeading title="Cómo se clasificaron observaciones relacionadas" description="Resultados de otras bases cargadas. Son referencias, no reglas automáticas." />
       {state.loading && <p role="status" className="text-sm text-muted">Buscando antecedentes…</p>}
       {state.error && <Notice tone="error">{state.error}</Notice>}
       {!state.loading && !state.error && !state.rows.length && <p className="text-sm text-muted">No se encontraron observaciones históricas relacionadas.</p>}
       {!!state.rows.length && (
-        <div className="grid gap-3 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           {state.rows.slice(0, 8).map(row => (
             <article key={`${row.datasetId}-${row.externalId}`} className="grid content-start gap-1.5 rounded-lg border border-line bg-[#f8fbff] p-3">
               <div className="flex flex-wrap items-baseline justify-between gap-2">

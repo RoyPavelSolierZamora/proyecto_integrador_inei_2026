@@ -8,7 +8,7 @@ export default function DatasetCsvUpload({ file, disabled, reading, onSelect, on
   const [showGuide, setShowGuide] = useState(false);
 
   return (
-    <div className="grid gap-3">
+    <div className="grid grid-cols-1 gap-3">
       <div
         aria-label="Soltar CSV original"
         onDragOver={event => { event.preventDefault(); if (!disabled) setDragging(true); }}
@@ -44,7 +44,7 @@ export default function DatasetCsvUpload({ file, disabled, reading, onSelect, on
       </div>
 
       {showGuide && (
-        <div className="grid gap-2 rounded-lg border border-line bg-[#f8fbff] p-4 text-sm leading-relaxed text-muted">
+        <div className="grid grid-cols-1 gap-2 rounded-lg border border-line bg-[#f8fbff] p-4 text-sm leading-relaxed text-muted">
           <p><strong className="text-ink-strong">Obligatorias:</strong> <code>id_registro</code> (o <code>id_c200</code>) y <code>p309</code> (o <code>c309</code>). Identificadores únicos y texto abierto.</p>
           <p><strong className="text-ink-strong">Opcionales:</strong> <code>p308</code>, <code>p308a</code>, <code>c309_1</code>, <code>c310</code>, <code>c311</code> y <code>c366</code> (hasta 160 caracteres).</p>
         </div>

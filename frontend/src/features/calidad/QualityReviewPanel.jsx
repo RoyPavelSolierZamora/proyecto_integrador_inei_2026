@@ -56,11 +56,11 @@ export default function QualityReviewPanel({ datasetId, caseId, currentCode, can
   }
 
   return (
-    <Panel className="grid gap-4 p-5">
+    <Panel className="grid grid-cols-1 gap-4 p-5">
       <PanelHeading title="Revisión formal" description="Una tasa de error solo se calcula a partir de estas revisiones registradas." />
 
       {canReview && (
-        <form className="grid gap-4" onSubmit={submit}>
+        <form className="grid grid-cols-1 gap-4" onSubmit={submit}>
           <Field id="calidad-resultado" label="Resultado">
             <select id="calidad-resultado" className={inputClass} value={verdict} onChange={event => setVerdict(event.target.value)}>
               <option value="correct">Decisión correcta</option>
@@ -70,7 +70,7 @@ export default function QualityReviewPanel({ datasetId, caseId, currentCode, can
           </Field>
 
           {verdict === 'incorrect' && (
-            <div className="grid gap-3">
+            <div className="grid grid-cols-1 gap-3">
               <Field id="calidad-codigo" label="Buscar el código correcto">
                 <input
                   id="calidad-codigo"
@@ -114,9 +114,9 @@ export default function QualityReviewPanel({ datasetId, caseId, currentCode, can
       {message && <p role="status" className="text-sm text-muted">{message}</p>}
 
       {reviews.length > 0 && (
-        <ul className="grid gap-3">
+        <ul className="grid grid-cols-1 gap-3">
           {reviews.map(review => (
-            <li key={review.id} className="grid gap-1 rounded-lg border border-line bg-[#f8fbff] p-3 text-sm">
+            <li key={review.id} className="grid grid-cols-1 gap-1 rounded-lg border border-line bg-[#f8fbff] p-3 text-sm">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <strong className="text-ink-strong">{verdictLabel[review.verdict]}</strong>
                 <span className="text-xs text-muted">{new Date(review.at).toLocaleString('es-PE')}</span>

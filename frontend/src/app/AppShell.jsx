@@ -66,7 +66,7 @@ export default function AppShell() {
           <EpenIcon name={open ? 'x-lg' : 'list'} />
         </button>
         <div className="flex min-w-0 items-center gap-4">
-          <EpenIcon name="layers" />
+          <span className="hidden sm:block"><EpenIcon name="layers" /></span>
           <span className="hidden h-8 w-px bg-[#9bacbf] sm:block" aria-hidden="true" />
           <div className="min-w-0">
             <strong className="block truncate text-lg font-bold text-ink-strong md:text-2xl">Codificación EPEN</strong>
@@ -103,9 +103,9 @@ export default function AppShell() {
           </span>
           <strong className="text-3xl font-bold leading-8 tracking-tight">EPEN</strong>
         </div>
-        <nav className="grid gap-5">
+        <nav className="grid grid-cols-1 gap-5">
           {groups.map(group => (
-            <section key={group} className="grid gap-1">
+            <section key={group} className="grid grid-cols-1 gap-1">
               <h2 className="px-3.5 text-[11px] font-bold uppercase tracking-wider text-[#62758d]">{group}</h2>
               {items.filter(item => item.group === group).map(item => (
                 <NavLink key={item.to} to={item.to} end={item.end} onClick={() => setOpen(false)} className={navLinkClass}>

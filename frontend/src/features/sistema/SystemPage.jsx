@@ -33,19 +33,19 @@ export default function SystemPage() {
   ];
 
   return (
-    <div className="grid gap-6">
+    <div className="grid grid-cols-1 gap-6">
       <PageHeader
         icon="gear"
         title="Estado del sistema"
         description="Comprueba el asistente de IA sin exponer servicios internos al navegador."
       />
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Panel className="p-5">
           <PanelHeading title="Entorno de procesamiento" />
           <dl className="divide-y divide-line">
             {settings.map(([term, value]) => (
-              <div key={term} className="grid gap-1 py-3 sm:grid-cols-[180px_1fr]">
+              <div key={term} className="grid grid-cols-1 gap-1 py-3 sm:grid-cols-[180px_1fr]">
                 <dt className="text-sm font-semibold text-muted">{term}</dt>
                 <dd className="m-0 text-sm text-ink-strong">{value}</dd>
               </div>

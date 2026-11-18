@@ -26,7 +26,7 @@ export default function HomePage() {
   else if (canLoad) primaryAction = <Link className={buttonClass()} to="/bases">Procesar nueva base</Link>;
 
   return (
-    <div className="grid gap-6">
+    <div className="grid grid-cols-1 gap-6">
       <PageHeader
         icon="house-door"
         title={`Buenos días, ${firstName}`}
@@ -34,9 +34,9 @@ export default function HomePage() {
         actions={primaryAction}
       />
 
-      <section aria-label="Indicadores principales" className="grid gap-4 sm:grid-cols-3">
+      <section aria-label="Indicadores principales" className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         {indicators.map(indicator => (
-          <Panel key={indicator.key} className="grid gap-1 p-5">
+          <Panel key={indicator.key} className="grid grid-cols-1 gap-1 p-5">
             <span className="text-sm font-semibold text-muted">{indicator.label}</span>
             <strong className="text-3xl font-bold text-ink-strong">{metrics[indicator.key]}</strong>
             <small className="text-xs text-muted">{indicator.hint}</small>

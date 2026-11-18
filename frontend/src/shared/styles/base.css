@@ -90,3 +90,12 @@ table {
   outline: 2px solid #0759bb;
   outline-offset: 2px;
 }
+
+/*
+ * Un grid sin columnas explícitas ocupa solo el ancho disponible. Sin esta regla, una
+ * columna "auto" crece con el texto más largo y empuja la pantalla en móvil.
+ * Las utilidades grid-cols-* posteriores siguen teniendo prioridad.
+ */
+.grid {
+  grid-template-columns: minmax(0, 1fr);
+}

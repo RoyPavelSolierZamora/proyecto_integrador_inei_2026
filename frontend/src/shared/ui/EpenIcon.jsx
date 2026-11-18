@@ -93,5 +93,5 @@ const icons = {
   'send': <path d="m15.854.146-6.5 15a.5.5 0 0 1-.93-.058l-2.04-6.803L.312 5.25a.5.5 0 0 1 .053-.918l15-4.25a.5.5 0 0 1 .49.064zM6.7 7.457l1.72 5.733 4.92-11.353zm5.78-5.02L1.89 5.44l4.35 2.175z"/>,
 };
 export default function EpenIcon({name,className=''}) {
-  return <svg viewBox="0 0 16 16" fill="currentColor" className={'epen-icon '+className} aria-hidden="true" focusable="false">{icons[name]}</svg>;
+  return <svg viewBox="0 0 16 16" fill="currentColor" className={'size-5 shrink-0 '+className} aria-hidden="true" focusable="false">{icons[name]}</svg>;
 }

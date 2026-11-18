@@ -94,7 +94,7 @@ export default function CaseDetailPage() {
   if (workspaceLoading) return <Notice>Cargando registro…</Notice>;
   if (!item) {
     return (
-      <div className="grid gap-3">
+      <div className="grid grid-cols-1 gap-3">
         <h1 className="text-2xl font-bold text-ink-strong">Registro no encontrado</h1>
         <p className="text-sm text-muted">{workspaceError || 'El registro no pertenece a la base seleccionada.'}</p>
         <Link to={backTarget} className="text-sm font-semibold text-brand hover:underline">Volver a la bandeja</Link>
@@ -148,13 +148,13 @@ export default function CaseDetailPage() {
   const unsupported = item.evidencia_r2?.calibracion === 'softmax-sin-calibrar';
 
   return (
-    <div className="grid gap-6">
+    <div className="grid grid-cols-1 gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <button type="button" className="text-sm font-semibold text-brand hover:underline" onClick={() => navigate(backTarget)}>← Volver a codificación</button>
         <StatusBadge status={item.estado} />
       </div>
 
-      <header className="grid gap-1">
+      <header className="grid grid-cols-1 gap-1">
         <span className="text-sm font-semibold text-muted">{selectedDataset.name}</span>
         <h1 className="text-2xl font-bold tracking-tight text-ink-strong md:text-3xl">Revisión de actividad económica</h1>
         <span className="break-all text-sm text-muted">Registro: {item.id_registro}</span>
@@ -163,12 +163,12 @@ export default function CaseDetailPage() {
       {notice && <Notice tone="success">{notice}</Notice>}
       {error && <Notice tone="error">{error}</Notice>}
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
         <Panel className="grid content-start gap-4 p-5">
           <PanelHeading title="Respuesta de la encuesta" description="Información original, sin cambios." />
-          <dl className="grid gap-3">
+          <dl className="grid grid-cols-1 gap-3">
             {survey.map(([code, label, key, fallback]) => (
-              <div key={code} className="grid gap-0.5 border-b border-line pb-3 last:border-0">
+              <div key={code} className="grid grid-cols-1 gap-0.5 border-b border-line pb-3 last:border-0">
                 <dt className="text-xs font-semibold text-muted">{code} · {label}</dt>
                 <dd className="m-0 text-sm text-ink-strong">{item[key] || fallback}</dd>
               </div>
@@ -190,7 +190,7 @@ export default function CaseDetailPage() {
             <p>El código CIIU identifica una actividad económica. El porcentaje indica la confianza de la sugerencia, no garantiza su corrección. Compara la respuesta original y la información complementaria antes de confirmar.</p>
           </ContextHelp>
 
-          <div role="radiogroup" aria-label="Códigos sugeridos" className="grid gap-2">
+          <div role="radiogroup" aria-label="Códigos sugeridos" className="grid grid-cols-1 gap-2">
             {item.candidatos.map(candidate => {
               const isSelected = selected === candidate.codigo;
               return (
@@ -213,7 +213,7 @@ export default function CaseDetailPage() {
             <p className="text-sm text-muted">El clasificador no produjo candidatos. Este caso requiere selección manual desde el catálogo.</p>
           )}
           {item.qwen && (
-            <div className="grid gap-1 rounded-xl border border-brand-soft bg-[#f8fbff] p-4">
+            <div className="grid grid-cols-1 gap-1 rounded-xl border border-brand-soft bg-[#f8fbff] p-4">
               <div className="flex items-baseline gap-2 text-sm">
                 <span className="text-muted">IA sugiere</span>
                 <strong className="text-ink-strong">{item.qwen.codigo || 'Revisión'}</strong>
@@ -225,8 +225,8 @@ export default function CaseDetailPage() {
       </div>
 
       {canDecide && (
-        <section aria-label="Decisión del analista" className="sticky bottom-0 z-10 flex flex-col gap-3 rounded-2xl border border-line bg-surface p-4 shadow-lg md:flex-row md:items-center md:justify-between">
-          <div className="grid gap-0.5">
+        <section aria-label="Decisión del analista" className="flex md:sticky md:bottom-0 md:z-10 flex-col gap-3 rounded-2xl border border-line bg-surface p-4 shadow-lg md:flex-row md:items-center md:justify-between">
+          <div className="grid grid-cols-1 gap-0.5">
             <span className="text-xs font-semibold text-muted">Código seleccionado</span>
             <strong className="text-lg text-ink-strong">{selected || 'Sin código seleccionado'}</strong>
           </div>
@@ -240,10 +240,10 @@ export default function CaseDetailPage() {
 
       <HistoricalEvidence evidence={item.evidencia_r2} />
 
-      <div className="grid gap-3">
+      <div className="grid grid-cols-1 gap-3">
         <details className="group rounded-2xl border border-line bg-surface p-5">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-4">
-            <div className="grid gap-0.5">
+            <div className="grid grid-cols-1 gap-0.5">
               <p className="text-xs font-semibold uppercase tracking-wide text-brand">Consulta opcional</p>
               <h2 className="text-base font-bold text-ink-strong">Antecedentes y criterios relacionados</h2>
             </div>
@@ -258,7 +258,7 @@ export default function CaseDetailPage() {
         {['supervisor', 'auditor', 'admin'].includes(user.role) && (
           <details className="group rounded-2xl border border-line bg-surface p-5">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-4">
-              <div className="grid gap-0.5">
+              <div className="grid grid-cols-1 gap-0.5">
                 <p className="text-xs font-semibold uppercase tracking-wide text-brand">Solo para muestras supervisadas</p>
                 <h2 className="text-base font-bold text-ink-strong">Control de calidad formal</h2>
               </div>
@@ -278,7 +278,7 @@ export default function CaseDetailPage() {
       >
         <div className="grid max-h-[85vh] grid-rows-[auto_auto_minmax(0,1fr)_auto_auto] gap-3 p-5">
           <form method="dialog" className="flex items-start justify-between gap-3">
-            <div className="grid gap-0.5">
+            <div className="grid grid-cols-1 gap-0.5">
               <p className="text-xs font-semibold uppercase tracking-wide text-brand">Catálogo CIIU Rev.4</p>
               <h2 className="text-lg font-bold text-ink-strong">Seleccionar otro código CIIU</h2>
             </div>

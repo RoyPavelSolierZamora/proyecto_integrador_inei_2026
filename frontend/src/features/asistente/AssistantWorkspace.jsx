@@ -35,7 +35,7 @@ function AssistantChart({ response }) {
     const rows = data.topCodes.slice(0, 6);
     const maximum = Math.max(...rows.map(row => row.count), 1);
     return (
-      <section aria-label="Códigos más frecuentes" className="grid gap-3 rounded-xl border border-line bg-[#f8fbff] p-3">
+      <section aria-label="Códigos más frecuentes" className="grid grid-cols-1 gap-3 rounded-xl border border-line bg-[#f8fbff] p-3">
         <h3 className="text-sm font-bold text-ink-strong">Códigos más frecuentes</h3>
         {rows.map(row => <Bar key={row.code} label={`${row.code} · ${row.description}`} value={row.count} max={maximum} />)}
       </section>
@@ -44,13 +44,13 @@ function AssistantChart({ response }) {
 
   if (response.intent === 'compare_datasets' && data.codeChanges?.length) {
     return (
-      <section aria-label="Cambios principales" className="grid gap-3 rounded-xl border border-line bg-[#f8fbff] p-3">
+      <section aria-label="Cambios principales" className="grid grid-cols-1 gap-3 rounded-xl border border-line bg-[#f8fbff] p-3">
         <header className="flex flex-wrap items-baseline justify-between gap-2">
           <h3 className="text-sm font-bold text-ink-strong">Cambios principales</h3>
           <div className="flex gap-3 text-xs text-muted"><span>{data.left.dataset.period}</span><span>{data.right.dataset.period}</span></div>
         </header>
         {data.codeChanges.slice(0, 6).map(row => (
-          <article key={row.code} className="grid gap-1.5 border-t border-line pt-2 first:border-0 first:pt-0">
+          <article key={row.code} className="grid grid-cols-1 gap-1.5 border-t border-line pt-2 first:border-0 first:pt-0">
             <div className="flex items-baseline justify-between gap-2 text-sm">
               <span className="min-w-0"><strong className="text-ink-strong">{row.code}</strong> <span className="truncate text-muted" title={row.description}>{row.description}</span></span>
               <b className={['shrink-0 text-xs', row.change > 0 ? 'text-[#05603a]' : row.change < 0 ? 'text-danger' : 'text-muted'].join(' ')}>
@@ -70,7 +70,7 @@ function AssistantChart({ response }) {
   if (response.intent === 'quality_control' && data.coders?.some(row => row.reviewed)) {
     const rows = data.coders.filter(row => row.reviewed).slice(0, 6);
     return (
-      <section aria-label="Error confirmado sobre revisados" className="grid gap-3 rounded-xl border border-line bg-[#f8fbff] p-3">
+      <section aria-label="Error confirmado sobre revisados" className="grid grid-cols-1 gap-3 rounded-xl border border-line bg-[#f8fbff] p-3">
         <h3 className="text-sm font-bold text-ink-strong">Error confirmado</h3>
         {rows.map(row => (
           <Bar key={row.id} label={row.name} detail={`${row.reviewed} revisados`} value={Number(row.errorRate || 0) * 100} max={100} tone="bg-danger" display={pct(row.errorRate)} />
@@ -83,7 +83,7 @@ function AssistantChart({ response }) {
     const rows = data.contexts.slice(0, 6);
     const maximum = Math.max(...rows.map(row => row.count), 1);
     return (
-      <section aria-label="Cruce de ocupación y actividad" className="grid gap-3 rounded-xl border border-line bg-[#f8fbff] p-3">
+      <section aria-label="Cruce de ocupación y actividad" className="grid grid-cols-1 gap-3 rounded-xl border border-line bg-[#f8fbff] p-3">
         <h3 className="text-sm font-bold text-ink-strong">Contextos ocupacionales</h3>
         {rows.map(row => (
           <Bar key={row.occupation} label={row.occupation} detail={row.dominantCode ? `Código frecuente ${row.dominantCode}` : 'Sin código final'} value={row.count} max={maximum} />
@@ -113,8 +113,8 @@ function downloadComparison(response) {
 function DatasetSelects({ datasets, datasetId, setDatasetId, compareDatasetId, setCompareDatasetId, elevated, id }) {
   const others = datasets.filter(item => String(item.id) !== String(datasetId));
   return (
-    <div className="grid gap-3">
-      <label className="grid gap-1 text-sm font-semibold text-ink" htmlFor={`${id}-base`}>
+    <div className="grid grid-cols-1 gap-3">
+      <label className="grid grid-cols-1 gap-1 text-sm font-semibold text-ink" htmlFor={`${id}-base`}>
         Base principal
         <select id={`${id}-base`} className={inputClass} value={datasetId} onChange={event => setDatasetId(event.target.value)}>
           <option value="">Sin base</option>
@@ -122,7 +122,7 @@ function DatasetSelects({ datasets, datasetId, setDatasetId, compareDatasetId, s
         </select>
       </label>
       {elevated && (
-        <label className="grid gap-1 text-sm font-semibold text-ink" htmlFor={`${id}-comparar`}>
+        <label className="grid grid-cols-1 gap-1 text-sm font-semibold text-ink" htmlFor={`${id}-comparar`}>
           Comparar con
           <select id={`${id}-comparar`} className={inputClass} value={compareDatasetId} onChange={event => setCompareDatasetId(event.target.value)}>
             <option value="">No comparar</option>
@@ -281,7 +281,7 @@ export default function AssistantWorkspace({ compact = false, caseExternalId = n
           </div>
 
           <form
-            className="grid gap-2 border-t border-line p-3"
+            className="grid grid-cols-1 gap-2 border-t border-line p-3"
             onSubmit={event => { event.preventDefault(); send(); }}
           >
             <label htmlFor={inputId} className="sr-only">Pregunta</label>

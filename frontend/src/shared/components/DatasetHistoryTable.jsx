@@ -18,7 +18,7 @@ const mobileLabel = 'text-xs font-semibold text-muted md:hidden';
 
 export default function DatasetHistoryTable({ datasets, activeId, admin, saving, exportingId, onActivate, onExport }) {
   return (
-    <div role="list" aria-label="Historial de bases" className="grid gap-3 md:gap-0">
+    <div role="list" aria-label="Historial de bases" className="grid grid-cols-1 gap-3 md:gap-0">
       <div aria-hidden="true" className="hidden grid-cols-[2fr_1fr_1.4fr_0.8fr_1fr_auto] gap-3 border-b border-line pb-2 text-xs font-semibold text-muted md:grid">
         <span>Base</span><span>Periodo</span><span>Importación</span><span>Registros</span><span>Estado</span><span>Acciones</span>
       </div>
