@@ -41,3 +41,10 @@ test('calcula variaciones comparables por proporción', () => {
 test('la ayuda explica el umbral sin inventar métricas', () => {
   assert.match(helpAnswer('¿Qué es el umbral 0,95?'), /prioriza precisión/i);
 });
+
+test('separa los temas de ayuda conocidos de las preguntas abiertas', async () => {
+  const { hasHelpTopic, codesInQuestion } = await import('../src/services/insights.js');
+  assert.equal(hasHelpTopic('¿Cómo cargo un CSV?'), true);
+  assert.equal(hasHelpTopic('Explica en palabras sencillas el grupo 7223'), false);
+  assert.deepEqual(codesInQuestion('Qué es la 7223 y diferencia entre 2310 y 2320'), ['7223', '2310', '2320']);
+});

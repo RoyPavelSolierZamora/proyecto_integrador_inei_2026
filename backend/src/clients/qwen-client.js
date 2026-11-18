@@ -93,3 +93,31 @@ export async function classifyWithQwen(config, item, { signal } = {}) {
   return { result, review, code };
 }
 
+
+// Chat abierto con el mismo servicio remoto, sin el adaptador de clasificación.
+// Solo se usa para preguntas de texto libre; nunca cambia una decisión de codificación.
+export async function askQwenChat(config, { question, context = '' }) {
+  if (config.r3Mode !== 'remote' || !config.r3BaseUrl) {
+    throw httpError(503, 'El chat de IA requiere el servicio remoto de Colab.');
+  }
+  let response;
+  try {
+    response = await fetch(`${config.r3BaseUrl}/chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        ...(config.r3ApiToken ? { Authorization: `Bearer ${config.r3ApiToken}` } : {}),
+      },
+      body: JSON.stringify({ pregunta: question, contexto: context }),
+      signal: AbortSignal.timeout(60_000),
+    });
+  } catch (cause) {
+    throw httpError(503, cause.name === 'TimeoutError'
+      ? 'El chat de IA no respondió a tiempo.'
+      : 'No se pudo conectar con el chat de IA.');
+  }
+  if (!response.ok) throw httpError(503, `El chat de IA respondió ${response.status}.`);
+  const result = await response.json();
+  return String(result.respuesta || '').trim();
+}

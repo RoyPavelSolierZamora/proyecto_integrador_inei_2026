@@ -30,6 +30,17 @@ export function detectAssistantIntent(question, { compareDatasetId, caseExternal
   return 'help';
 }
 
+// true si la pregunta coincide con un tema de ayuda de uso conocido.
+export function hasHelpTopic(question) {
+  const text = normalizeQuestion(question);
+  return HELP_TOPICS.some(topic => topic.terms.some(term => text.includes(normalizeQuestion(term))));
+}
+
+// Códigos de cuatro dígitos que aparecen en la pregunta (para dar contexto oficial al chat).
+export function codesInQuestion(question) {
+  return [...new Set(String(question || '').match(/\b\d{4}\b/g) || [])].slice(0, 5);
+}
+
 export function helpAnswer(question) {
   const text = normalizeQuestion(question);
   let best = null;

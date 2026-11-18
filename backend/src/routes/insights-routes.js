@@ -2,7 +2,9 @@ import { createHash } from 'node:crypto';
 import express from 'express';
 import { getPool } from '../db/pool.js';
 import { requireAuth, requireCsrf, requireRole } from '../security/middleware.js';
-import { compareCodeRows, detectAssistantIntent, greetingAnswer, helpAnswer } from '../services/insights.js';
+import { compareCodeRows, codesInQuestion, detectAssistantIntent, greetingAnswer, hasHelpTopic, helpAnswer } from '../services/insights.js';
+import { askQwenChat } from '../clients/qwen-client.js';
+import { getConfig } from '../config.js';
 import { workspaceIndicators } from '../services/workspace-indicators.js';
 
 function httpError(status, message) {
@@ -302,7 +304,22 @@ export function createInsightsRouter() {
       if (!datasetId) throw httpError(400, 'Selecciona una base para revisar control de calidad.');
       data = await qualitySummary(getPool(), datasetId); answer = qualityAnswer(data);
     } else if (intent === 'greeting') answer = greetingAnswer(req.auth.user.name);
-    else answer = helpAnswer(question);
+    else if (intent === 'help' && hasHelpTopic(question)) answer = helpAnswer(question);
+    else {
+      // Pregunta abierta: el chat responde con el contexto oficial del catálogo CIIU.
+      // Es independiente de la clasificación; si el chat no está disponible, se explica sin inventar.
+      const codes = codesInQuestion(question);
+      const catalog = codes.length
+        ? await getPool().query('SELECT code, description FROM epen.ciiu_catalog WHERE code = ANY($1::text[]) AND active = true', [codes])
+        : { rows: [] };
+      const context = catalog.rows.map(row => `CIIU ${row.code}: ${row.description}`).join('\n');
+      try {
+        answer = await askQwenChat(getConfig(), { question, context });
+      } catch {
+        answer = helpAnswer(question);
+      }
+      if (!answer) answer = helpAnswer(question);
+    }
     await getPool().query(`
       INSERT INTO epen.assistant_query_log (user_id, role, dataset_id, compare_dataset_id, case_id, intent, question_hash)
       SELECT $1, $2, selected.id, compared.id, c.id, $5, $6 FROM (SELECT 1) seed

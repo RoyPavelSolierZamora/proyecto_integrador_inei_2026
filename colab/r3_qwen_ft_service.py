@@ -1,5 +1,6 @@
 """Servicio R3 con Qwen2.5 7B ajustado. No persiste respuestas de encuesta."""
 import csv
+import json
 import os
 import threading
 import time
@@ -9,6 +10,16 @@ from pathlib import Path
 import torch
 import r3_gpu_service as common
 from r3_qwen_ft_contract import SYSTEM, PROMPT_VERSION, build_prompt, parse_output
+
+# Chat: usa el mismo modelo base pero SIN el adaptador de clasificación. Comparte el candado
+# de inferencia, así una respuesta de chat no se mezcla con una clasificación en curso.
+CHAT_SYSTEM = (
+    'Eres el asistente de codificación CIIU Rev.4 del proyecto EPEN. Responde en español, '
+    'en pocas oraciones y con claridad. Usa solo el contexto oficial que se te entrega. '
+    'Si la respuesta no está en el contexto, dilo y sugiere consultar las notas oficiales. '
+    'No inventes códigos ni datos.'
+)
+MAX_CHAT_BODY = 16 * 1024
 
 MODEL_NAME = 'qwen2.5-7b-ciiu-ajustado-v1'
 model = None
@@ -48,7 +59,47 @@ def classify(item):
             'requiere_revision': int(result['decision'] == 'revision_humana'),
             'modelo': f'{MODEL_NAME}|prompt={PROMPT_VERSION}', 'latencia_s': round(time.perf_counter() - started, 4)}
 
+def chat(body):
+    if model is None or tokenizer is None:
+        raise RuntimeError('El modelo no ha terminado de cargar.')
+    if not isinstance(body, dict):
+        raise ValueError('La solicitud debe ser un objeto JSON.')
+    question = str(body.get('pregunta') or '').strip()
+    context = str(body.get('contexto') or '').strip()[:6000]
+    if not 3 <= len(question) <= 800:
+        raise ValueError('La pregunta debe tener entre 3 y 800 caracteres.')
+    messages = [
+        {'role': 'system', 'content': CHAT_SYSTEM},
+        {'role': 'user', 'content': f'Contexto oficial:\n{context or "(sin contexto)"}\n\nPregunta: {question}'},
+    ]
+    started = time.perf_counter()
+    with inference_lock:
+        text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+        inputs = tokenizer(text, return_tensors='pt').to(model.device)
+        with model.disable_adapter(), torch.inference_mode():
+            generated = model.generate(**inputs, max_new_tokens=320, do_sample=False,
+                                       repetition_penalty=1.05, pad_token_id=tokenizer.eos_token_id)
+        answer = tokenizer.decode(generated[0][inputs['input_ids'].shape[1]:], skip_special_tokens=True).strip()
+    return {'respuesta': answer, 'modelo': 'qwen2.5-7b-instruct-base',
+            'latencia_s': round(time.perf_counter() - started, 4)}
+
 class Handler(common.Handler):
+    def do_POST(self):
+        if self.path.rstrip('/') != '/chat':
+            return super().do_POST()
+        if not self.authorized():
+            return self.send_json({'error': 'No autorizado.'}, 401)
+        try:
+            length = int(self.headers.get('Content-Length') or 0)
+            if not 0 < length <= MAX_CHAT_BODY:
+                return self.send_json({'error': 'Tamaño de solicitud inválido.'}, 413)
+            body = json.loads(self.rfile.read(length).decode('utf-8'))
+            return self.send_json(chat(body))
+        except (ValueError, UnicodeDecodeError, json.JSONDecodeError) as error:
+            return self.send_json({'error': str(error)}, 400)
+        except Exception as error:
+            return self.send_json({'error': f'Fallo interno del chat: {error}'}, 500)
+
     def do_GET(self):
         if not self.authorized():
             return self.send_json({'error': 'No autorizado.'}, 401)
