@@ -1,7 +1,7 @@
-// Gráficos sin dependencias externas. Criterios:
-// - Cada valor se lee en texto (no depende solo del color).
+// Gráficos de barras verticales, sin dependencias externas.
+// - Cada columna muestra su valor en texto encima; el color no es el único canal.
+// - Escala con líneas de referencia para leer la altura con precisión.
 // - Paleta apta para daltonismo: azul, naranja y gris, sin pares rojo-verde.
-// - Las barras horizontales dejan espacio para etiquetas largas.
 
 export const chartColors = {
   primary: '#0759bb',
@@ -21,108 +21,75 @@ export function formatNumber(value) {
   return numberFormat.format(Number(value || 0));
 }
 
-// Barra horizontal con etiqueta, valor y una marca opcional (por ejemplo, un umbral).
-export function Meter({ label, value, color = chartColors.primary, marker, markerLabel, detail }) {
-  const width = Number.isFinite(value) ? Math.max(0, Math.min(1, value)) * 100 : 0;
+const PLOT_HEIGHT = 'h-56';
+const TICKS = [1, 0.75, 0.5, 0.25, 0];
+
+// Gráfico de columnas verticales.
+// items: [{ label, height (0–1), display, color, detail }]
+// threshold (0–1) dibuja una línea de referencia punteada con su etiqueta.
+export function VerticalBars({ items, ariaLabel, threshold, thresholdLabel, footnote, axis = true }) {
+  const hasThreshold = Number.isFinite(threshold);
   return (
-    <div className="grid gap-1.5">
-      <div className="flex items-baseline justify-between gap-3">
-        <span className="min-w-0 text-sm text-ink">{label}</span>
-        <strong className="shrink-0 text-sm tabular-nums text-ink-strong">{Number.isFinite(value) ? formatPercent(value) : 'N/D'}</strong>
-      </div>
-      <div className="relative h-2.5 rounded-full bg-line" role="presentation">
-        <span className="absolute inset-y-0 left-0 rounded-full transition-[width]" style={{ width: `${width}%`, background: color }} />
-        {Number.isFinite(marker) && (
-          <span
-            className="absolute -top-1 bottom-[-4px] w-0.5 bg-ink-strong"
-            style={{ left: `${Math.max(0, Math.min(1, marker)) * 100}%` }}
-            title={markerLabel}
-            aria-hidden="true"
-          />
+    <figure aria-label={ariaLabel} className="grid gap-2">
+      <div className={axis ? "grid grid-cols-[2.25rem_minmax(0,1fr)] gap-2" : "grid grid-cols-1 gap-2"}>
+        {axis && (
+        <div aria-hidden="true" className={`${PLOT_HEIGHT} flex flex-col justify-between text-right font-mono text-[11px] leading-none tabular-nums text-muted`}>
+          {TICKS.map(tick => <span key={tick}>{Math.round(tick * 100)}</span>)}
+        </div>
         )}
-      </div>
-      {detail && <small className="text-xs text-muted">{detail}</small>}
-    </div>
-  );
-}
 
-// Barra apilada 100 %: muestra la composición de un total y etiqueta cada segmento.
-export function StackedBar({ segments, total, ariaLabel }) {
-  const sum = total || segments.reduce((acc, item) => acc + item.value, 0) || 1;
-  return (
-    <div className="grid gap-3">
-      <div role="img" aria-label={ariaLabel} className="flex h-4 overflow-hidden rounded-full bg-line">
-        {segments.map(segment => (
-          <span
-            key={segment.label}
-            title={`${segment.label}: ${formatNumber(segment.value)}`}
-            style={{ width: `${(segment.value / sum) * 100}%`, background: segment.color }}
-          />
-        ))}
-      </div>
-      <ul className="grid gap-2">
-        {segments.map(segment => (
-          <li key={segment.label} className="flex items-center gap-2 text-sm">
-            <span aria-hidden="true" className="size-2.5 flex-none rounded-sm" style={{ background: segment.color }} />
-            <span className="min-w-0 text-ink">{segment.label}</span>
-            <strong className="ml-auto tabular-nums text-ink-strong">{formatNumber(segment.value)}</strong>
-            <span className="w-14 text-right text-xs tabular-nums text-muted">{formatPercent(segment.value / sum)}</span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
+        <div className="grid gap-2">
+          <div className={`relative ${PLOT_HEIGHT}`}>
+            <div aria-hidden="true" className="pointer-events-none absolute inset-0">
+              {TICKS.map(tick => (
+                <span key={tick} className="absolute inset-x-0 border-t border-dashed border-[#d6e0ec]" style={{ top: `${(1 - tick) * 100}%` }} />
+              ))}
+              {hasThreshold && (
+                <span className="absolute inset-x-0 border-t-2 border-dotted border-ink-strong" style={{ top: `${(1 - threshold) * 100}%` }}>
+                  <span className="absolute right-0 -translate-y-full rounded bg-ink-strong px-1.5 py-0.5 font-mono text-[10px] leading-none text-white">{thresholdLabel}</span>
+                </span>
+              )}
+            </div>
 
-// Anillo con el total al centro y leyenda con cifras.
-export function Donut({ segments, total, centerLabel, ariaLabel }) {
-  const sum = total || segments.reduce((acc, item) => acc + item.value, 0);
-  const radius = 42;
-  const circumference = 2 * Math.PI * radius;
-  let offset = 0;
-  return (
-    <div className="grid items-center gap-5 sm:grid-cols-[180px_minmax(0,1fr)]">
-      <div className="relative mx-auto size-44">
-        <svg viewBox="0 0 120 120" className="size-full -rotate-90" role="img" aria-label={ariaLabel}>
-          <circle cx="60" cy="60" r={radius} fill="none" stroke="#e7edf5" strokeWidth="14" />
-          {segments.map(segment => {
-            const length = sum ? (segment.value / sum) * circumference : 0;
-            const element = (
-              <circle
-                key={segment.label}
-                cx="60"
-                cy="60"
-                r={radius}
-                fill="none"
-                stroke={segment.color}
-                strokeWidth="14"
-                strokeDasharray={`${length} ${circumference - length}`}
-                strokeDashoffset={-offset}
-              >
-                <title>{`${segment.label}: ${formatNumber(segment.value)}`}</title>
-              </circle>
-            );
-            offset += length;
-            return element;
-          })}
-        </svg>
-        <div className="absolute inset-0 grid place-content-center text-center">
-          <strong className="text-2xl font-bold tabular-nums text-ink-strong">{formatNumber(sum)}</strong>
-          <span className="text-xs text-muted">{centerLabel}</span>
+            <div className="relative flex h-full items-end gap-3">
+              {items.map(item => {
+                const height = Number.isFinite(item.height) ? Math.max(0, Math.min(1, item.height)) : 0;
+                return (
+                  <div key={item.label} className="relative flex h-full min-w-0 flex-1 items-end justify-center">
+                    <span
+                      className="absolute left-1/2 -translate-x-1/2 -translate-y-1 whitespace-nowrap rounded bg-white/90 px-1 font-mono text-xs font-semibold tabular-nums text-ink-strong"
+                      style={{ bottom: `${height * 100}%` }}
+                    >
+                      {item.display}
+                    </span>
+                    <div
+                      role="img"
+                      aria-label={`${item.label}: ${item.display}`}
+                      title={item.detail ? `${item.label}: ${item.display} · ${item.detail}` : `${item.label}: ${item.display}`}
+                      className="w-full max-w-[56px] rounded-t-md shadow-[inset_0_1px_0_rgba(255,255,255,0.35)] transition-[height] duration-500"
+                      style={{
+                        height: `${height * 100}%`,
+                        minHeight: height > 0 ? 3 : 0,
+                        background: `linear-gradient(180deg, ${item.color} 0%, ${item.color}b3 100%)`,
+                      }}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="flex gap-3">
+            {items.map(item => (
+              <div key={item.label} className="grid min-w-0 flex-1 justify-items-center gap-0.5 text-center">
+                <span className="w-full break-words text-center text-xs font-semibold leading-tight text-ink" title={item.label}>{item.label}</span>
+                {item.detail && <small className="font-mono text-[11px] text-muted">{item.detail}</small>}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
-      <ul className="grid gap-3">
-        {segments.map(segment => (
-          <li key={segment.label} className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 rounded-lg bg-[#f8fbff] px-3 py-2">
-            <span aria-hidden="true" className="size-3 rounded-sm" style={{ background: segment.color }} />
-            <span className="min-w-0 text-sm text-ink">{segment.label}</span>
-            <span className="text-right">
-              <strong className="block text-sm tabular-nums text-ink-strong">{formatNumber(segment.value)}</strong>
-              <small className="block text-xs tabular-nums text-muted">{formatPercent(segment.value / (sum || 1))}</small>
-            </span>
-          </li>
-        ))}
-      </ul>
-    </div>
+      {footnote && <figcaption className="font-mono text-[11px] text-muted">{footnote}</figcaption>}
+    </figure>
   );
 }

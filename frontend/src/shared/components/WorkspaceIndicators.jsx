@@ -1,36 +1,42 @@
 import Panel from '../ui/Panel.jsx';
-import { Meter, chartColors } from '../ui/Charts.jsx';
+import { VerticalBars, chartColors, formatPercent } from '../ui/Charts.jsx';
 
-// Indicadores de cada clasificador de la base. Cada barra muestra la cifra en texto;
-// la marca vertical en "aprobación automática" indica el umbral vigente como referencia.
+// Indicadores de cada clasificador de la base, en columnas verticales.
+// La línea punteada marca el umbral de aprobación vigente como referencia.
 function IndicatorCard({ id, title, subtitle, data, loading }) {
   const evaluated = data?.evaluated;
   const threshold = Number.isFinite(data?.threshold) ? data.threshold : undefined;
+  const values = [
+    { label: 'Exactitud', value: data?.accuracy, color: chartColors.primary, detail: 'vs. humano' },
+    { label: 'Aprobación', value: data?.automaticApproval, color: chartColors.positive, detail: 'automática' },
+    { label: 'F1 macro', value: data?.macroF1, color: chartColors.neutral, detail: 'por clase' },
+  ].map(item => ({
+    label: item.label,
+    detail: item.detail,
+    color: item.color,
+    height: loading || !Number.isFinite(item.value) ? 0 : item.value,
+    display: loading ? '…' : formatPercent(item.value),
+  }));
 
   return (
-    <Panel as="section" aria-labelledby={id} className="grid grid-cols-1 content-start gap-5 p-5">
+    <Panel as="section" aria-labelledby={id} className="grid grid-cols-1 content-start gap-4 p-5">
       <header className="flex items-start justify-between gap-3">
         <div className="grid gap-0.5">
           <h2 id={id} className="text-base font-bold text-ink-strong">{title}</h2>
           <span className="text-xs text-muted">{subtitle}</span>
         </div>
-        <span className="shrink-0 rounded-full bg-brand-soft px-2.5 py-1 text-xs font-semibold tabular-nums text-navy">
-          {loading ? 'Cargando…' : Number.isFinite(evaluated) ? `${evaluated.toLocaleString('es-PE')} evaluados` : 'Sin evaluación'}
+        <span className="shrink-0 rounded-md border border-brand-soft bg-brand-soft/60 px-2 py-1 font-mono text-[11px] font-semibold tabular-nums text-navy">
+          n = {loading ? '…' : Number.isFinite(evaluated) ? evaluated.toLocaleString('es-PE') : '—'}
         </span>
       </header>
 
-      <div className="grid grid-cols-1 gap-4">
-        <Meter label="Exactitud" value={loading ? undefined : data?.accuracy} color={chartColors.primary} detail="Porcentaje de códigos que coinciden con la decisión humana." />
-        <Meter
-          label="Aprobación automática"
-          value={loading ? undefined : data?.automaticApproval}
-          color={chartColors.positive}
-          marker={threshold}
-          markerLabel={threshold !== undefined ? `Umbral ${(threshold * 100).toFixed(0)} %` : undefined}
-          detail={threshold !== undefined ? `Umbral de aprobación: ${(threshold * 100).toFixed(0)} %` : 'Sin umbral registrado'}
-        />
-        <Meter label="F1 macro" value={loading ? undefined : data?.macroF1} color={chartColors.neutral} detail="Equilibra todas las clases, también las poco frecuentes." />
-      </div>
+      <VerticalBars
+        ariaLabel={`${title}: exactitud, aprobación automática y F1 macro`}
+        items={values}
+        threshold={threshold}
+        thresholdLabel={threshold !== undefined ? `umbral ${formatPercent(threshold)}` : undefined}
+        footnote="escala 0–100 %"
+      />
     </Panel>
   );
 }

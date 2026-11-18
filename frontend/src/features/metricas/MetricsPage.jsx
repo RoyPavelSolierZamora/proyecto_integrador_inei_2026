@@ -5,7 +5,7 @@ import PanelHeading from '../../shared/ui/PanelHeading.jsx';
 import Panel from '../../shared/ui/Panel.jsx';
 import Button from '../../shared/ui/Button.jsx';
 import Notice from '../../shared/ui/Notice.jsx';
-import { Donut, Meter, StackedBar, chartColors, formatNumber } from '../../shared/ui/Charts.jsx';
+import { VerticalBars, chartColors, formatNumber, formatPercent } from '../../shared/ui/Charts.jsx';
 import { getDatasetSummaryReal } from '../../shared/api/dataClient.js';
 import { useData } from '../../app/state/DataContext.jsx';
 
@@ -80,28 +80,27 @@ export default function MetricsPage() {
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <Panel className="grid content-start gap-4 p-5">
               <PanelHeading title="Estado del procesamiento" description="Distribución de todos los registros de esta versión." />
-              <Donut
+              <VerticalBars
                 ariaLabel="Estado de los registros"
-                centerLabel="registros"
-                total={t.total}
-                segments={[
+                footnote={`total n = ${formatNumber(t.total)}`}
+                items={[
                   { label: 'Resueltos', value: t.resolved, color: chartColors.primary },
                   { label: 'En revisión', value: t.review, color: chartColors.secondary },
                   { label: 'Pendientes', value: t.pending, color: chartColors.neutral },
-                ]}
+                ].map(item => ({ label: item.label, color: item.color, height: share(item.value, t.total), display: formatNumber(item.value), detail: formatPercent(share(item.value, t.total)) }))}
               />
             </Panel>
 
             <Panel className="grid content-start gap-4 p-5">
               <PanelHeading title="Cómo se resolvió" description="Origen de la última decisión registrada." />
-              <StackedBar
+              <VerticalBars
                 ariaLabel="Origen de las decisiones"
-                total={sourceTotal}
-                segments={[
+                footnote={`total n = ${formatNumber(sourceTotal)}`}
+                items={[
                   { label: 'Clasificador', value: t.automatic, color: chartColors.primary },
                   { label: 'IA', value: t.ai, color: chartColors.secondary },
                   { label: 'Persona', value: t.human, color: chartColors.positive },
-                ]}
+                ].map(item => ({ label: item.label, color: item.color, height: share(item.value, sourceTotal), display: formatNumber(item.value), detail: formatPercent(share(item.value, sourceTotal)) }))}
               />
               {!sourceTotal && <p className="text-sm text-muted">Todavía no hay decisiones registradas.</p>}
             </Panel>
@@ -128,29 +127,32 @@ export default function MetricsPage() {
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <Panel className="grid content-start gap-4 p-5">
               <PanelHeading title="Confianza del clasificador" description="Distribución operativa; no equivale a exactitud." />
-              <div className="grid grid-cols-1 gap-4">
-                <Meter label="0,95 o más" value={share(t.confidenceBands.high, t.total)} color={chartColors.primary} detail={`${formatNumber(t.confidenceBands.high)} registros`} />
-                <Meter label="0,90 a 0,94" value={share(t.confidenceBands.medium, t.total)} color={chartColors.secondary} detail={`${formatNumber(t.confidenceBands.medium)} registros`} />
-                <Meter label="Menos de 0,90" value={share(t.confidenceBands.low, t.total)} color={chartColors.neutral} detail={`${formatNumber(t.confidenceBands.low)} registros`} />
-                {t.confidenceBands.missing > 0 && <Meter label="Sin confianza registrada" value={share(t.confidenceBands.missing, t.total)} color={chartColors.neutral} detail={`${formatNumber(t.confidenceBands.missing)} registros`} />}
-              </div>
+              <VerticalBars
+                ariaLabel="Distribución de la confianza del clasificador"
+                footnote={`total n = ${formatNumber(t.total)}`}
+                items={[
+                  { label: '≥ 0,95', value: t.confidenceBands.high, color: chartColors.primary },
+                  { label: '0,90–0,94', value: t.confidenceBands.medium, color: chartColors.secondary },
+                  { label: '< 0,90', value: t.confidenceBands.low, color: chartColors.neutral },
+                  ...(t.confidenceBands.missing > 0 ? [{ label: 'Sin dato', value: t.confidenceBands.missing, color: chartColors.neutral }] : []),
+                ].map(item => ({ label: item.label, color: item.color, height: share(item.value, t.total), display: formatPercent(share(item.value, t.total)), detail: `${formatNumber(item.value)} reg.` }))}
+              />
             </Panel>
 
             <Panel className="grid content-start gap-4 p-5">
               <PanelHeading title="Códigos más frecuentes" description="Distribución entre registros resueltos." />
-              <div className="grid grid-cols-1 gap-3">
-                {visibleCodes.map(row => (
-                  <div key={row.code} className="grid grid-cols-1 gap-1.5">
-                    <div className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
-                      <span className="min-w-0 truncate text-ink" title={row.description}><strong className="text-ink-strong">{row.code}</strong> · {row.description}</span>
-                      <strong className="shrink-0 text-ink-strong">{number(row.count)} · {pct(row.share)}</strong>
-                    </div>
-                    <div aria-hidden="true" className="h-2 overflow-hidden rounded-full bg-line">
-                      <span className="block h-full rounded-full bg-brand" style={{ width: `${(row.count / maxCode) * 100}%` }} />
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <VerticalBars
+                ariaLabel="Códigos más frecuentes"
+                axis={false}
+                footnote="altura relativa al código más frecuente"
+                items={visibleCodes.map(row => ({
+                  label: row.code,
+                  color: chartColors.primary,
+                  height: row.count / maxCode,
+                  display: formatNumber(row.count),
+                  detail: formatPercent(row.share),
+                }))}
+              />
               {summary.topCodes.length > 6 && (
                 <div>
                   <Button variant="quiet" size="sm" onClick={() => setShowAllCodes(value => !value)}>
