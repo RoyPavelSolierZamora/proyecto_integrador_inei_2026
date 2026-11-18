@@ -2,6 +2,7 @@ import express from 'express';
 import { audit } from '../services/audit.js';
 import { getPool, transaction } from '../db/pool.js';
 import { requireCsrf, requireRole } from '../security/middleware.js';
+import { CONFIDENCE_BANDS, confidenceBand, summarizeVerdicts, verdictFor } from '../services/quality-metrics.js';
 
 function httpError(status, message) {
   const error = new Error(message);
@@ -247,6 +248,113 @@ export function createGovernanceRouter() {
       await audit(client, req, `catalog_change.${status}`, 'catalog_change_request', id, { type: request.request_type, code: request.code });
     });
     res.json({ ok: true });
+  });
+
+  // Muestra reproducible para verificación ciega. El revisor no ve la decisión, el origen ni el puntaje,
+  // así no se ancla en lo que propuso el sistema o el codificador anterior.
+  router.get('/api/datasets/:datasetId/quality-sample', requireRole('supervisor', 'auditor', 'admin'), async (req, res) => {
+    const datasetId = validId(req.params.datasetId);
+    if (!datasetId) throw httpError(400, 'Base no válida.');
+    const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 20));
+    const seed = cleanText(req.query.seed, 40) || 'epen';
+    const source = String(req.query.source || '');
+    const band = String(req.query.band || '');
+    if (source && !['ml', 'llm', 'human'].includes(source)) throw httpError(400, 'Origen no válido.');
+    if (band && !CONFIDENCE_BANDS.includes(band)) throw httpError(400, 'Banda no válida.');
+    const result = await getPool().query(`
+      WITH latest AS (
+        SELECT DISTINCT ON (d.case_id) d.id AS decision_id, d.case_id, d.source, d.code
+        FROM epen.decisions d JOIN epen.survey_cases c ON c.id = d.case_id
+        WHERE c.dataset_id = $1
+        ORDER BY d.case_id, d.created_at DESC, d.id DESC
+      )
+      SELECT l.decision_id, c.external_id, c.p309, c.p308, c.p308a, c.confianza_ml, l.source, l.code
+      FROM latest l
+      JOIN epen.survey_cases c ON c.id = l.case_id
+      WHERE l.code IS NOT NULL AND ($2 = '' OR l.source = $2)
+        AND NOT EXISTS (SELECT 1 FROM epen.quality_reviews qr WHERE qr.decision_id = l.decision_id AND qr.method = 'blind')
+      ORDER BY md5($3 || l.decision_id::text)
+      LIMIT 3000
+    `, [datasetId, source, seed]);
+    const items = result.rows
+      .filter(row => !band || confidenceBand(row.confianza_ml) === band)
+      .slice(0, limit)
+      .map(row => ({ decisionId: Number(row.decision_id), externalId: row.external_id, p309: row.p309, p308: row.p308 || '', p308a: row.p308a || '' }));
+    res.json({ seed, items });
+  });
+
+  // Veredicto ciego: el servidor compara el código del revisor con la decisión registrada.
+  // No cambia el código final del caso: la verificación mide calidad, no corrige datos de producción.
+  router.post('/api/datasets/:datasetId/quality-sample/:decisionId/verdict', requireRole('supervisor', 'admin'), requireCsrf, async (req, res) => {
+    const datasetId = validId(req.params.datasetId);
+    const decisionId = validId(req.params.decisionId);
+    if (!datasetId || !decisionId) throw httpError(400, 'Verificación no válida.');
+    const code = String(req.body?.code || '').trim();
+    let verdict;
+    try {
+      verdict = verdictFor('__pending__', code);
+    } catch {
+      throw httpError(400, 'Indica un código CIIU de cuatro dígitos o "no_clasificable".');
+    }
+    const reviewId = await transaction(async client => {
+      const found = await client.query(`
+        SELECT d.id, d.code, d.decided_by, c.id AS case_id
+        FROM epen.decisions d JOIN epen.survey_cases c ON c.id = d.case_id
+        WHERE d.id = $1 AND c.dataset_id = $2
+      `, [decisionId, datasetId]);
+      if (!found.rowCount) throw httpError(404, 'Decisión no encontrada en esta base.');
+      const decision = found.rows[0];
+      if (!decision.code) throw httpError(409, 'Esta decisión no tiene un código que verificar.');
+      if (decision.decided_by && Number(decision.decided_by) === Number(req.auth.user.id)) {
+        throw httpError(403, 'No puedes verificar una decisión que tú registraste.');
+      }
+      const repeated = await client.query('SELECT 1 FROM epen.quality_reviews WHERE decision_id = $1 AND reviewer_id = $2', [decisionId, req.auth.user.id]);
+      if (repeated.rowCount) throw httpError(409, 'Ya registraste una verificación de esta decisión.');
+      const finalVerdict = verdictFor(decision.code, code);
+      const correctedCode = finalVerdict === 'incorrect' ? (await requireCatalogCode(client, code)).code : null;
+      const inserted = await client.query(`
+        INSERT INTO epen.quality_reviews (case_id, decision_id, verdict, corrected_code, notes, reviewer_id, method)
+        VALUES ($1, $2, $3, $4, NULL, $5, 'blind') RETURNING id
+      `, [decision.case_id, decisionId, finalVerdict, correctedCode, req.auth.user.id]);
+      await audit(client, req, 'quality.blind_verified', 'decision', decisionId, { datasetId, verdict: finalVerdict });
+      return { id: inserted.rows[0].id, verdict: finalVerdict };
+    });
+    res.status(201).json({ id: Number(reviewId.id), verdict: reviewId.verdict });
+  });
+
+  // Métricas de calidad por origen y banda. Usa la última revisión de cada decisión.
+  // Cada grupo trae su intervalo de Wilson al 95 %: con pocas verificaciones el intervalo es amplio.
+  router.get('/api/datasets/:datasetId/quality-metrics', requireRole('supervisor', 'auditor', 'admin'), async (req, res) => {
+    const datasetId = validId(req.params.datasetId);
+    if (!datasetId) throw httpError(400, 'Base no válida.');
+    const result = await getPool().query(`
+      SELECT d.source, c.confianza_ml, qr.verdict, qr.method
+      FROM (
+        SELECT DISTINCT ON (decision_id) decision_id, case_id, verdict, method
+        FROM epen.quality_reviews
+        WHERE decision_id IS NOT NULL
+        ORDER BY decision_id, created_at DESC, id DESC
+      ) qr
+      JOIN epen.decisions d ON d.id = qr.decision_id
+      JOIN epen.survey_cases c ON c.id = qr.case_id
+      WHERE c.dataset_id = $1
+    `, [datasetId]);
+    const groups = new Map();
+    for (const row of result.rows) {
+      const key = row.source + '|' + confidenceBand(row.confianza_ml);
+      if (!groups.has(key)) groups.set(key, { source: row.source, band: confidenceBand(row.confianza_ml), verdicts: [] });
+      groups.get(key).verdicts.push(row.verdict);
+    }
+    const bySource = {};
+    for (const source of ['ml', 'llm', 'human']) {
+      bySource[source] = summarizeVerdicts(result.rows.filter(row => row.source === source).map(row => row.verdict));
+    }
+    res.json({
+      overall: summarizeVerdicts(result.rows.map(row => row.verdict)),
+      bySource,
+      groups: [...groups.values()].map(group => ({ source: group.source, band: group.band, ...summarizeVerdicts(group.verdicts) })),
+      note: 'Precisión sobre verificaciones con intervalo de Wilson al 95 %. Muestras pequeñas dan intervalos amplios; no concluyas sobre un codificador con pocas verificaciones.',
+    });
   });
 
   router.get('/api/datasets/:datasetId/cases/:externalId/quality-reviews', requireRole('supervisor', 'auditor', 'admin'), async (req, res) => {

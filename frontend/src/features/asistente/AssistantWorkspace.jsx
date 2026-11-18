@@ -139,6 +139,7 @@ export default function AssistantWorkspace({ compact = false, caseExternalId = n
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
   const endRef = useRef(null);
+  const lastCodesRef = useRef([]);
   const inputId = compact ? 'asistente-pregunta-compacta' : 'asistente-pregunta';
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, [messages, loading]);
@@ -152,11 +153,17 @@ export default function AssistantWorkspace({ compact = false, caseExternalId = n
   async function send(text = question) {
     const value = String(text || '').trim();
     if (value.length < 3 || loading) return;
+    // Recuerda los últimos códigos CIIU de la conversación para preguntas de seguimiento ("explica eso", "las 2").
+    const codesInText = value.match(/(?<![0-9])[0-9]{4}(?![0-9])/g) || [];
+    lastCodesRef.current = [...new Set([...codesInText, ...lastCodesRef.current])].slice(0, 6);
     setMessages(current => [...current, { role: 'user', text: value }]);
     setQuestion('');
     setLoading(true);
     try {
-      const response = await askAssistantReal({ question: value, datasetId: datasetId || null, compareDatasetId: compareDatasetId || null, caseExternalId });
+      const response = await askAssistantReal({ question: value, datasetId: datasetId || null, compareDatasetId: compareDatasetId || null, caseExternalId, previousCodes: lastCodesRef.current.slice(0, 3) });
+      // Los códigos que la respuesta nombra ("CIIU 5630") también quedan disponibles para la siguiente pregunta.
+      const answeredCodes = [...String(response.answer || '').matchAll(/CIIU ([0-9]{4})/g)].map(match => match[1]);
+      lastCodesRef.current = [...new Set([...answeredCodes, ...lastCodesRef.current])].slice(0, 6);
       setMessages(current => [...current, { role: 'assistant', text: response.answer, meta: response }]);
     } catch (error) {
       setMessages(current => [...current, { role: 'assistant', text: error.message, error: true }]);
@@ -178,7 +185,7 @@ export default function AssistantWorkspace({ compact = false, caseExternalId = n
   const currentPeriod = datasets.find(item => String(item.id) === String(datasetId))?.period;
 
   return (
-    <section aria-label="Asistente del sistema" className={['flex min-h-0 flex-col bg-surface', compact ? 'max-h-[min(620px,calc(100vh-120px))]' : 'h-full min-h-[70vh] rounded-2xl border border-line'].join(' ')}>
+    <section aria-label="Asistente del sistema" className={['flex min-h-0 flex-col bg-surface', compact ? 'max-h-[min(620px,calc(100vh-112px))]' : 'h-[max(22rem,calc(100dvh-12.25rem))] rounded-2xl border border-line'].join(' ')}>
       <header className="flex items-center justify-between gap-3 border-b border-line p-4">
         <div className="flex min-w-0 items-center gap-3">
           <span aria-hidden="true" className="grid size-10 flex-none place-items-center rounded-xl bg-brand-soft text-brand"><EpenIcon name="chat-dots" /></span>
@@ -218,8 +225,7 @@ export default function AssistantWorkspace({ compact = false, caseExternalId = n
         <div className="grid min-h-0 grid-rows-[minmax(0,1fr)_auto]">
           <div className="grid min-h-0 content-start gap-4 overflow-y-auto p-4" aria-live="polite">
             {!messages.length && (
-              <div className="grid justify-items-center gap-3 py-6 text-center">
-                <span className="grid size-12 place-items-center rounded-2xl bg-brand-soft text-brand"><EpenIcon name="chat-dots" /></span>
+              <div className="grid justify-items-center gap-2 py-2 text-center">
                 <h2 className="text-base font-bold text-ink-strong">¿Qué necesitas revisar?</h2>
                 <p className="max-w-sm text-sm text-muted">Elige una tarea o escribe una pregunta sobre la base seleccionada.</p>
                 <div className="flex flex-wrap justify-center gap-2">

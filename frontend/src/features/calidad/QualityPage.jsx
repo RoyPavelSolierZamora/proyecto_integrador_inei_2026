@@ -9,6 +9,10 @@ import Notice from '../../shared/ui/Notice.jsx';
 import { tableClasses as t } from '../../shared/ui/tableClasses.js';
 import { compareDatasetsReal, getQualitySummaryReal } from '../../shared/api/dataClient.js';
 import { useData } from '../../app/state/DataContext.jsx';
+import { useAuth } from '../../app/state/AuthContext.jsx';
+import BlindVerificationPanel from './BlindVerificationPanel.jsx';
+import QualityMetricsPanel from './QualityMetricsPanel.jsx';
+import ReferenceComparisonPanel from './ReferenceComparisonPanel.jsx';
 
 const pct = value => value === null || value === undefined ? 'Sin muestra' : `${(Number(value) * 100).toFixed(1)} %`;
 const changeTone = change => change > 0 ? 'text-[#05603a] font-semibold' : change < 0 ? 'text-danger font-semibold' : 'text-muted';
@@ -17,6 +21,9 @@ const changeTone = change => change > 0 ? 'text-[#05603a] font-semibold' : chang
 // Las señales son alertas para muestreo; no demuestran por sí solas un error o sesgo.
 export default function QualityPage() {
   const { datasets, activeDataset } = useData();
+  const { user } = useAuth();
+  const canVerify = ['supervisor', 'admin'].includes(user?.role);
+  const [metricsKey, setMetricsKey] = useState(0);
   const [datasetId, setDatasetId] = useState(activeDataset?.id || null);
   const [compareId, setCompareId] = useState(null);
   const [quality, setQuality] = useState(null);
@@ -70,6 +77,12 @@ export default function QualityPage() {
         <Stat label="Errores confirmados" value={totalIncorrect} hint="No incluye simples desacuerdos" />
         <Stat label="Tasa sobre revisados" value={totalReviewed ? pct(totalIncorrect / totalReviewed) : 'Sin muestra'} hint="Interpretar junto al tamaño de muestra" />
       </section>
+
+      <div className="grid grid-cols-1 gap-4">
+        {canVerify && datasetId && <BlindVerificationPanel datasetId={datasetId} onRegistered={() => setMetricsKey(value => value + 1)} />}
+        {datasetId && <QualityMetricsPanel datasetId={datasetId} refreshKey={metricsKey} />}
+        {datasetId && <ReferenceComparisonPanel datasetId={datasetId} datasetName={datasets.find(item => String(item.id) === String(datasetId))?.name} canManage={canVerify} />}
+      </div>
 
       <Panel className="p-5">
         <PanelHeading title="Codificadores" description="Las concentraciones por rama son alertas para muestreo, no evaluaciones automáticas de una persona." />

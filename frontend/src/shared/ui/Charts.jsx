@@ -25,7 +25,7 @@ const PLOT_HEIGHT = 'h-52';
 const TICKS = [1, 0.5, 0];
 
 // Columnas verticales. items: [{ label, height (0–1), display, color, detail }]
-// threshold (0–1): línea de referencia naranja con su etiqueta en el borde derecho.
+// threshold (0–1): línea de referencia roja fina con su etiqueta en el borde derecho.
 export function VerticalBars({ items, ariaLabel, threshold, thresholdLabel, axis = true }) {
   const hasThreshold = Number.isFinite(threshold);
   return (
@@ -44,8 +44,8 @@ export function VerticalBars({ items, ariaLabel, threshold, thresholdLabel, axis
                 <span key={tick} className="absolute inset-x-0 border-t border-[#e6ecf4]" style={{ top: `${(1 - tick) * 100}%` }} />
               ))}
               {hasThreshold && (
-                <span className="absolute inset-x-0 border-t-[1.5px] border-dashed border-[#d9731e]" style={{ top: `${(1 - threshold) * 100}%` }}>
-                  <span className="absolute right-0 -translate-y-full pb-0.5 text-[11px] font-semibold text-[#a4520f]">{thresholdLabel}</span>
+                <span className="absolute inset-x-0 border-t border-[#b42318]" style={{ top: `${(1 - threshold) * 100}%` }}>
+                  <span className="absolute right-0 -translate-y-full pb-0.5 text-[10px] font-medium text-[#b42318]">{thresholdLabel}</span>
                 </span>
               )}
             </div>
@@ -65,8 +65,8 @@ export function VerticalBars({ items, ariaLabel, threshold, thresholdLabel, axis
                       role="img"
                       aria-label={`${item.label}: ${item.display}`}
                       title={item.detail ? `${item.label}: ${item.display} · ${item.detail}` : `${item.label}: ${item.display}`}
-                      className="w-full max-w-12 rounded-t-[3px] transition-[height] duration-500"
-                      style={{ height: `${height * 100}%`, minHeight: height > 0 ? 2 : 0, background: item.color }}
+                      className="w-full max-w-8 rounded-t-[3px] transition-[height] duration-500"
+                      style={{ height: `${height * 100}%`, minHeight: 3, background: item.color }}
                     />
                   </div>
                 );

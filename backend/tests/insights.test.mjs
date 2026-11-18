@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { compareCodeRows, detectAssistantIntent, greetingAnswer, helpAnswer, normalizeQuestion } from '../src/services/insights.js';
+import { codesInQuestion, compareCodeRows, detectAssistantIntent, greetingAnswer, helpAnswer, normalizeQuestion } from '../src/services/insights.js';
 
 test('normaliza preguntas en español sin depender de tildes', () => {
   assert.equal(normalizeQuestion('¿Cómo revisó la clasificación?'), 'como reviso la clasificacion');
@@ -68,4 +68,17 @@ test('busca en el índice oficial y rechaza temas ajenos', async () => {
   const hits = searchKnowledge('qué clase CIIU corresponde a programación informática');
   assert.ok(hits.length > 0);
   assert.equal(searchKnowledge('capital de Francia y receta de cocina').length, 0);
+});
+
+test('reconoce códigos CIIU pegados a una palabra y sin confundir números largos', () => {
+  assert.deepEqual(codesInQuestion('cual es el codigo2023').clases, ['2023']);
+  assert.deepEqual(codesInQuestion('registro 2795778').clases, []);
+});
+
+test('reconoce el nombre popular de la palta dentro del tema agrícola', async () => {
+  const { indexStatus, searchKnowledge } = await import('../src/services/conocimiento.js');
+  if (!indexStatus().indexed) return;
+  const hits = searchKnowledge('que es el cultivo de palta');
+  assert.ok(hits.length > 0);
+  assert.ok(hits.some(hit => /aguacate/i.test(hit.texto)));
 });

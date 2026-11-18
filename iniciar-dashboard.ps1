@@ -177,7 +177,11 @@ try {
     }
 
     $r2Mode = Get-DotEnvValue 'R2_MODE'
-    if (-not $r2Mode) { $r2Mode = 'simulator' }
+    # Sin R2_MODE, si el modelo BETO está en modelos\ se usa BETO; así no hace falta editar .env.
+    if (-not $r2Mode) {
+        $betoLocal = Join-Path $projectRoot 'modelos\modelo_beto_multivariado_final_v2\model.safetensors'
+        if (Test-Path -LiteralPath $betoLocal -PathType Leaf) { $r2Mode = 'beto' } else { $r2Mode = 'simulator' }
+    }
     $r2Mode = $r2Mode.Trim().ToLowerInvariant()
     if ($r2Mode -notin @('simulator', 'baseline', 'advanced', 'beto')) {
         throw 'R2_MODE debe ser simulator, baseline, advanced o beto.'
@@ -259,17 +263,19 @@ try {
     if ($r2Mode -in @('advanced', 'beto')) {
         & $python -c 'import joblib, numpy, scipy, sklearn'
         if ($LASTEXITCODE -ne 0) {
-            throw 'Faltan dependencias de R2 avanzado. Ejecuta: python -m pip install -r motores\r2\avanzado\requirements.txt'
+            throw 'Faltan librerias de R2 avanzado. Vuelve a ejecutar instalar.bat para instalarlas.'
         }
     }
     if ($r2Mode -eq 'beto') {
         $betoPath = Get-DotEnvValue 'R2_BETO_MODEL_PATH'
-        if (-not $betoPath) { throw 'Configura R2_BETO_MODEL_PATH con la carpeta local del modelo BETO de confianza.' }
+        if (-not $betoPath) { $betoPath = 'modelos\modelo_beto_multivariado_final_v2' }
         if (-not [IO.Path]::IsPathRooted($betoPath)) { $betoPath = Join-Path $projectRoot $betoPath }
-        if (-not (Test-Path -LiteralPath (Join-Path $betoPath 'model.safetensors') -PathType Leaf)) { throw 'No se encontro el modelo BETO en R2_BETO_MODEL_PATH.' }
+        if (-not (Test-Path -LiteralPath (Join-Path $betoPath 'model.safetensors') -PathType Leaf)) {
+            throw 'No se encontro el modelo BETO. Copia la carpeta modelo_beto_multivariado_final_v2 dentro de modelos\ y vuelve a ejecutar.'
+        }
         $env:R2_BETO_MODEL_PATH = [IO.Path]::GetFullPath($betoPath)
         & $python -c 'import torch, transformers, safetensors'
-        if ($LASTEXITCODE -ne 0) { throw 'Faltan dependencias BETO: instala torch, transformers y safetensors en el Python del proyecto.' }
+        if ($LASTEXITCODE -ne 0) { throw 'Faltan librerias de BETO. Vuelve a ejecutar instalar.bat para instalarlas.' }
     }
     $r2 = Get-HttpJson 'http://127.0.0.1:8100/salud'
     $r2Expected = [bool]($r2 -and $r2.servicio -eq $r2Service -and $r2.contrato_version -eq '1.0')

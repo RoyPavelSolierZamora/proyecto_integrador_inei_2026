@@ -51,6 +51,13 @@ export async function setUserActiveReal(id, active) {
   return apiRequest(`/api/admin/users/${id}/status`, { method: 'PATCH', mutation: true, body: { active } });
 }
 
+// La clave nueva viaja solo en el cuerpo de la petición; el servidor no la devuelve ni la registra.
+export async function changeUserPasswordReal(id, { password, currentPassword }) {
+  const body = { password };
+  if (currentPassword !== undefined) body.currentPassword = currentPassword;
+  return apiRequest(`/api/admin/users/${id}/password`, { method: 'PATCH', mutation: true, body });
+}
+
 export async function retireUserReal(id) {
   return apiRequest(`/api/admin/users/${id}`, { method: 'DELETE', mutation: true });
 }

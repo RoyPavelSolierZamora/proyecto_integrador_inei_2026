@@ -8,6 +8,7 @@ import { loadSession, requireAuth, requireCsrf, requireRole, requireTrustedOrigi
 import { createCsrfToken, createSessionToken, hashPassword, hashToken, normalizeUsername, validUsername, validatePassword, verifyPassword } from './security/security.js';
 import { createDataRouter } from './routes/data-routes.js';
 import { createGovernanceRouter } from './routes/governance-routes.js';
+import { createReferenceRouter } from './routes/reference-routes.js';
 import { createInsightsRouter } from './routes/insights-routes.js';
 import { resumeR2Jobs } from './services/r2-jobs.js';
 
@@ -45,6 +46,7 @@ function publicUser(row) {
     role: row.role,
     active: row.active,
     createdAt: row.created_at,
+    analystCode: row.analyst_code || null,
   };
 }
 
@@ -152,7 +154,7 @@ app.post('/api/auth/logout', requireAuth, requireCsrf, async (req, res) => {
 
 app.get('/api/admin/users', requireRole('admin'), async (_req, res) => {
   const result = await getPool().query(`
-    SELECT id, username, full_name, role, active, created_at
+    SELECT id, username, full_name, role, active, created_at, analyst_code
     FROM epen.users WHERE deleted_at IS NULL ORDER BY full_name, username
   `);
   res.json({ users: result.rows.map(publicUser) });
@@ -166,7 +168,7 @@ app.post('/api/admin/users', requireRole('admin'), requireCsrf, async (req, res)
   if (!validUsername(username)) throw error(400, 'El nombre de usuario no es válido.');
   if (!fullName || fullName.length > 120) throw error(400, 'El nombre completo es obligatorio y no debe superar 120 caracteres.');
   if (!['operador', 'analista', 'supervisor', 'auditor', 'admin'].includes(role)) throw error(400, 'El rol no es válido.');
-  const passwordError = validatePassword(password);
+  const passwordError = validatePassword(password, username);
   if (passwordError) throw error(400, passwordError);
   const passwordHash = await hashPassword(password);
   try {
@@ -174,7 +176,7 @@ app.post('/api/admin/users', requireRole('admin'), requireCsrf, async (req, res)
       const result = await client.query(`
         INSERT INTO epen.users (username, full_name, password_hash, role, created_by)
         VALUES ($1, $2, $3, $4, $5)
-        RETURNING id, username, full_name, role, active, created_at
+        RETURNING id, username, full_name, role, active, created_at, analyst_code
       `, [username, fullName, passwordHash, role, req.auth.user.id]);
       await audit(client, req, 'admin.user_created', 'user', result.rows[0].id, { username, role });
       return result.rows[0];
@@ -190,12 +192,40 @@ app.patch('/api/admin/users/:id/status', requireRole('admin'), requireCsrf, asyn
   if (typeof req.body?.active !== 'boolean') throw error(400, 'El estado active debe ser verdadero o falso.');
   const updated = await transaction(async client => {
     const target = await lockTargetAndCheckAdmin(client, req.params.id, req.auth.user.id);
-    const result = await client.query('UPDATE epen.users SET active = $1, updated_at = now() WHERE id = $2 RETURNING id, username, full_name, role, active, created_at', [req.body.active, target.id]);
+    const result = await client.query('UPDATE epen.users SET active = $1, updated_at = now() WHERE id = $2 RETURNING id, username, full_name, role, active, created_at, analyst_code', [req.body.active, target.id]);
     if (!req.body.active) await client.query('DELETE FROM epen.sessions WHERE user_id = $1', [target.id]);
     await audit(client, req, req.body.active ? 'admin.user_activated' : 'admin.user_deactivated', 'user', target.id, { username: target.username });
     return result.rows[0];
   });
   res.json({ user: publicUser(updated) });
+});
+
+// Cambio de clave por un administrador. Si la cuenta es la propia, exige la clave actual.
+// La nueva clave nunca se registra ni se devuelve; se guarda solo su hash scrypt.
+app.patch('/api/admin/users/:id/password', requireRole('admin'), requireCsrf, async (req, res) => {
+  const password = String(req.body?.password || '');
+  const currentPassword = String(req.body?.currentPassword || '');
+  if (!/^\d{1,10}$/.test(String(req.params.id))) throw error(400, 'El usuario solicitado no es válido.');
+  // Todo ocurre en una sola transacción con la fila bloqueada: la comprobación de la clave actual,
+  // la validación de la nueva y el cambio no pueden intercalarse con otra escritura de la misma cuenta.
+  await transaction(async client => {
+    const found = await client.query('SELECT id, username, password_hash FROM epen.users WHERE id = $1 AND deleted_at IS NULL FOR UPDATE', [req.params.id]);
+    if (!found.rowCount) throw error(404, 'Usuario no encontrado.');
+    const target = found.rows[0];
+    const isSelf = Number(target.id) === Number(req.auth.user.id);
+    if (isSelf && !(await verifyPassword(currentPassword, target.password_hash))) {
+      throw error(403, 'Para cambiar tu propia clave escribe la clave actual correctamente.');
+    }
+    const passwordError = validatePassword(password, target.username);
+    if (passwordError) throw error(400, passwordError);
+    if (isSelf && password === currentPassword) throw error(400, 'La clave nueva debe ser distinta de la actual.');
+    const passwordHash = await hashPassword(password);
+    await client.query('UPDATE epen.users SET password_hash = $1, failed_attempts = 0, locked_until = NULL, updated_at = now() WHERE id = $2', [passwordHash, target.id]);
+    // Cierra todas las sesiones de esa cuenta: quien conocía la clave anterior debe volver a entrar.
+    await client.query('DELETE FROM epen.sessions WHERE user_id = $1', [target.id]);
+    await audit(client, req, 'admin.password_changed', 'user', target.id, { username: target.username, self: isSelf });
+  });
+  res.status(204).end();
 });
 
 app.delete('/api/admin/users/:id', requireRole('admin'), requireCsrf, async (req, res) => {
@@ -210,6 +240,7 @@ app.delete('/api/admin/users/:id', requireRole('admin'), requireCsrf, async (req
 
 app.use(createDataRouter(config));
 app.use(createGovernanceRouter());
+app.use(createReferenceRouter());
 app.use(createInsightsRouter());
 
 app.use((req, res) => res.status(404).json({ error: 'Ruta no encontrada.' }));

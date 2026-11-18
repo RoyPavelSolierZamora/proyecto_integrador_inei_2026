@@ -13,11 +13,12 @@ import { useData } from '../../app/state/DataContext.jsx';
 import { operationalText } from '../../shared/lib/operationalText.js';
 
 const PAGE_SIZE = 30;
-const sourceLabel = { automatic: 'Automático', ai: 'Asistente IA', human: 'Persona' };
+const sourceLabel = { automatic: 'Automático', ai: 'Asistente IA', human: 'Persona', reference: 'Base codificada' };
 const sourceTone = {
   automatic: 'bg-brand-soft text-navy',
   ai: 'bg-[#fff4d6] text-[#7a4b00]',
   human: 'bg-[#e4f7ec] text-[#05603a]',
+  reference: 'bg-[#eef0ff] text-[#3b3f8c]',
 };
 const formatDate = value => new Intl.DateTimeFormat('es-PE', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
 
@@ -86,6 +87,7 @@ export default function HistoryPage() {
             <option value="automatic">Automático</option>
             <option value="ai">Asistente IA</option>
             <option value="human">Persona</option>
+            <option value="reference">Base codificada</option>
           </select>
         </Field>
         <p className="pb-2 text-sm text-muted">{result.total} resultado{result.total === 1 ? '' : 's'}</p>

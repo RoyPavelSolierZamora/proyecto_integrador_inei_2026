@@ -39,6 +39,9 @@ param(
 $ErrorActionPreference = 'Stop'
 $projectRoot = $PSScriptRoot
 $envPath = Join-Path $projectRoot '.env'
+# Carpeta donde el usuario copia el modelo BETO (no viene en Git). Si existe, BETO se activa sin editar .env.
+$betoRelativo = 'modelos\modelo_beto_multivariado_final_v2'
+$betoDisponible = Test-Path -LiteralPath (Join-Path $projectRoot (Join-Path $betoRelativo 'model.safetensors')) -PathType Leaf
 $runtimeRoot = Join-Path $projectRoot '.runtime'
 $credentialPath = Join-Path $runtimeRoot 'postgres.credential'
 
@@ -157,13 +160,23 @@ function Install-Package([string]$Id, [string]$Override) {
     return ($LASTEXITCODE -eq 0)
 }
 
-function Write-DotEnv([hashtable]$Values) {
+function Write-DotEnv([hashtable]$Values, [hashtable]$Forzados = @{}) {
+    # Conserva lo que el usuario ya configuró (por ejemplo, R3 remoto de Colab). Los valores por defecto
+    # solo completan las claves que faltan; $Forzados sí reemplaza el valor existente.
+    $final = @{}
+    if (Test-Path -LiteralPath $envPath) {
+        foreach ($line in (Get-Content -LiteralPath $envPath)) {
+            if ($line -match '^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$') { $final[$Matches[1]] = $Matches[2] }
+        }
+    }
+    foreach ($key in $Values.Keys) { if (-not $final.ContainsKey($key)) { $final[$key] = $Values[$key] } }
+    foreach ($key in $Forzados.Keys) { $final[$key] = $Forzados[$key] }
     $lines = @(
         '# Archivo generado por instalar.ps1.',
         '# No contiene contrasenas. La credencial de epen_app se protege con DPAPI en .runtime/.',
         '# Es configuracion local y esta excluida de Git.'
     )
-    foreach ($key in ($Values.Keys | Sort-Object)) { $lines += ($key + '=' + $Values[$key]) }
+    foreach ($key in ($final.Keys | Sort-Object)) { $lines += ($key + '=' + $final[$key]) }
     $utf8 = New-Object System.Text.UTF8Encoding($false)
     [IO.File]::WriteAllText($envPath, (($lines -join "`r`n") + "`r`n"), $utf8)
 }
@@ -222,6 +235,19 @@ try {
     }
     Write-Ok ('Python ' + (& $python -c "import sys;print('.'.join(map(str,sys.version_info[:3])))"))
 
+    # BETO corre en esta computadora: si el modelo está en modelos\, se instalan sus librerías automáticamente.
+    if ($betoDisponible) {
+        Write-Host ('   Modelo BETO encontrado en ' + $betoRelativo + '. Instalando sus librerias de Python...') -ForegroundColor DarkGray
+        & $python -m pip install --disable-pip-version-check -q -r (Join-Path $projectRoot 'motores\r2\avanzado\requirements.txt')
+        if ($LASTEXITCODE -ne 0) { throw 'No se pudieron instalar las librerias de R2 avanzado con pip.' }
+        & $python -m pip install --disable-pip-version-check -q torch 'transformers>=4.48,<5' safetensors
+        if ($LASTEXITCODE -ne 0) { throw 'No se pudieron instalar torch, transformers y safetensors para BETO.' }
+        Write-Ok 'Librerias de BETO instaladas'
+    }
+    else {
+        Write-Aviso ('Modelo BETO no encontrado en ' + $betoRelativo + '. El sistema usara el clasificador de prueba; BETO se puede agregar despues.')
+    }
+
     # Ollama
     $ollama = Get-Command 'ollama.exe' -ErrorAction SilentlyContinue
     if (-not $ollama) {
@@ -272,7 +298,18 @@ try {
     if (-not (Test-Port 5432)) { throw 'PostgreSQL no responde en 127.0.0.1:5432. Revisa el servicio postgresql-x64-18.' }
     Write-Ok 'PostgreSQL escuchando en 127.0.0.1:5432'
 
-    if (-not $superPassword) {
+    # Si la instalación anterior sigue en esta carpeta, la base y el usuario de la aplicación ya existen:
+    # no hace falta la contraseña del superusuario postgres.
+    $savedApp = if ($Reconfigurar) { $null } else { Read-AppCredential }
+    $reutilizarApp = $false
+    if ($savedApp) {
+        $env:PGPASSWORD = $savedApp
+        $probeApp = & $psql -h 127.0.0.1 -p 5432 -U epen_app -d epen_codificacion -tAc 'SELECT 1' 2>$null
+        $reutilizarApp = ($LASTEXITCODE -eq 0 -and ($probeApp | Out-String).Trim() -eq '1')
+        Remove-Item Env:PGPASSWORD -ErrorAction SilentlyContinue
+    }
+
+    if (-not $superPassword -and -not $reutilizarApp) {
         Write-Host ''
         Write-Host '   Se necesita la contrasena del usuario "postgres" para crear la base y el usuario de la aplicacion.' -ForegroundColor White
         Write-Host '   Es la que elegiste al instalar PostgreSQL. No se guarda en ningun archivo.' -ForegroundColor DarkGray
@@ -280,6 +317,11 @@ try {
         if (-not $superPassword) { throw 'La contrasena de postgres no puede estar vacia.' }
     }
 
+    if ($reutilizarApp) {
+        $appPassword = $savedApp
+        Write-Ok 'La base y el usuario de la aplicacion ya existen; se reutilizan.'
+    }
+    else {
     $env:PGPASSWORD = $superPassword
     try {
         $probe = & $psql -h 127.0.0.1 -p 5432 -U postgres -d postgres -tAc 'SELECT 1' 2>$null
@@ -322,11 +364,12 @@ $do$;
         Remove-Item Env:PGPASSWORD -ErrorAction SilentlyContinue
         $superPassword = $null
     }
+    }
 
     # ------------------------------------------------------------------ 3. .env
     Write-Paso '3/7 Escribiendo la configuracion local (.env)'
     Save-AppCredential $appPassword
-    Write-DotEnv @{
+    $valoresEnv = @{
         PGHOST            = '127.0.0.1'
         PGPORT            = '5432'
         PGDATABASE        = 'epen_codificacion'
@@ -344,6 +387,12 @@ $do$;
         R2_BATCH_SIZE     = '100'
         R2_TIMEOUT_SECONDS = '120'
     }
+    $forzadosEnv = @{}
+    if ($betoDisponible) {
+        $forzadosEnv['R2_MODE'] = 'beto'
+        $forzadosEnv['R2_BETO_MODEL_PATH'] = $betoRelativo
+    }
+    Write-DotEnv $valoresEnv $forzadosEnv
     Write-Ok ('Configuracion guardada en ' + $envPath)
 
     # ------------------------------------------------------------------ 4. dependencias

@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { authError, createUserReal, getSession, listUsersReal, loginReal, logoutReal, retireUserReal, setUserActiveReal } from '../../shared/api/authClient.js';
+import { authError, changeUserPasswordReal, createUserReal, getSession, listUsersReal, loginReal, logoutReal, retireUserReal, setUserActiveReal } from '../../shared/api/authClient.js';
 
 const AuthContext = createContext(null);
 
@@ -63,6 +63,18 @@ export function AuthProvider({ children }) {
     }
   }
 
+  // El servidor cierra todas las sesiones de la cuenta cambiada. Si es la propia, la sesión
+  // visual también se cierra para que el usuario vuelva a ingresar con la clave nueva.
+  async function changeUserPassword(target, input, isSelf) {
+    try {
+      await changeUserPasswordReal(target.id, input);
+      if (isSelf) { setUser(null); setUsers([]); }
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, error: authError(error) };
+    }
+  }
+
   async function removeUser(target) {
     try {
       await retireUserReal(target.id);
@@ -74,7 +86,7 @@ export function AuthProvider({ children }) {
   }
 
   const value = useMemo(() => ({
-    user, users, loading, login, logout, refreshUsers, createUser, toggleUser, removeUser,
+    user, users, loading, login, logout, refreshUsers, createUser, toggleUser, removeUser, changeUserPassword,
   }), [user, users, loading]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

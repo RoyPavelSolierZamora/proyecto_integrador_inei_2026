@@ -63,7 +63,7 @@ export function summarizeWorkspaceIndicators(rows, run = {}) {
 export async function workspaceIndicators(db, datasetId) {
   const [evidence, runs] = await Promise.all([
     db.query(`
-      SELECT c.candidates, human.code AS human_code, llm.code AS r3_code,
+      SELECT c.candidates, COALESCE(ref.code, human.code) AS human_code, ref.code AS reference_code, llm.code AS r3_code,
              ml.processed AS ml_decision, ml.automatic AS ml_automatic
       FROM epen.survey_cases c
       LEFT JOIN LATERAL (
@@ -72,6 +72,12 @@ export async function workspaceIndicators(db, datasetId) {
           AND decision IN ('confirmation', 'correction') AND code IS NOT NULL
         ORDER BY created_at DESC, id DESC LIMIT 1
       ) human ON true
+      LEFT JOIN LATERAL (
+        SELECT rc.final_code AS code FROM epen.survey_cases rc
+        JOIN epen.datasets rd ON rd.id = rc.dataset_id
+        WHERE rd.kind = 'reference' AND rd.status = 'active' AND rc.external_id = c.external_id AND rc.final_code IS NOT NULL
+        ORDER BY rc.id DESC LIMIT 1
+      ) ref ON true
       LEFT JOIN LATERAL (
         SELECT code FROM epen.decisions
         WHERE case_id = c.id AND source = 'llm' AND decision = 'selection' AND code IS NOT NULL
@@ -83,6 +89,7 @@ export async function workspaceIndicators(db, datasetId) {
         FROM epen.decisions WHERE case_id = c.id AND source = 'ml'
       ) ml ON true
       WHERE c.dataset_id = $1
+        AND (SELECT kind FROM epen.datasets WHERE id = $1) = 'system'
     `, [datasetId]),
     db.query(`
       SELECT sum(qwen_processed_count) FILTER (WHERE qwen_mode = 'automatic') AS r3_queries,
@@ -96,5 +103,14 @@ export async function workspaceIndicators(db, datasetId) {
       FROM epen.processing_jobs WHERE dataset_id = $1
     `, [datasetId]),
   ]);
-  return summarizeWorkspaceIndicators(evidence.rows, runs.rows[0]);
+  const activeReference = await db.query("SELECT 1 FROM epen.datasets WHERE kind = 'reference' AND status = 'active' LIMIT 1");
+  return {
+    ...summarizeWorkspaceIndicators(evidence.rows, runs.rows[0]),
+    // Cobertura con la referencia activa: cuántos registros de esta base están en ella.
+    reference: {
+      hasActiveReference: activeReference.rowCount > 0,
+      matched: evidence.rows.filter(row => row.reference_code).length,
+      total: evidence.rows.length,
+    },
+  };
 }

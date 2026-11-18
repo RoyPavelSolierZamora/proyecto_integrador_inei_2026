@@ -2,14 +2,14 @@ import { createHash } from 'node:crypto';
 import express from 'express';
 import { getPool } from '../db/pool.js';
 import { requireAuth, requireCsrf, requireRole } from '../security/middleware.js';
-import { compareCodeRows, codesInQuestion, detectAssistantIntent, greetingAnswer, hasHelpTopic, helpAnswer } from '../services/insights.js';
+import { compareCodeRows, codesInQuestion, detectAssistantIntent, FOLLOW_UP, greetingAnswer, hasHelpTopic, helpAnswer, NONSENSE_ANSWER, normalizeQuestion, socialAnswer } from '../services/insights.js';
 import { askQwenChat } from '../clients/qwen-client.js';
-import { ciiuContext } from '../services/ciiu-notas.js';
+import { ciiuContext, codeAnswer, compareCodesAnswer } from '../services/ciiu-notas.js';
 import { knowledgeContext } from '../services/conocimiento.js';
 
-// El chat solo responde sobre este proyecto: CIIU Rev.4, la clasificación de ocupaciones del INEI
-// y el uso del sistema. Cualquier otro tema recibe esta respuesta fija.
-const OUT_OF_SCOPE_ANSWER = 'Solo puedo responder sobre la codificación CIIU Rev.4, los documentos oficiales del INEI que usa el proyecto y el uso de este sistema. Prueba con una clase, grupo o división CIIU, o con una pregunta sobre cómo usar el sistema.';
+// El chat solo responde sobre este proyecto: CIIU Rev.4, los documentos oficiales del INEI
+// y el uso del sistema. Cualquier otro tema recibe esta respuesta fija, con ejemplos válidos.
+const OUT_OF_SCOPE_ANSWER = 'Solo puedo responder sobre la codificación CIIU Rev.4, los documentos oficiales del INEI que usa el proyecto y el uso de este sistema. Puedes preguntar, por ejemplo: «¿Qué es la clase 5630?», «¿Qué incluye el grupo 471?» o «¿Cómo confirmo un código?».';
 import { getConfig } from '../config.js';
 import { workspaceIndicators } from '../services/workspace-indicators.js';
 
@@ -285,11 +285,16 @@ export function createInsightsRouter() {
     const datasetId = validId(req.body?.datasetId);
     const compareDatasetId = validId(req.body?.compareDatasetId);
     const caseExternalId = String(req.body?.caseExternalId || '').trim().slice(0, 120) || null;
-    const intent = detectAssistantIntent(question, { compareDatasetId, caseExternalId });
+    // Último código CIIU de la conversación: sirve para preguntas de seguimiento ("¿de qué trata?").
+    const previousCodes = Array.isArray(req.body?.previousCodes) ? req.body.previousCodes.map(code => String(code)).filter(code => /^[0-9]{4}$/.test(code)).slice(0, 3) : [];
+    const previousCode = previousCodes[0] || null;
+    const intent = detectAssistantIntent(question, { compareDatasetId, caseExternalId, previousCodes });
     const elevated = ['supervisor', 'auditor', 'admin'].includes(req.auth.user.role);
     const analytical = ['analista', 'supervisor', 'auditor', 'admin'].includes(req.auth.user.role);
     if (intent === 'quality_control' && !elevated) throw httpError(403, 'Tu rol no permite consultar métricas de codificadores.');
-    if (!['help', 'greeting'].includes(intent) && !analytical) throw httpError(403, 'Tu rol solo permite consultar ayuda de uso.');
+    // Las intenciones de datos requieren rol analítico; las demás (ayuda, códigos, saludos) están abiertas a todos.
+    const openToAll = ['help', 'greeting', 'social', 'nonsense', 'code', 'code_compare'].includes(intent);
+    if (!openToAll && !analytical) throw httpError(403, 'Tu rol solo permite consultar ayuda de uso.');
     let data = null; let answer;
     if (intent === 'dataset_summary') {
       if (!datasetId) throw httpError(400, 'Selecciona una base para calcular estadísticas.');
@@ -301,7 +306,7 @@ export function createInsightsRouter() {
       if (!datasetId || !compareDatasetId || datasetId === compareDatasetId) throw httpError(400, 'Selecciona dos bases distintas para comparar.');
       data = await compareDatasets(getPool(), datasetId, compareDatasetId); answer = comparisonAnswer(data);
     } else if (intent === 'similar_cases') {
-      if (!datasetId || !caseExternalId) throw httpError(400, 'Abre un registro o indica el registro que deseas comparar.');
+      if (!datasetId || !caseExternalId) throw httpError(400, 'El chat no abre registros por número. Búscalo en Codificación con su ID y, desde su detalle, pregunta por sus antecedentes.');
       data = await similarCases(getPool(), datasetId, caseExternalId);
       answer = data.rows.length
         ? `Encontré ${data.rows.length} observaciones históricas relacionadas. Las primeras corresponden a ${data.rows.slice(0, 3).map(row => `${row.period}: ${row.code}`).join(', ')}. Revisa el contexto antes de reutilizar un código.`
@@ -310,11 +315,33 @@ export function createInsightsRouter() {
       if (!datasetId) throw httpError(400, 'Selecciona una base para revisar control de calidad.');
       data = await qualitySummary(getPool(), datasetId); answer = qualityAnswer(data);
     } else if (intent === 'greeting') answer = greetingAnswer(req.auth.user.name);
+    else if (intent === 'nonsense') answer = NONSENSE_ANSWER;
+    else if (intent === 'social') answer = socialAnswer(question);
+    else if (intent === 'code_compare') {
+      // Comparación de dos o tres clases: qué comprende cada una y qué excluye, según las notas oficiales.
+      const refs = codesInQuestion(question);
+      const wanted = /(^| )(las 3|las tres)( |$)/.test(normalizeQuestion(question)) ? 3 : 2;
+      const codes = refs.clases.length >= 2 ? refs.clases.slice(0, 3) : previousCodes.slice(0, wanted);
+      const catalog = await getPool().query('SELECT code, description FROM epen.ciiu_catalog WHERE code = ANY($1::text[]) AND active = true', [codes]);
+      answer = compareCodesAnswer(catalog.rows, codes);
+    }
+    else if (intent === 'code') {
+      // Códigos oficiales: respuesta directa con el nombre y las notas, sin modelo ni datos de la base.
+      const refs = codesInQuestion(question);
+      if (!refs.clases.length && !refs.grupos.length && !refs.divisiones.length && previousCode) refs.clases = [previousCode];
+      const catalog = refs.clases.length
+        ? await getPool().query('SELECT code, description FROM epen.ciiu_catalog WHERE code = ANY($1::text[]) AND active = true', [refs.clases])
+        : { rows: [] };
+      answer = codeAnswer(catalog.rows, refs);
+    }
     else if (intent === 'help' && hasHelpTopic(question)) answer = helpAnswer(question);
     else {
       // Pregunta abierta: el chat responde con el contexto oficial del catálogo CIIU.
       // Es independiente de la clasificación; si el chat no está disponible, se explica sin inventar.
       const refs = codesInQuestion(question);
+      if (!refs.clases.length && !refs.grupos.length && !refs.divisiones.length && previousCode && FOLLOW_UP.test(normalizeQuestion(question))) {
+        refs.clases = [previousCode];
+      }
       const catalog = refs.clases.length
         ? await getPool().query('SELECT code, description FROM epen.ciiu_catalog WHERE code = ANY($1::text[]) AND active = true', [refs.clases])
         : { rows: [] };
@@ -328,8 +355,8 @@ export function createInsightsRouter() {
           answer = await askQwenChat(getConfig(), { question, context });
         } catch {
           // Sin el modelo, se muestran los textos oficiales encontrados, sin inventar una respuesta.
-          answer = knowledge
-            ? `El asistente no está disponible ahora. Estos textos oficiales pueden ayudarte:\n\n${knowledge.slice(0, 1200)}`
+          answer = context
+            ? `El asistente de IA no está disponible ahora. Estos textos oficiales pueden ayudarte:\n\n${context.slice(0, 1200)}`
             : OUT_OF_SCOPE_ANSWER;
         }
         if (!answer) answer = OUT_OF_SCOPE_ANSWER;

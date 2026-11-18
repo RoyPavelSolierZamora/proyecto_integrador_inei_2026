@@ -85,4 +85,17 @@ export const reviewCatalogChangeRequestReal = (id, status, reviewNotes = '') => 
 
 export const listQualityReviewsReal = (datasetId, caseId) => apiRequest(`/api/datasets/${encodeURIComponent(datasetId)}/cases/${encodeURIComponent(caseId)}/quality-reviews`);
 export const createQualityReviewReal = (datasetId, caseId, input) => apiRequest(`/api/datasets/${encodeURIComponent(datasetId)}/cases/${encodeURIComponent(caseId)}/quality-reviews`, { method: 'POST', mutation: true, body: input });
+export const getQualitySampleReal = (datasetId, { limit = 20, seed = '', source = '', band = '' } = {}) => {
+  const params = new URLSearchParams({ limit: String(limit), seed, source, band });
+  return apiRequest(`/api/datasets/${encodeURIComponent(datasetId)}/quality-sample?${params.toString()}`);
+};
+export const submitBlindVerdictReal = (datasetId, decisionId, code) => apiRequest(`/api/datasets/${encodeURIComponent(datasetId)}/quality-sample/${encodeURIComponent(decisionId)}/verdict`, { method: 'POST', mutation: true, body: { code } });
+export const getQualityMetricsReal = datasetId => apiRequest(`/api/datasets/${encodeURIComponent(datasetId)}/quality-metrics`);
+export const listReferenceDatasetsReal = () => apiRequest('/api/reference-datasets');
+export const setReferenceActivationReal = (id, active) => apiRequest(`/api/reference-datasets/${encodeURIComponent(id)}/activation`, { method: 'PATCH', mutation: true, body: { active } });
+export const getCodingDashboardReal = datasetId => apiRequest(`/api/datasets/${encodeURIComponent(datasetId)}/coding-dashboard`);
+export const importReferenceDatasetReal = input => apiRequest('/api/datasets/import-reference', { method: 'POST', mutation: true, body: input });
+export const getReferenceComparisonReal = (datasetId, referenceId) => apiRequest(`/api/datasets/${encodeURIComponent(datasetId)}/reference-comparison?reference=${encodeURIComponent(referenceId)}`);
+export const getCaseReferenceReal = (datasetId, externalId) => apiRequest(`/api/datasets/${encodeURIComponent(datasetId)}/cases/${encodeURIComponent(externalId)}/reference`);
+export const setUserAnalystCodeReal = (id, analystCode) => apiRequest(`/api/admin/users/${encodeURIComponent(id)}/analyst-code`, { method: 'PATCH', mutation: true, body: { analystCode } });
 

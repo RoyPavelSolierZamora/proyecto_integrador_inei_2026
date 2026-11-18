@@ -19,3 +19,6 @@ motores/r2/baseline/modelos/
 .taste-skill/
 motores/r3/salidas/
 motores/r3/datos/*.db
+
+# Modelo BETO y otros modelos locales: se copian aquí a mano y no se suben a Git.
+modelos/

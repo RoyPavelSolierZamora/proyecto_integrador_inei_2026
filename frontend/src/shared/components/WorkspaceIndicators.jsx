@@ -9,7 +9,7 @@ function IndicatorCard({ id, title, subtitle, data, loading }) {
   const values = [
     { label: 'Exactitud', value: data?.accuracy, color: chartColors.primary, detail: 'vs. humano' },
     { label: 'Aprobación', value: data?.automaticApproval, color: chartColors.positive, detail: 'automática' },
-    { label: 'F1 macro', value: data?.macroF1, color: chartColors.neutral, detail: 'por clase' },
+    { label: 'F1 macro', value: data?.macroF1, color: chartColors.secondary, detail: 'por clase' },
   ].map(item => ({
     label: item.label,
     detail: item.detail,

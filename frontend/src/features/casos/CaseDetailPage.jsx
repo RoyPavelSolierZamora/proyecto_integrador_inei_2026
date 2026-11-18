@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { getCaseReferenceReal } from '../../shared/api/dataClient.js';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import ContextHelp from '../../shared/ui/ContextHelp.jsx';
 import Panel from '../../shared/ui/Panel.jsx';
@@ -46,7 +47,7 @@ export default function CaseDetailPage() {
   const [catalogTotal, setCatalogTotal] = useState(0);
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [catalogMore, setCatalogMore] = useState(false);
-  const correctionDialog = useRef(null);
+  const [catalogOpen, setCatalogOpen] = useState(false);
   const catalogList = useRef(null);
   const canDecide = ['analista', 'supervisor', 'admin'].includes(user.role);
   const canReviewQuality = ['supervisor', 'admin'].includes(user.role);
@@ -55,6 +56,17 @@ export default function CaseDetailPage() {
   useEffect(() => {
     if (item) setSelected(item.codigo_final || item.candidatos?.[0]?.codigo || '');
   }, [item?.id, item?.codigo_final]);
+
+  // Referencia de la base codificada para este registro, si fue importada.
+  const [referenceInfo, setReferenceInfo] = useState(null);
+  useEffect(() => {
+    if (!item || !selectedDataset?.id) return undefined;
+    let active = true;
+    getCaseReferenceReal(selectedDataset.id, item.id_registro)
+      .then(data => { if (active) setReferenceInfo(data); })
+      .catch(() => { if (active) setReferenceInfo(null); });
+    return () => { active = false; };
+  }, [item?.id_registro, selectedDataset?.id]);
 
   useEffect(() => {
     let active = true;
@@ -73,6 +85,21 @@ export default function CaseDetailPage() {
     }, 180);
     return () => { active = false; clearTimeout(timer); };
   }, [catalogQuery]);
+
+  function closeCatalog() {
+    setCatalogOpen(false);
+    setCatalogQuery('');
+    setCatalogSelected('');
+    setCatalogTotal(0);
+  }
+
+  // La tecla Escape también cierra el catálogo mientras está abierto.
+  useEffect(() => {
+    if (!catalogOpen) return undefined;
+    const onKey = event => { if (event.key === 'Escape') closeCatalog(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [catalogOpen]);
 
   async function loadMoreCatalog() {
     if (catalogMore) return;
@@ -146,6 +173,9 @@ export default function CaseDetailPage() {
 
   const confidence = Math.round(item.confianza_ml * 100);
   const unsupported = item.evidencia_r2?.calibracion === 'softmax-sin-calibrar';
+  const aiCode = item.qwen?.codigo || null;
+  const aiPending = !aiCode || item.qwen?.decision === 'revision_humana';
+  const aiCandidate = aiCode ? item.candidatos.find(candidate => candidate.codigo === aiCode) : null;
 
   return (
     <div className="grid grid-cols-1 gap-6">
@@ -190,6 +220,14 @@ export default function CaseDetailPage() {
             <p>El código CIIU identifica una actividad económica. El porcentaje indica la confianza de la sugerencia, no garantiza su corrección. Compara la respuesta original y la información complementaria antes de confirmar.</p>
           </ContextHelp>
 
+          {referenceInfo?.reference && (
+            <div aria-label="Referencia de la base codificada" className="grid gap-1 rounded-xl border border-line bg-surface p-3 text-sm">
+              <span className="font-semibold text-ink-strong">Base codificada: {referenceInfo.reference.name}</span>
+              <span className="text-muted">Código de referencia <strong className="text-ink-strong">{referenceInfo.reference.code}</strong>{referenceInfo.reference.analyst ? ` · analista ${referenceInfo.reference.analyst}` : ' · sin código de analista'}</span>
+              <span className={referenceInfo.reference.agrees ? 'font-semibold text-[#05603a]' : 'font-semibold text-danger'}>{referenceInfo.reference.agrees ? 'Coincide con el código del sistema.' : 'No coincide con el código del sistema: revísalo antes de confirmar.'}</span>
+            </div>
+          )}
+
           <div role="radiogroup" aria-label="Códigos sugeridos" className="grid grid-cols-1 gap-2">
             {item.candidatos.map(candidate => {
               const isSelected = selected === candidate.codigo;
@@ -203,7 +241,10 @@ export default function CaseDetailPage() {
                 >
                   <input type="radio" name="candidate" value={candidate.codigo} checked={isSelected} onChange={() => setSelected(candidate.codigo)} className="size-4" />
                   <span className="font-bold text-ink-strong">{candidate.codigo}</span>
-                  <span className="text-muted">{candidate.descripcion}</span>
+                  <span className="grid gap-1 text-muted">
+                    {candidate.codigo === aiCode && <span className="w-fit rounded-full bg-brand px-2 py-0.5 text-xs font-semibold text-white">Propuesta de IA</span>}
+                    <span>{candidate.descripcion}</span>
+                  </span>
                   <strong className="text-ink-strong">{Math.round(candidate.prob * 100)} %</strong>
                 </label>
               );
@@ -213,13 +254,28 @@ export default function CaseDetailPage() {
             <p className="text-sm text-muted">El clasificador no produjo candidatos. Este caso requiere selección manual desde el catálogo.</p>
           )}
           {item.qwen && (
-            <div className="grid grid-cols-1 gap-1 rounded-xl border border-brand-soft bg-[#f8fbff] p-4">
-              <div className="flex items-baseline gap-2 text-sm">
-                <span className="text-muted">IA sugiere</span>
-                <strong className="text-ink-strong">{item.qwen.codigo || 'Revisión'}</strong>
+            <section aria-label="Sugerencia de la IA" className="grid gap-2 rounded-xl border-2 border-brand bg-[#f8fbff] p-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm font-semibold text-ink-strong">Sugerencia de la IA</span>
+                <span className="rounded-full bg-brand-soft px-2 py-0.5 text-xs font-semibold text-navy">Requiere confirmación humana</span>
               </div>
-              <p className="text-sm text-ink">{operationalText(item.qwen.justificacion)}</p>
-            </div>
+              {aiPending ? (
+                <p className="text-sm font-semibold text-ink-strong">La IA pide revisión humana.</p>
+              ) : (
+                <p className="text-sm text-ink">
+                  <strong className="text-base text-ink-strong">{aiCode}</strong>
+                  {aiCandidate ? ` · ${aiCandidate.descripcion}` : ' · Código fuera de las propuestas del clasificador'}
+                </p>
+              )}
+              <p className="text-sm text-muted">{operationalText(item.qwen.justificacion)}</p>
+              {!aiPending && aiCandidate && canDecide && (
+                <div>
+                  <Button variant="secondary" size="sm" disabled={selected === aiCode} onClick={() => setSelected(aiCode)}>
+                    {selected === aiCode ? 'Sugerencia seleccionada' : 'Usar la sugerencia de IA'}
+                  </Button>
+                </div>
+              )}
+            </section>
           )}
         </Panel>
       </div>
@@ -232,7 +288,7 @@ export default function CaseDetailPage() {
           </div>
           <div className="flex flex-wrap gap-2">
             <Button disabled={!selected || loading} onClick={() => save('confirmación')}>Confirmar y siguiente</Button>
-            <Button variant="secondary" onClick={() => { setCatalogSelected(''); correctionDialog.current?.showModal(); }}>Catálogo CIIU</Button>
+            <Button variant="secondary" onClick={() => { setCatalogSelected(''); setCatalogOpen(true); }}>Catálogo CIIU</Button>
             <Button variant="danger" disabled={loading} onClick={() => save('derivación')}>Revisión</Button>
           </div>
         </section>
@@ -271,61 +327,63 @@ export default function CaseDetailPage() {
         )}
       </div>
 
-      <dialog
-        ref={correctionDialog}
-        onClose={() => { setCatalogQuery(''); setCatalogSelected(''); setCatalogTotal(0); }}
-        className="m-auto w-[min(640px,calc(100vw-24px))] max-h-[85vh] rounded-2xl border border-line bg-surface p-0 shadow-2xl backdrop:bg-navy-strong/40"
-      >
-        <div className="grid max-h-[85vh] grid-rows-[auto_auto_minmax(0,1fr)_auto_auto] gap-3 p-5">
-          <form method="dialog" className="flex items-start justify-between gap-3">
-            <div className="grid grid-cols-1 gap-0.5">
-              <p className="text-xs font-semibold uppercase tracking-wide text-brand">Catálogo CIIU Rev.4</p>
-              <h2 className="text-lg font-bold text-ink-strong">Seleccionar otro código CIIU</h2>
+      {catalogOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-navy-strong/40 p-3"
+          onMouseDown={event => { if (event.target === event.currentTarget) closeCatalog(); }}
+        >
+          <div role="dialog" aria-modal="true" aria-labelledby="catalogo-titulo" className="flex max-h-[min(85vh,680px)] w-full max-w-[640px] flex-col overflow-hidden rounded-2xl bg-surface shadow-2xl">
+            <div className="grid shrink-0 content-start gap-4 p-6 pb-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="grid grid-cols-1 gap-0.5">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-brand">Catálogo CIIU Rev.4</p>
+                  <h2 id="catalogo-titulo" className="text-lg font-bold text-ink-strong">Seleccionar otro código CIIU</h2>
+                </div>
+                <Button type="button" variant="quiet" size="sm" aria-label="Cerrar" onClick={closeCatalog}>Cerrar</Button>
+              </div>
+              <Field id="catalogo-buscar" label="Buscar por código o descripción">
+                <input id="catalogo-buscar" autoFocus type="search" className={inputClass} value={catalogQuery} onChange={event => setCatalogQuery(event.target.value)} placeholder="Ej. 4711 o venta al por menor" />
+              </Field>
             </div>
-            <Button type="submit" variant="quiet" size="sm" aria-label="Cerrar">Cerrar</Button>
-          </form>
 
-          <Field id="catalogo-buscar" label="Buscar por código o descripción">
-            <input id="catalogo-buscar" autoFocus type="search" className={inputClass} value={catalogQuery} onChange={event => setCatalogQuery(event.target.value)} placeholder="Ej. 4711 o venta al por menor" />
-          </Field>
+            <div role="listbox" aria-label="Códigos CIIU encontrados" ref={catalogList} className="grid min-h-0 flex-1 content-start gap-2 overflow-y-auto px-6 py-2">
+              {catalogResults.map(row => {
+                const isSelected = catalogSelected === row.codigo;
+                return (
+                  <button
+                    key={row.codigo}
+                    type="button"
+                    role="option"
+                    aria-selected={isSelected}
+                    onClick={() => setCatalogSelected(row.codigo)}
+                    className={['grid grid-cols-[72px_minmax(0,1fr)] items-baseline gap-3 rounded-xl border px-4 py-3 text-left text-sm transition', isSelected ? 'border-2 border-brand bg-brand-soft' : 'border-[#c7d8ee] bg-white hover:border-brand hover:bg-brand-soft/40'].join(' ')}
+                  >
+                    <strong className="text-ink-strong">{row.codigo}</strong>
+                    <span className="text-muted">{row.descripcion}</span>
+                  </button>
+                );
+              })}
+              {!catalogResults.length && !catalogLoading && <p className="py-6 text-center text-sm text-muted">No se encontraron códigos con ese criterio.</p>}
+            </div>
 
-          <div role="listbox" aria-label="Códigos CIIU encontrados" ref={catalogList} className="grid min-h-0 content-start gap-1 overflow-y-auto rounded-lg border border-line p-1">
-            {catalogResults.map(row => {
-              const isSelected = catalogSelected === row.codigo;
-              return (
-                <button
-                  key={row.codigo}
-                  type="button"
-                  role="option"
-                  aria-selected={isSelected}
-                  onClick={() => setCatalogSelected(row.codigo)}
-                  className={['grid grid-cols-[64px_minmax(0,1fr)] gap-3 rounded-lg px-3 py-2 text-left text-sm', isSelected ? 'bg-brand-soft' : 'hover:bg-[#f5f8fd]'].join(' ')}
-                >
-                  <strong className="text-ink-strong">{row.codigo}</strong>
-                  <span className="text-muted">{row.descripcion}</span>
-                </button>
-              );
-            })}
-            {!catalogResults.length && !catalogLoading && <p className="py-6 text-center text-sm text-muted">No se encontraron códigos con ese criterio.</p>}
-          </div>
+            <div aria-live="polite" className="flex shrink-0 flex-wrap items-center justify-between gap-2 px-6 pb-3 pt-2 text-sm text-muted">
+              <span>
+                {catalogLoading ? 'Buscando códigos…' : catalogResults.length < catalogTotal
+                  ? `${catalogResults.length} de ${catalogTotal} ${catalogQuery.trim() ? 'coincidencias' : 'clases del catálogo'}`
+                  : `${catalogTotal} ${catalogQuery.trim() ? 'coincidencia' : 'clase'}${catalogTotal === 1 ? '' : 's'}${catalogQuery.trim() ? '' : ' en el catálogo'}`}
+              </span>
+              {catalogResults.length < catalogTotal && (
+                <Button variant="secondary" size="sm" onClick={loadMoreCatalog} disabled={catalogMore}>{catalogMore ? 'Cargando…' : 'Cargar más'}</Button>
+              )}
+            </div>
 
-          <div aria-live="polite" className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted">
-            <span>
-              {catalogLoading ? 'Buscando códigos…' : catalogResults.length < catalogTotal
-                ? `${catalogResults.length} de ${catalogTotal} ${catalogQuery.trim() ? 'coincidencias' : 'clases del catálogo'}`
-                : `${catalogTotal} ${catalogQuery.trim() ? 'coincidencia' : 'clase'}${catalogTotal === 1 ? '' : 's'}${catalogQuery.trim() ? '' : ' en el catálogo'}`}
-            </span>
-            {catalogResults.length < catalogTotal && (
-              <Button variant="secondary" size="sm" onClick={loadMoreCatalog} disabled={catalogMore}>{catalogMore ? 'Cargando…' : 'Cargar más'}</Button>
-            )}
-          </div>
-
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-3">
-            <span className="text-sm text-ink">{catalogSelected ? `Código seleccionado: ${catalogSelected}` : 'Selecciona un código del catálogo'}</span>
-            <Button disabled={!catalogSelected || loading} onClick={correct}>{loading ? 'Guardando…' : 'Usar código y continuar'}</Button>
+            <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-line bg-surface px-6 py-4">
+              <span className="text-sm text-ink">{catalogSelected ? `Código seleccionado: ${catalogSelected}` : 'Selecciona un código del catálogo'}</span>
+              <Button disabled={!catalogSelected || loading} onClick={correct}>{loading ? 'Guardando…' : 'Usar código y continuar'}</Button>
+            </div>
           </div>
         </div>
-      </dialog>
+      )}
     </div>
   );
 }

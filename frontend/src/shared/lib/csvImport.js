@@ -44,6 +44,9 @@ export function parseR2Csv(text) {
   const headers = matrix[0].map(value => value.trim().toLowerCase());
   const required = ['id_registro', 'p309', 'candidatos'];
   const missing = required.filter(name => !headers.includes(name));
+  if (missing.length && (headers.includes('c309_cod') || headers.includes('analista'))) {
+    return { rows: [], errors: ['Este archivo es una base codificada con código final. Súbelo en Control de calidad, en la sección Base codificada de referencia. Este importador es solo para resultados del clasificador automático.'] };
+  }
   if (missing.length) return { rows: [], errors: [`Faltan columnas obligatorias: ${missing.join(', ')}.`] };
 
   const parsedRows = [];
@@ -114,4 +117,33 @@ export function parseRawEpenCsv(text, { maxRows = 50_000 } = {}) {
     });
   });
   return { rows, errors };
+}
+
+// Base codificada de referencia: un CSV con el código final de cada registro y, opcionalmente, el código de analista.
+// Acepta los nombres del archivo de la encuesta (ID_C200, C308, C308A, C309, C309_COD) y los del dashboard.
+export function parseCodedCsv(text) {
+  const matrix = parseMatrix(text);
+  if (matrix.length < 2) return { rows: [], errors: ['El archivo no contiene registros.'] };
+  const headers = matrix[0].map(value => value.trim().toLowerCase());
+  const column = names => names.map(name => headers.indexOf(name)).find(index => index >= 0);
+  const map = {
+    externalId: column(['id_registro', 'id_c200', 'id']),
+    p309: column(['p309', 'c309']),
+    p308: column(['p308', 'c308']),
+    p308a: column(['p308a', 'c308a']),
+    code: column(['codigo', 'c309_cod']),
+    analyst: column(['analista', 'codigo_analista']),
+  };
+  const missing = ['externalId', 'p309', 'code'].filter(key => map[key] === undefined);
+  if (missing.length) return { rows: [], errors: [`Faltan columnas obligatorias: ${missing.map(key => ({ externalId: 'id_registro (ID_C200)', p309: 'p309 (C309)', code: 'codigo (C309_COD)' })[key]).join(', ')}.`] };
+  const value = (values, index) => (index === undefined ? '' : String(values[index] || '').trim());
+  const rows = matrix.slice(1).filter(values => values.some(cell => String(cell || '').trim() !== '')).map(values => ({
+    externalId: value(values, map.externalId),
+    p309: value(values, map.p309),
+    p308: value(values, map.p308),
+    p308a: value(values, map.p308a),
+    code: value(values, map.code),
+    analyst: value(values, map.analyst),
+  }));
+  return { rows, errors: [] };
 }

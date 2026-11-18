@@ -165,7 +165,8 @@ async function processR2Job(jobId, config) {
             await client.query("INSERT INTO epen.decisions (case_id, run_id, source, decision, justification, model) VALUES ($1, $2, 'ml', 'derivation', $3, $4)", [row.id, `r2-job-${jobId}`, reason, prediction.modelVersion]);
             continue;
           }
-          // BETO V2 aún no tiene calibración independiente: no cerrar automáticamente.
+          // BETO cierra por el umbral del trabajo, como los demás clasificadores. Su puntaje no está calibrado:
+          // la precisión medida por banda está en la evaluación de septiembre de 2026.
           const isAutomatic = canResolveAutomatically(prediction.modelVersion, result.confianza_ml, claimed.threshold);
           if (isAutomatic) automatic += 1;
           else qwenPending += 1;
@@ -253,7 +254,7 @@ async function processR2Job(jobId, config) {
     if (await cancellationRequested(jobId)) return cancelJob(jobId, claimed.dataset_id);
 
     await transaction(async client => {
-      await client.query("UPDATE epen.datasets SET status = 'archived' WHERE status = 'active'");
+      await client.query("UPDATE epen.datasets SET status = 'archived' WHERE status = 'active' AND kind = 'system'");
       await client.query("UPDATE epen.datasets SET status = 'active', activated_at = now() WHERE id = $1", [claimed.dataset_id]);
       await client.query("UPDATE epen.processing_jobs SET status = 'completed', processed_records = total_records, finished_at = now(), updated_at = now() WHERE id = $1", [jobId]);
       await client.query(`

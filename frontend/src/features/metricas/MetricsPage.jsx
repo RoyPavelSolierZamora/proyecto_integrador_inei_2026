@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import DatasetWorkspaceSelector from '../../shared/components/DatasetWorkspaceSelector.jsx';
+import CodingDashboard from './CodingDashboard.jsx';
 import PageHeader from '../../shared/ui/PageHeader.jsx';
 import PanelHeading from '../../shared/ui/PanelHeading.jsx';
 import Panel from '../../shared/ui/Panel.jsx';
-import Button from '../../shared/ui/Button.jsx';
 import Notice from '../../shared/ui/Notice.jsx';
 import { Donut, VerticalBars, chartColors, formatNumber, formatPercent } from '../../shared/ui/Charts.jsx';
-import { getDatasetSummaryReal } from '../../shared/api/dataClient.js';
+import { getCodingDashboardReal, getDatasetSummaryReal } from '../../shared/api/dataClient.js';
 import { useData } from '../../app/state/DataContext.jsx';
 
 const pct = value => value === null || value === undefined ? 'Sin muestra' : `${(Number(value) * 100).toFixed(1)} %`;
@@ -43,6 +43,17 @@ export default function MetricsPage() {
     return () => { current = false; };
   }, [datasetId]);
 
+  // El tablero de codificación se carga aparte. Si hay base codificada activa, pasa a primer plano.
+  const [coding, setCoding] = useState(null);
+  useEffect(() => {
+    if (!datasetId) return undefined;
+    let current = true;
+    setCoding(null);
+    getCodingDashboardReal(datasetId).then(data => { if (current) setCoding(data); }).catch(() => { if (current) setCoding(null); });
+    return () => { current = false; };
+  }, [datasetId]);
+  const codingFirst = Boolean(coding?.coderSectionVisible);
+
   const t = summary?.totals;
   const r2 = summary?.indicators?.r2;
   const r3 = summary?.indicators?.r3;
@@ -64,8 +75,21 @@ export default function MetricsPage() {
       <DatasetWorkspaceSelector datasets={datasets} selectedId={datasetId} onChange={setDatasetId} />
       {message && <Notice tone="error">{message}</Notice>}
       {loading && <Notice>Calculando indicadores…</Notice>}
+      {summary?.indicators?.reference?.hasActiveReference && summary.indicators.reference.matched === 0 && (
+        <Notice tone="error" title="La base activa no comparte registros con la referencia activa.">
+          Ninguno de los {summary.indicators.reference.total} registros de esta base está en la base codificada activa, así que la exactitud no se puede calcular. Activa la base que codificaste.
+        </Notice>
+      )}
 
+      {coding && <CodingDashboard data={coding} />}
       {summary && (
+        <details open={!codingFirst} className="group rounded-2xl border border-line bg-surface shadow-sm">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4">
+            <span className="text-base font-bold text-ink-strong">Detalle operativo y calidad de entrada</span>
+            <span className="text-sm text-muted group-open:hidden">Ver</span>
+            <span className="hidden text-sm text-muted group-open:inline">Ocultar</span>
+          </summary>
+        <div className="grid gap-4 border-t border-line p-5">
         <>
           <section aria-label="Indicadores principales" className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {[
@@ -186,6 +210,8 @@ export default function MetricsPage() {
             Lectura recomendada: cobertura y exactitud deben analizarse juntas. Una confianza alta solo es útil si su calibración se valida en un periodo independiente.
           </p>
         </>
+        </div>
+        </details>
       )}
     </div>
   );

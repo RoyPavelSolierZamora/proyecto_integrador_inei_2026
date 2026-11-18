@@ -120,6 +120,7 @@ async function datasets(db) {
   const result = await db.query(`
     SELECT d.*, u.full_name AS imported_by_name
     FROM epen.datasets d LEFT JOIN epen.users u ON u.id = d.imported_by
+    WHERE d.kind = 'system'
     ORDER BY d.imported_at DESC, d.id DESC
   `);
   return result.rows.map(mapDataset);
@@ -129,7 +130,7 @@ async function activeDataset(db) {
   const result = await db.query(`
     SELECT d.*, u.full_name AS imported_by_name
     FROM epen.datasets d LEFT JOIN epen.users u ON u.id = d.imported_by
-    WHERE d.status = 'active' ORDER BY d.activated_at DESC NULLS LAST LIMIT 1
+    WHERE d.status = 'active' AND d.kind = 'system' ORDER BY d.activated_at DESC NULLS LAST LIMIT 1
   `);
   return result.rowCount ? mapDataset(result.rows[0]) : null;
 }
@@ -154,16 +155,18 @@ async function caseByExternalId(db, datasetId, externalId) {
 }
 
 function mapHistoryEvent(row) {
-  const labels = { confirmation: 'confirmación', correction: 'corrección', derivation: 'derivación', selection: 'consulta de IA', revision: 'consulta de IA', automatic: 'codificación automática' };
+  const labels = { confirmation: 'confirmación', correction: 'corrección', derivation: 'derivación', selection: 'consulta de IA', revision: 'consulta de IA', automatic: 'codificación automática', reference_code: 'código de referencia' };
+  // Las decisiones de una base codificada muestran el código de analista como responsable.
+  const reference = row.source === 'external';
   return {
     id: Number(row.id), caseId: row.external_id, action: labels[row.decision] || row.decision,
-    code: row.code, user: row.actor, at: row.created_at,
-    source: row.source === 'ml' ? 'automatic' : row.source === 'llm' ? 'ai' : 'human',
+    code: row.code, user: reference && row.analyst_code ? `Analista ${row.analyst_code}` : row.actor, at: row.created_at,
+    source: row.source === 'ml' ? 'automatic' : row.source === 'llm' ? 'ai' : reference ? 'reference' : 'human',
   };
 }
 
 async function pagedHistory(db, datasetId, { limit, offset, query, source }) {
-  const sourceValue = { automatic: 'ml', ai: 'llm', human: 'human' }[source] || null;
+  const sourceValue = { automatic: 'ml', ai: 'llm', human: 'human', reference: 'external' }[source] || null;
   const search = String(query || '').trim().slice(0, 120);
   const params = [datasetId, sourceValue, search, limit, offset];
   const where = `
@@ -175,7 +178,7 @@ async function pagedHistory(db, datasetId, { limit, offset, query, source }) {
   `;
   const [rows, total, summary] = await Promise.all([
     db.query(`
-      SELECT d.id, c.external_id, d.source, d.decision, d.code, d.created_at,
+      SELECT d.id, c.external_id, d.source, d.decision, d.code, d.created_at, c.analyst_code,
         COALESCE(u.full_name, ju.full_name, 'Sistema') AS actor
       FROM epen.decisions d
       JOIN epen.survey_cases c ON c.id = d.case_id
@@ -277,7 +280,9 @@ export function createDataRouter(config) {
       const synthetic = String(req.query.synthetic || 'false') === 'true';
       const qwenMode = String(req.query.qwenMode || 'manual');
       const rawAiThreshold = String(req.query.aiThreshold ?? '').trim();
-      const aiThreshold = rawAiThreshold === '' ? null : Number(rawAiThreshold);
+      // Si el codificador no indica un umbral de IA, el trabajo usa 0,95: la IA solo cierra casos con puntaje
+      // igual o superior, así que con este valor no cierra casos que el umbral del trabajo no haya cerrado.
+      const aiThreshold = rawAiThreshold === '' ? 0.95 : Number(rawAiThreshold);
       if (!name || name.length > 160 || !period || period.length > 40) throw httpError(400, 'Nombre y periodo son obligatorios.');
       if (!Number.isFinite(threshold) || threshold < 0 || threshold > 1) throw httpError(400, 'El umbral R2 debe estar entre 0 y 1.');
       if (aiThreshold !== null && (!Number.isFinite(aiThreshold) || aiThreshold < 0 || aiThreshold > 1)) throw httpError(400, 'El umbral de IA debe estar entre 0 y 1 o quedar vacío.');
@@ -345,7 +350,7 @@ export function createDataRouter(config) {
     const limit = Math.min(100, Math.max(10, Number(req.query.limit) || 30));
     const offset = Math.max(0, Number(req.query.offset) || 0);
     const source = String(req.query.source || 'all');
-    if (!['all', 'automatic', 'ai', 'human'].includes(source)) throw httpError(400, 'El origen solicitado no es válido.');
+    if (!['all', 'automatic', 'ai', 'human', 'reference'].includes(source)) throw httpError(400, 'El origen solicitado no es válido.');
     const dataset = await datasetById(getPool(), datasetId);
     if (!dataset) throw httpError(404, 'Base no encontrada.');
     res.json({ dataset, ...(await pagedHistory(getPool(), datasetId, { limit, offset, query: req.query.q, source })) });
@@ -454,7 +459,8 @@ export function createDataRouter(config) {
     const item = raw.rows[0];
     const { result, review, code } = await classifyWithQwen(config, item);
     await transaction(async client => {
-      await client.query('INSERT INTO epen.decisions (case_id, source, decision, code, justification, model, latency_seconds) VALUES ($1, $2, $3, $4, $5, $6, $7)', [item.id, 'llm', review ? 'revision' : 'selection', code, result.justificacion || null, result.modelo || null, result.latencia_s || null]);
+      // decided_by identifica a la persona que pidió la consulta; sin él el historial mostraría "Sistema".
+      await client.query('INSERT INTO epen.decisions (case_id, source, decision, code, justification, model, latency_seconds, decided_by) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)', [item.id, 'llm', review ? 'revision' : 'selection', code, result.justificacion || null, result.modelo || null, result.latencia_s || null, req.auth.user.id]);
       if (review) await client.query("UPDATE epen.survey_cases SET status = 'review', updated_at = now() WHERE id = $1", [item.id]);
       await audit(client, req, 'case.qwen', 'case', item.id, { datasetId: Number(target.id), externalId: item.external_id, code, review, mode: config.qwenMode });
     });
@@ -465,7 +471,7 @@ export function createDataRouter(config) {
     await transaction(async client => {
       const target = await client.query('SELECT id FROM epen.datasets WHERE id = $1 FOR UPDATE', [req.params.id]);
       if (!target.rowCount) throw httpError(404, 'Base no encontrada.');
-      await client.query("UPDATE epen.datasets SET status = 'archived' WHERE status = 'active'");
+      await client.query("UPDATE epen.datasets SET status = 'archived' WHERE status = 'active' AND kind = 'system'");
       await client.query("UPDATE epen.datasets SET status = 'active', activated_at = now() WHERE id = $1", [req.params.id]);
       await audit(client, req, 'dataset.activated', 'dataset', req.params.id);
     });
@@ -512,7 +518,7 @@ export function createDataRouter(config) {
     if (!name || !period || !Array.isArray(rows) || rows.length < 1 || rows.length > 5000) throw httpError(400, 'La importación debe incluir nombre, periodo y entre 1 y 5000 registros.');
     if (rows.some(row => !row.id_registro || !row.p309 || !validateCandidates(row.candidatos))) throw httpError(400, 'Uno o más registros no cumplen el contrato R2 → R3.');
     const dataset = await transaction(async client => {
-      await client.query("UPDATE epen.datasets SET status = 'archived' WHERE status = 'active'");
+      await client.query("UPDATE epen.datasets SET status = 'archived' WHERE status = 'active' AND kind = 'system'");
       const code = `BASE-${Date.now()}`;
       const created = await client.query(`
         INSERT INTO epen.datasets (code, name, period, source_filename, status, record_count, imported_by, activated_at, is_synthetic)

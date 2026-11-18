@@ -23,6 +23,10 @@ El instalador comprueba Node.js, Python, PostgreSQL, Ollama y Qwen; instala lo q
 base local, aplica las migraciones y solicita la primera cuenta administradora. No muevas el
 archivo `.bat` fuera de la carpeta: usa rutas relativas a este repositorio.
 
+Si tienes el modelo BETO, copia la carpeta `modelo_beto_multivariado_final_v2` dentro de `modelos\`
+antes de ejecutar `instalar.bat`. El instalador detecta el modelo, instala sus librerías y activa
+BETO sin que edites `.env`. La carpeta `modelos\` no se sube a Git.
+
 Después:
 
 ```text
@@ -129,6 +133,21 @@ la configuración local sin tener que abrir `.env`. Para volver a ejecutar la IA
 
 El prototipo BETO del equipo se evalúa con `colab/R2_BETO_EPEN_Evaluacion_Temporal.ipynb`. La
 comparación obligatoria está en [`docs/EVALUACION_R2_BETO.md`](docs/EVALUACION_R2_BETO.md).
+
+## Estado actual
+
+- **Base codificada de referencia:** se importa con el código de analista de cada registro. Solo una
+  queda activa y las anteriores se conservan. La comparación muestra aciertos por analista y por
+  confianza, y el historial identifica el origen «Base codificada».
+- **Tablero de codificación:** Métricas y el resumen de Codificación muestran exactitud y confusiones
+  solo con una referencia activa. Sin ella, Codificación no muestra ese bloque; si un codificador
+  completó la base, sí aparece su avance.
+- **Historial:** cada consulta individual a la IA se atribuye al usuario que la pidió. Las consultas
+  anteriores a esta corrección aparecen como «Sistema».
+- **Pruebas:** `npm test` ejecuta 83 pruebas sobre importación, reglas del asistente, políticas de
+  contraseña, métricas de calidad y el tablero.
+- **Pendiente antes de una entrega:** limpiar las bases de prueba y revisar el tablero con datos
+  reales.
 
 ## Desarrollo y verificación
 

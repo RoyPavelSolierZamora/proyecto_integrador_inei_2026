@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import DatasetWorkspaceSelector from '../../shared/components/DatasetWorkspaceSelector.jsx';
 import WorkspaceIndicators from '../../shared/components/WorkspaceIndicators.jsx';
+import CodingDashboard, { referenceIsVisible } from '../metricas/CodingDashboard.jsx';
+import { getCodingDashboardReal } from '../../shared/api/dataClient.js';
 import StatusBadge from '../../shared/ui/StatusBadge.jsx';
 import PageHeader from '../../shared/ui/PageHeader.jsx';
 import Panel from '../../shared/ui/Panel.jsx';
@@ -36,6 +38,21 @@ export default function CasesPage() {
   const [query, setQuery] = useState('');
   const [view, setView] = useState('atencion');
   const [page, setPage] = useState(1);
+  // Una sola consulta al tablero de codificación: decide si los indicadores se muestran y alimenta el resumen.
+  const [coding, setCoding] = useState(null);
+  const [codingError, setCodingError] = useState('');
+  const selectedId = selectedDataset?.id;
+  useEffect(() => {
+    if (!selectedId) { setCoding(null); return undefined; }
+    let cancelled = false;
+    setCoding(null);
+    setCodingError('');
+    getCodingDashboardReal(selectedId)
+      .then(data => { if (!cancelled) setCoding(data); })
+      .catch(cause => { if (!cancelled) setCodingError(cause.message); });
+    return () => { cancelled = true; };
+  }, [selectedId]);
+  const referenceActive = referenceIsVisible(coding);
 
   const filtered = useMemo(() => cases.filter(item => {
     const matchView = view === 'todos'
@@ -68,10 +85,24 @@ export default function CasesPage() {
       />
 
       <DatasetWorkspaceSelector datasets={datasets} selectedId={selectedDataset?.id} onChange={selectDataset} />
-      {selectedDataset && <WorkspaceIndicators indicators={indicators} loading={loading} />}
+      {/* Sin base codificada activa no sale nada de la comparación: solo aparece con la base activa o con un codificador que completó la base. */}
+      {selectedDataset && referenceActive && <WorkspaceIndicators indicators={indicators} loading={loading} />}
+      {selectedDataset && coding?.coderSectionVisible && (
+        <details className="group rounded-2xl border border-line bg-surface p-4 shadow-sm">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold text-ink-strong">
+            Resumen de codificación con referencia
+            <span className="text-xs font-normal text-muted group-open:hidden">Ver</span>
+            <span className="hidden text-xs font-normal text-muted group-open:inline">Ocultar</span>
+          </summary>
+          <div className="mt-4 grid gap-3">
+            <CodingDashboard data={coding} compact quiet />
+          </div>
+        </details>
+      )}
       {location.state?.notice && <Notice tone="success">{location.state.notice}</Notice>}
       {loading && <Notice>Cargando la base seleccionada…</Notice>}
       {error && <Notice tone="error">{error}</Notice>}
+      {codingError && <Notice tone="error">{codingError}</Notice>}
 
 
       <Panel className="grid grid-cols-1 gap-3 p-4 md:grid-cols-[minmax(0,1fr)_260px_auto] md:items-end">

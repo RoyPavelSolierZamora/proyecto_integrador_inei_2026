@@ -14,12 +14,17 @@ const STOPWORDS = new Set(('a al con de del el en es esta este estos esas eso la
 // aunque comparta palabras comunes con los documentos.
 const DOMAIN_TERMS = new Set(('ciiu rev clase clases grupo grupos division divisiones actividad actividades economica economicas ' +
   'codigo codigos codificar codificacion clasificacion clasificar ocupacion ocupaciones ocupacional inei epen cno notas ' +
-  'base bases sistema asistente tabla catalogo listado sector').split(' '));
+  'base bases sistema asistente tabla catalogo listado sector cultivo cultivos').split(' '));
 const K1 = 1.4;
 const B = 0.75;
 
+// Nombres populares que aparecen en la pregunta pero no en los documentos oficiales.
+const SYNONYMS = new Map([['palta', ['aguacate', 'aguacates', 'cultivo']]]);
+
 function tokens(text) {
-  return normalizeQuestion(text).split(' ').filter(word => word.length > 2 && !STOPWORDS.has(word));
+  return normalizeQuestion(text).split(' ')
+    .flatMap(word => [word, ...(SYNONYMS.get(word) || [])])
+    .filter(word => word.length > 2 && !STOPWORDS.has(word));
 }
 
 function loadFragments() {
@@ -47,8 +52,15 @@ export function searchKnowledge(question, { limit = 4, minScore = 2.5, codes = [
   if (!query.length || !docCount) return [];
   const anchored = codes.length > 0 || query.some(term => DOMAIN_TERMS.has(term));
   if (!anchored) return [];
+  // Sin código, la pregunta debe traer una palabra de contenido propia (no solo de dominio como "base" o "codigo").
+  // Una palabra de contenido debe ser específica: las demasiado frecuentes en los documentos ("datos") no cuentan.
+  const rareLimit = Math.max(3, Math.floor(docCount * 0.03));
+  const contentTerms = query.filter(term => !DOMAIN_TERMS.has(term) && (docFrequency.get(term) || 0) <= rareLimit);
+  const requireContent = codes.length === 0;
+  if (requireContent && contentTerms.length === 0) return [];
   const scored = [];
   for (const item of fragments) {
+    if (requireContent && !contentTerms.some(term => item.terms.includes(term))) continue;
     let score = 0;
     const length = item.terms.length || 1;
     for (const term of query) {

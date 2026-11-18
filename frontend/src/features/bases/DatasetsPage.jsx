@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import ReferenceBasesManager from './ReferenceBasesManager.jsx';
 import { parseR2Csv, parseRawEpenCsv } from '../../shared/lib/csvImport.js';
-import { cancelR2JobReal, exportDatasetReal, getR2Health, listR2JobsReal, startR2JobReal } from '../../shared/api/dataClient.js';
+import { cancelR2JobReal, exportDatasetReal, listR2JobsReal, startR2JobReal } from '../../shared/api/dataClient.js';
 import { useAuth } from '../../app/state/AuthContext.jsx';
 import { useData } from '../../app/state/DataContext.jsx';
 import EpenIcon from '../../shared/ui/EpenIcon.jsx';
 import PageHeader from '../../shared/ui/PageHeader.jsx';
 import PanelHeading from '../../shared/ui/PanelHeading.jsx';
-import ContextHelp from '../../shared/ui/ContextHelp.jsx';
 import Panel from '../../shared/ui/Panel.jsx';
 import Button from '../../shared/ui/Button.jsx';
 import Notice from '../../shared/ui/Notice.jsx';
@@ -27,16 +27,6 @@ const formatDuration = seconds => {
   const hours = Math.floor(minutes / 60);
   const rest = minutes % 60;
   return `aprox. ${hours} h${rest ? ` ${rest} min` : ''}`;
-};
-
-const formatModelVersion = version => {
-  if (!version) return 'Preparando el clasificador';
-  if (/^beto-v2-experimental-no-calibrado/i.test(version)) return 'BETO V2 · puntaje sin calibrar';
-  if (/^r2-tfidf-linearsvc-calibrado-0\.5/i.test(version)) return 'Clasificador automático v0.5 · histórico ampliado';
-  if (/^r2-tfidf-linearsvc-calibrado-0\.3/i.test(version)) return 'Clasificador automático v0.3 · calibrado';
-  if (/^r2-multivariado-linearsvc-calibrado-0\.4/i.test(version)) return 'Clasificador automático v0.4 · experimental';
-  if (/^r2-baseline/i.test(version)) return 'Clasificador automático básico';
-  return 'Clasificador automático';
 };
 
 const jobStatusLabel = {
@@ -77,16 +67,9 @@ export default function DatasetsPage() {
   const [datasetStatus, setDatasetStatus] = useState('todos');
   const [datasetPage, setDatasetPage] = useState(1);
   const [datasetTypeId, setDatasetTypeId] = useState('');
-  const [betoActive, setBetoActive] = useState(false);
   const rawInput = useRef(null);
   const rawSubmitBusy = useRef(false);
   const admin = user.role === 'admin';
-
-  useEffect(() => {
-    let active = true;
-    getR2Health().then(health => { if (active) setBetoActive(String(health.modelo || '').startsWith('beto-v2-experimental-no-calibrado+')); }).catch(() => {});
-    return () => { active = false; };
-  }, []);
 
   async function refreshJobs() {
     if (!real) return;
@@ -263,7 +246,6 @@ export default function DatasetsPage() {
         icon="database"
         title="Bases de datos"
         description="Procesa bases EPEN y consulta sus versiones."
-        actions={betoActive ? <span className="inline-flex items-center gap-1.5 rounded-full bg-[#fff4d6] px-3 py-1.5 text-xs font-semibold text-[#7a4b00]"><span aria-hidden="true" className="size-1.5 rounded-full bg-[#d99a1e]" />BETO activo</span> : null}
       />
 
       {message && <Notice tone={message.type}>{message.text}</Notice>}
@@ -295,8 +277,8 @@ export default function DatasetsPage() {
                 <Field id="base-tau" label="Nivel mínimo de confianza (τ)">
                   <input id="base-tau" className={inputClass} type="number" min="0" max="1" step="0.01" value={threshold} onChange={event => setThreshold(event.target.value)} required aria-describedby="base-tau-ayuda" />
                 </Field>
-                <Field id="base-umbral-ia" label="Umbral de cierre por IA (opcional)">
-                  <input id="base-umbral-ia" className={inputClass} type="number" min="0" max="1" step="0.01" value={aiThreshold} onChange={event => setAiThreshold(event.target.value)} placeholder="Ej. 0,90" aria-describedby="base-umbral-ia-ayuda" />
+                <Field id="base-umbral-ia" label="Umbral de cierre por IA" hint="Si lo dejas vacío se usa 0,95. La IA solo cierra casos con puntaje igual o superior a este valor.">
+                  <input id="base-umbral-ia" className={inputClass} type="number" min="0" max="1" step="0.01" value={aiThreshold} onChange={event => setAiThreshold(event.target.value)} placeholder="0,95 por defecto" />
                 </Field>
               </div>
               <Field id="base-ia" label="Asistencia de IA">
@@ -361,7 +343,6 @@ export default function DatasetsPage() {
                     <div><dt className="text-xs text-muted">Umbral</dt><dd className="m-0 font-semibold text-ink-strong">{jobThreshold}</dd></div>
                     <div><dt className="text-xs text-muted">Umbral de IA</dt><dd className="m-0 font-semibold text-ink-strong">{job.aiThreshold === null || job.aiThreshold === undefined ? 'Sin cierre por IA' : Number(job.aiThreshold).toFixed(2).replace('.', ',')}</dd></div>
                     <div><dt className="text-xs text-muted">Asistencia de IA</dt><dd className="m-0 font-semibold text-ink-strong">{job.qwenMode === 'automatic' ? 'Automática' : 'Manual'}</dd></div>
-                    <div className="col-span-2 sm:col-span-3"><dt className="text-xs text-muted">Clasificador</dt><dd className="m-0 font-semibold text-ink-strong" title={job.modelVersion || undefined}>{formatModelVersion(job.modelVersion)}</dd></div>
                   </dl>
 
                   <section className="grid grid-cols-1 gap-2">
@@ -467,6 +448,11 @@ export default function DatasetsPage() {
         <Panel className="grid grid-cols-1 gap-3 p-5">
           <PanelHeading icon="gear" title="Herramientas avanzadas" description="Solo administradores. No son necesarias para el procesamiento habitual." />
           <details className="rounded-lg border border-line p-4">
+            <summary className="cursor-pointer font-semibold text-ink-strong">Importar un resultado procesado fuera del sistema</summary>
+            <div className="mt-4"><ReferenceBasesManager /></div>
+          </details>
+
+          <details className="rounded-lg border border-line p-4">
             <summary className="cursor-pointer font-semibold text-ink-strong">Corregir el tipo de datos de una versión</summary>
             <div className="mt-4 grid gap-3 text-sm text-muted">
               <p>“Datos de prueba” habilita simulaciones y evita confundir resultados sintéticos con información real.</p>
@@ -486,7 +472,7 @@ export default function DatasetsPage() {
           </details>
 
           <details className="rounded-lg border border-line p-4">
-            <summary className="cursor-pointer font-semibold text-ink-strong">Importar un resultado procesado fuera del sistema</summary>
+            <summary className="cursor-pointer font-semibold text-ink-strong">Importar salida del clasificador automático</summary>
             <div className="mt-4 grid gap-4">
               <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted">
                 <p>Utiliza esta opción únicamente para migraciones o integraciones externas.</p>
