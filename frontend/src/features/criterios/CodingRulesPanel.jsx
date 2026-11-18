@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react';
 import { getCaseCodingRulesReal } from '../../shared/api/dataClient.js';
+import Panel from '../../shared/ui/Panel.jsx';
+import PanelHeading from '../../shared/ui/PanelHeading.jsx';
+import Notice from '../../shared/ui/Notice.jsx';
 
+// Criterios aprobados que coinciden con el registro. Solo se muestran criterios vigentes.
 export default function CodingRulesPanel({ datasetId, caseId }) {
   const [rules, setRules] = useState([]);
   const [error, setError] = useState('');
@@ -14,14 +18,25 @@ export default function CodingRulesPanel({ datasetId, caseId }) {
     return () => { active = false; };
   }, [datasetId, caseId]);
 
-  return <section className="panel panel--wide coding-rules-panel">
-    <div className="panel-heading"><div><p className="eyebrow">Criterios institucionales</p><h2>Reglas vigentes relacionadas</h2><p>Se muestran solo criterios aprobados. Son apoyo para revisar el contexto, no decisiones automáticas.</p></div></div>
-    {error && <p className="notice notice--error" role="alert">{error}</p>}
-    <div className="coding-rules-matches">{rules.map(rule => <article key={rule.id}>
-      <header><strong>{rule.code} · {rule.title}</strong><span>{rule.matches} coincidencia{rule.matches === 1 ? '' : 's'}</span></header>
-      <p>{rule.guidance}</p>
-      <small>{rule.sourceReference ? `Fuente: ${rule.sourceReference}` : `Aprobado por ${rule.approvedBy}`}</small>
-    </article>)}</div>
-    {!error && !rules.length && <p className="empty-state empty-state--compact">No hay criterios aprobados relacionados con este registro.</p>}
-  </section>;
+  return (
+    <Panel className="grid gap-3 p-5">
+      <PanelHeading title="Reglas vigentes relacionadas" description="Se muestran solo criterios aprobados. Son apoyo para revisar el contexto, no decisiones automáticas." />
+      {error && <Notice tone="error">{error}</Notice>}
+      {rules.length > 0 && (
+        <div className="grid gap-3 md:grid-cols-2">
+          {rules.map(rule => (
+            <article key={rule.id} className="grid content-start gap-1.5 rounded-lg border border-line bg-[#f8fbff] p-3">
+              <header className="flex flex-wrap items-baseline justify-between gap-2">
+                <strong className="text-ink-strong">{rule.code} · {rule.title}</strong>
+                <span className="text-xs text-muted">{rule.matches} coincidencia{rule.matches === 1 ? '' : 's'}</span>
+              </header>
+              <p className="text-sm text-ink">{rule.guidance}</p>
+              <small className="text-xs text-muted">{rule.sourceReference ? `Fuente: ${rule.sourceReference}` : `Aprobado por ${rule.approvedBy}`}</small>
+            </article>
+          ))}
+        </div>
+      )}
+      {!error && !rules.length && <p className="text-sm text-muted">No hay criterios aprobados relacionados con este registro.</p>}
+    </Panel>
+  );
 }
