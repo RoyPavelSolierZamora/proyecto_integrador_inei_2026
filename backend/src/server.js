@@ -1,15 +1,15 @@
 import { randomUUID } from 'node:crypto';
 import express from 'express';
 import helmet from 'helmet';
-import { audit } from './audit.js';
+import { audit } from './services/audit.js';
 import { getConfig } from './config.js';
-import { closePool, getPool, transaction } from './db.js';
-import { loadSession, requireAuth, requireCsrf, requireRole, requireTrustedOrigin } from './middleware.js';
-import { createCsrfToken, createSessionToken, hashPassword, hashToken, normalizeUsername, validUsername, validatePassword, verifyPassword } from './security.js';
-import { createDataRouter } from './data-routes.js';
-import { createGovernanceRouter } from './governance-routes.js';
-import { createInsightsRouter } from './insights-routes.js';
-import { resumeR2Jobs } from './r2-jobs.js';
+import { closePool, getPool, transaction } from './db/pool.js';
+import { loadSession, requireAuth, requireCsrf, requireRole, requireTrustedOrigin } from './security/middleware.js';
+import { createCsrfToken, createSessionToken, hashPassword, hashToken, normalizeUsername, validUsername, validatePassword, verifyPassword } from './security/security.js';
+import { createDataRouter } from './routes/data-routes.js';
+import { createGovernanceRouter } from './routes/governance-routes.js';
+import { createInsightsRouter } from './routes/insights-routes.js';
+import { resumeR2Jobs } from './services/r2-jobs.js';
 
 const config = getConfig();
 const app = express();

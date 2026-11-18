@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import test from 'node:test';
 import express from 'express';
-import { createDataRouter } from '../src/data-routes.js';
+import { createDataRouter } from '../src/routes/data-routes.js';
 
 function listen(server) {
   return new Promise((resolve, reject) => {

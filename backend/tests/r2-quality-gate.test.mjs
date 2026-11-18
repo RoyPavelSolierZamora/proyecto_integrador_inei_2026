@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { requiresDirectHumanReview } from '../src/r2-jobs.js';
+import { requiresDirectHumanReview } from '../src/services/r2-jobs.js';
 
 test('la barrera de calidad evita enviar entradas vacías o sin sentido a Qwen', () => {
   for (const reason of ['p309_vacio', 'respuesta_no_informativa', 'texto_sin_sentido']) {

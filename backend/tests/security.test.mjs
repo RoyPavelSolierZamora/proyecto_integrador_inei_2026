@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createSessionToken, hashPassword, hashToken, validatePassword, verifyPassword } from '../src/security.js';
+import { createSessionToken, hashPassword, hashToken, validatePassword, verifyPassword } from '../src/security/security.js';
 
 test('scrypt valida la clave correcta sin guardar el texto original', async () => {
   const password = 'Clave temporal segura 2026';

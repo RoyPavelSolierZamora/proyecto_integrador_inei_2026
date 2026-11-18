@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { mapCase, mapR2Evidence } from '../src/data-routes.js';
+import { mapCase, mapR2Evidence } from '../src/routes/data-routes.js';
 
 test('expone antecedentes R2 válidos para la interfaz', () => {
   const evidence = mapR2Evidence({

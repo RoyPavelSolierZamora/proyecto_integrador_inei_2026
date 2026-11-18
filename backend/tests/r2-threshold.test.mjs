@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { planR2Simulation } from '../src/data-routes.js';
+import { planR2Simulation } from '../src/routes/data-routes.js';
 
 const rows = [
   { id: 1, confianza_ml: 0.74, candidates: [{ codigo: '5610' }] },

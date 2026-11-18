@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { qwenResolutionPolicy } from '../src/qwen-client.js';
+import { qwenResolutionPolicy } from '../src/clients/qwen-client.js';
 
 const candidates = [{ codigo: '4922' }, { codigo: '4921' }, { codigo: '4930' }];
 

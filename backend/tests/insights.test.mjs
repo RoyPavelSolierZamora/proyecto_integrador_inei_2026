@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { compareCodeRows, detectAssistantIntent, helpAnswer, normalizeQuestion } from '../src/insights.js';
+import { compareCodeRows, detectAssistantIntent, helpAnswer, normalizeQuestion } from '../src/services/insights.js';
 
 test('normaliza preguntas en español sin depender de tildes', () => {
   assert.equal(normalizeQuestion('¿Cómo revisó la clasificación?'), 'como reviso la clasificacion');

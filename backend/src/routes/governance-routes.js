@@ -1,7 +1,7 @@
 import express from 'express';
-import { audit } from './audit.js';
-import { getPool, transaction } from './db.js';
-import { requireCsrf, requireRole } from './middleware.js';
+import { audit } from '../services/audit.js';
+import { getPool, transaction } from '../db/pool.js';
+import { requireCsrf, requireRole } from '../security/middleware.js';
 
 function httpError(status, message) {
   const error = new Error(message);

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { parseRawEpenCsv } from '../src/raw-csv.js';
+import { parseRawEpenCsv } from '../src/services/raw-csv.js';
 
 test('acepta una base original sin candidatos R2', () => {
   const rows = parseRawEpenCsv('id_registro,p309,p308,p308a\nA-1,"Vende frutas, verduras y bebidas",Vendedora,Atiende clientes\n');

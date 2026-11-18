@@ -1,9 +1,9 @@
 import { createHash } from 'node:crypto';
 import express from 'express';
-import { getPool } from './db.js';
-import { requireAuth, requireCsrf, requireRole } from './middleware.js';
-import { compareCodeRows, detectAssistantIntent, helpAnswer } from './insights.js';
-import { workspaceIndicators } from './workspace-indicators.js';
+import { getPool } from '../db/pool.js';
+import { requireAuth, requireCsrf, requireRole } from '../security/middleware.js';
+import { compareCodeRows, detectAssistantIntent, helpAnswer } from '../services/insights.js';
+import { workspaceIndicators } from '../services/workspace-indicators.js';
 
 function httpError(status, message) {
   const error = new Error(message);

@@ -1,6 +1,6 @@
-import { getPool, transaction } from './db.js';
-import { predictR2Batch } from './r2-client.js';
-import { classifyWithQwen, qwenResolutionPolicy } from './qwen-client.js';
+import { getPool, transaction } from '../db/pool.js';
+import { predictR2Batch } from '../clients/r2-client.js';
+import { classifyWithQwen, qwenResolutionPolicy } from '../clients/qwen-client.js';
 
 let worker = Promise.resolve();
 const activeQwenRequests = new Map();

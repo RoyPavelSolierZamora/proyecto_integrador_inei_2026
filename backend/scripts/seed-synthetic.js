@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { closePool, getPool, transaction } from '../src/db.js';
+import { closePool, getPool, transaction } from '../src/db/pool.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const seed = JSON.parse(await readFile(join(here, '..', 'seeds', 'epen-synthetic-2026.json'), 'utf8'));

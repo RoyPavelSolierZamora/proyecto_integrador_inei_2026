@@ -1,5 +1,5 @@
-import { closePool, getPool } from '../src/db.js';
-import { hashPassword, normalizeUsername, validUsername, validatePassword } from '../src/security.js';
+import { closePool, getPool } from '../src/db/pool.js';
+import { hashPassword, normalizeUsername, validUsername, validatePassword } from '../src/security/security.js';
 
 const username = normalizeUsername(process.env.ADMIN_USERNAME);
 const fullName = String(process.env.ADMIN_FULL_NAME || '').trim();

@@ -1,7 +1,7 @@
 import { readdir, readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { closePool, getPool } from '../src/db.js';
+import { closePool, getPool } from '../src/db/pool.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const migrationsDir = join(here, '..', 'migrations');

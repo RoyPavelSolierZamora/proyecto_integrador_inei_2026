@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { summarizeWorkspaceIndicators } from '../src/workspace-indicators.js';
+import { summarizeWorkspaceIndicators } from '../src/services/workspace-indicators.js';
 
 const candidate = (codigo, rank) => ({ codigo, rank });
 

@@ -1,5 +1,5 @@
-import { getConfig } from './config.js';
-import { getPool } from './db.js';
+import { getConfig } from '../config.js';
+import { getPool } from '../db/pool.js';
 import { hashToken } from './security.js';
 
 function cookies(header = '') {

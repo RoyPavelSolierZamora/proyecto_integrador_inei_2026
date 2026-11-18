@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { classifyWithQwen } from '../src/qwen-client.js';
+import { classifyWithQwen } from '../src/clients/qwen-client.js';
 
 test('envía contexto ocupacional y antecedentes validados a Qwen', async () => {
   const originalFetch = global.fetch;

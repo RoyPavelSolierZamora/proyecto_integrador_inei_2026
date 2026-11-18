@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { validateR2Response } from '../src/r2-client.js';
+import { validateR2Response } from '../src/clients/r2-client.js';
 
 test('valida el contrato de respuesta R2 v1.0', () => {
   const response = validateR2Response({

@@ -1,13 +1,13 @@
 import express from 'express';
-import { audit } from './audit.js';
-import { getPool, transaction } from './db.js';
-import { requireAuth, requireCsrf, requireRole } from './middleware.js';
-import { r2Health } from './r2-client.js';
-import { enqueueR2Job, listR2Jobs, requestR2JobCancellation } from './r2-jobs.js';
-import { parseRawEpenCsv } from './raw-csv.js';
-import { classifyWithQwen } from './qwen-client.js';
-import { buildCsv, RESULT_HEADERS } from './csv-export.js';
-import { workspaceIndicators } from './workspace-indicators.js';
+import { audit } from '../services/audit.js';
+import { getPool, transaction } from '../db/pool.js';
+import { requireAuth, requireCsrf, requireRole } from '../security/middleware.js';
+import { r2Health } from '../clients/r2-client.js';
+import { enqueueR2Job, listR2Jobs, requestR2JobCancellation } from '../services/r2-jobs.js';
+import { parseRawEpenCsv } from '../services/raw-csv.js';
+import { classifyWithQwen } from '../clients/qwen-client.js';
+import { buildCsv, RESULT_HEADERS } from '../services/csv-export.js';
+import { workspaceIndicators } from '../services/workspace-indicators.js';
 
 const CASE_SELECT = `
   SELECT c.id, c.dataset_id, c.external_id, c.p309, c.p308, c.p308a, c.c309_1, c.c310, c.c311, c.c366,

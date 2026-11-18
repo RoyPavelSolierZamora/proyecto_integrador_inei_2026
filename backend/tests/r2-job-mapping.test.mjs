@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { mapJob } from '../src/r2-jobs.js';
+import { mapJob } from '../src/services/r2-jobs.js';
 
 test('calcula el tiempo restante de Qwen con la latencia observada', () => {
   const job = mapJob({

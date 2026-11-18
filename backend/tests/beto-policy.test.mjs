@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { canResolveAutomatically } from '../src/r2-jobs.js';
+import { canResolveAutomatically } from '../src/services/r2-jobs.js';
 
 test('el cierre automático de BETO depende solo del umbral del trabajo', () => {
   assert.equal(canResolveAutomatically('beto-v2-experimental-no-calibrado+abc', 0.95, 0.95), true);
