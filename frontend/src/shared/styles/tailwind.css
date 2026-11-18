@@ -1,0 +1,23 @@
+/*
+ * Tailwind solo con utilidades. Se importa después de styles.css y no incluye
+ * preflight, para no alterar los estilos base que ya existen en la aplicación.
+ * Los colores de marca vienen de los mismos valores que usa epen-theme.css.
+ */
+@import "tailwindcss/theme.css";
+@import "tailwindcss/utilities.css";
+
+@theme {
+  --color-white: #ffffff;
+  --color-brand: #0759bb;
+  --color-brand-strong: #064482;
+  --color-brand-soft: #e1eeff;
+  --color-navy: #0c458b;
+  --color-ink: #24364a;
+  --color-ink-strong: #0b1533;
+  --color-muted: #495770;
+  --color-line: #d9e4f3;
+  --color-surface: #ffffff;
+  --color-canvas: #eef4ff;
+  --color-danger: #b42318;
+  --color-danger-soft: #fdecea;
+}

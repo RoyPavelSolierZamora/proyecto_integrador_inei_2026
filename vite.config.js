@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 import { fileURLToPath } from 'node:url';
 
 // La SPA vive en frontend/ (src, public, index.html). El build sigue saliendo en dist/
@@ -30,7 +31,7 @@ const tunnelHost = normalizeHost(process.env.TUNNEL_HOST);
 export default defineConfig({
   root: frontendRoot,
   base: process.env.VITE_BASE_PATH || '/',
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
   build: {
     outDir: distDir,
     emptyOutDir: true,
