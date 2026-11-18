@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import express from 'express';
 import { getPool } from '../db/pool.js';
 import { requireAuth, requireCsrf, requireRole } from '../security/middleware.js';
-import { compareCodeRows, detectAssistantIntent, helpAnswer } from '../services/insights.js';
+import { compareCodeRows, detectAssistantIntent, greetingAnswer, helpAnswer } from '../services/insights.js';
 import { workspaceIndicators } from '../services/workspace-indicators.js';
 
 function httpError(status, message) {
@@ -281,7 +281,7 @@ export function createInsightsRouter() {
     const elevated = ['supervisor', 'auditor', 'admin'].includes(req.auth.user.role);
     const analytical = ['analista', 'supervisor', 'auditor', 'admin'].includes(req.auth.user.role);
     if (intent === 'quality_control' && !elevated) throw httpError(403, 'Tu rol no permite consultar métricas de codificadores.');
-    if (intent !== 'help' && !analytical) throw httpError(403, 'Tu rol solo permite consultar ayuda de uso.');
+    if (!['help', 'greeting'].includes(intent) && !analytical) throw httpError(403, 'Tu rol solo permite consultar ayuda de uso.');
     let data = null; let answer;
     if (intent === 'dataset_summary') {
       if (!datasetId) throw httpError(400, 'Selecciona una base para calcular estadísticas.');
@@ -301,7 +301,8 @@ export function createInsightsRouter() {
     } else if (intent === 'quality_control') {
       if (!datasetId) throw httpError(400, 'Selecciona una base para revisar control de calidad.');
       data = await qualitySummary(getPool(), datasetId); answer = qualityAnswer(data);
-    } else answer = helpAnswer(question);
+    } else if (intent === 'greeting') answer = greetingAnswer(req.auth.user.name);
+    else answer = helpAnswer(question);
     await getPool().query(`
       INSERT INTO epen.assistant_query_log (user_id, role, dataset_id, compare_dataset_id, case_id, intent, question_hash)
       SELECT $1, $2, selected.id, compared.id, c.id, $5, $6 FROM (SELECT 1) seed

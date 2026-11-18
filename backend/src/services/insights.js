@@ -10,8 +10,18 @@ export function normalizeQuestion(value) {
   return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
+// Saludos cortos ("hola", "buenos días"). Frases más largas con saludo siguen su intención normal.
+const GREETING = /^(hola|hey|buenas|buenos dias|buenas tardes|buenas noches|saludos|que tal)\b/;
+
+export function greetingAnswer(name) {
+  const first = String(name || '').trim().split(/\s+/)[0];
+  const hello = first ? `Hola, ${first}.` : 'Hola.';
+  return `${hello} Puedo ayudarte a cargar una base, revisar códigos, ver el resumen de una base, comparar dos periodos y consultar el control de calidad. ¿Qué necesitas?`;
+}
+
 export function detectAssistantIntent(question, { compareDatasetId, caseExternalId } = {}) {
   const text = normalizeQuestion(question);
+  if (GREETING.test(text) && text.split(' ').length <= 4) return 'greeting';
   if (/observacion|registro|caso|otros anos|histor|parecid|similar/.test(text)) return 'similar_cases';
   if (/compar|diferencia|cambio|variacion|versus| vs /.test(` ${text} `)) return 'compare_datasets';
   if (/codificador|persona|sesgo|calidad|error|correccion|desacuerdo/.test(text)) return 'quality_control';

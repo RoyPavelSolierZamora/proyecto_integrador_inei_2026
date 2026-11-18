@@ -1,9 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { compareCodeRows, detectAssistantIntent, helpAnswer, normalizeQuestion } from '../src/services/insights.js';
+import { compareCodeRows, detectAssistantIntent, greetingAnswer, helpAnswer, normalizeQuestion } from '../src/services/insights.js';
 
 test('normaliza preguntas en español sin depender de tildes', () => {
   assert.equal(normalizeQuestion('¿Cómo revisó la clasificación?'), 'como reviso la clasificacion');
+});
+
+test('responde a los saludos cortos sin confundirlos con preguntas', () => {
+  assert.equal(detectAssistantIntent('Hola'), 'greeting');
+  assert.equal(detectAssistantIntent('¡Buenos días!'), 'greeting');
+  assert.equal(detectAssistantIntent('hola, ¿cómo cargo un CSV?'), 'help');
+  assert.match(greetingAnswer('Ana María Quispe'), /^Hola, Ana\./);
+  assert.match(greetingAnswer(''), /^Hola\./);
 });
 
 test('enruta consultas estadísticas sin permitir SQL libre', () => {
