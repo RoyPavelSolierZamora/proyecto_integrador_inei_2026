@@ -8,7 +8,6 @@ import Button from '../shared/ui/Button.jsx';
 import Notice from '../shared/ui/Notice.jsx';
 import Panel from '../shared/ui/Panel.jsx';
 import AssistantDock from '../features/asistente/AssistantDock.jsx';
-import '../shared/styles/epen-theme.css';
 
 // Cada entrada define qué ve cada rol. Agregar una pantalla es agregar una línea aquí.
 const navItems = [

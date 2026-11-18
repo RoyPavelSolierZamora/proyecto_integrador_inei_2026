@@ -2,11 +2,19 @@ import { useEffect, useState } from 'react';
 import DatasetWorkspaceSelector from '../../shared/components/DatasetWorkspaceSelector.jsx';
 import PageHeader from '../../shared/ui/PageHeader.jsx';
 import PanelHeading from '../../shared/ui/PanelHeading.jsx';
+import Panel from '../../shared/ui/Panel.jsx';
+import Stat from '../../shared/ui/Stat.jsx';
+import Button from '../../shared/ui/Button.jsx';
+import Notice from '../../shared/ui/Notice.jsx';
+import { tableClasses as t } from '../../shared/ui/tableClasses.js';
 import { compareDatasetsReal, getQualitySummaryReal } from '../../shared/api/dataClient.js';
 import { useData } from '../../app/state/DataContext.jsx';
 
 const pct = value => value === null || value === undefined ? 'Sin muestra' : `${(Number(value) * 100).toFixed(1)} %`;
+const changeTone = change => change > 0 ? 'text-[#05603a] font-semibold' : change < 0 ? 'text-danger font-semibold' : 'text-muted';
 
+// Control de calidad: codificadores, error confirmado y comparación de periodos.
+// Las señales son alertas para muestreo; no demuestran por sí solas un error o sesgo.
 export default function QualityPage() {
   const { datasets, activeDataset } = useData();
   const [datasetId, setDatasetId] = useState(activeDataset?.id || null);
@@ -18,8 +26,12 @@ export default function QualityPage() {
 
   useEffect(() => {
     if (!datasetId) return;
-    setLoading(true); setMessage('');
-    getQualitySummaryReal(datasetId).then(setQuality).catch(error => setMessage(error.message)).finally(() => setLoading(false));
+    setLoading(true);
+    setMessage('');
+    getQualitySummaryReal(datasetId)
+      .then(setQuality)
+      .catch(error => setMessage(error.message))
+      .finally(() => setLoading(false));
   }, [datasetId]);
 
   useEffect(() => {
@@ -29,64 +41,109 @@ export default function QualityPage() {
 
   async function compare() {
     if (!datasetId || !compareId || String(datasetId) === String(compareId)) return;
-    setLoading(true); setMessage('');
-    try { setComparison(await compareDatasetsReal(datasetId, compareId)); }
-    catch (error) { setMessage(error.message); }
-    finally { setLoading(false); }
+    setLoading(true);
+    setMessage('');
+    try {
+      setComparison(await compareDatasetsReal(datasetId, compareId));
+    } catch (error) {
+      setMessage(error.message);
+    } finally { setLoading(false); }
   }
 
   const totalReviewed = quality?.coders.reduce((sum, item) => sum + item.reviewed, 0) || 0;
   const totalIncorrect = quality?.coders.reduce((sum, item) => sum + item.incorrect, 0) || 0;
 
-  return <div className="page quality-page">
-    <PageHeader
-      icon="shield-check"
-      eyebrow="Supervisión y auditoría"
-      title="Control de calidad"
-      description="Compara periodos y revisa resultados adjudicados. Una señal atípica requiere análisis; no demuestra por sí sola un error o sesgo."
-    />
-    <DatasetWorkspaceSelector datasets={datasets} selectedId={datasetId} onChange={setDatasetId} />
-    {message && <div className="notice notice--error" role="alert">{message}</div>}
-    {loading && <div className="notice" role="status">Calculando indicadores…</div>}
-    <section className="stats-grid quality-stats">
-      <article className="stat"><span>Revisiones formales</span><strong>{totalReviewed}</strong><small>Decisiones con adjudicación registrada</small></article>
-      <article className="stat"><span>Errores confirmados</span><strong>{totalIncorrect}</strong><small>No incluye simples desacuerdos</small></article>
-      <article className="stat"><span>Tasa sobre revisados</span><strong>{totalReviewed ? pct(totalIncorrect / totalReviewed) : 'Sin muestra'}</strong><small>Debe interpretarse junto al tamaño de muestra</small></article>
-    </section>
-    <section className="panel quality-coders-panel">
-      <PanelHeading
-        eyebrow="Desempeño observado"
-        title="Codificadores"
-        description="Las concentraciones por rama son alertas para muestreo, no evaluaciones automáticas de una persona."
+  return (
+    <div className="grid gap-6">
+      <PageHeader
+        icon="shield-check"
+        title="Control de calidad"
+        description="Compara periodos y revisa resultados adjudicados. Una señal atípica requiere análisis; no demuestra por sí sola un error o sesgo."
       />
-      <div className="table-wrap" role="region" aria-label="Indicadores por codificador" tabIndex={0}>
-        <table>
-          <thead><tr><th>Codificador</th><th>Decisiones</th><th>Correcciones</th><th>Revisadas</th><th>Error confirmado</th><th>Rama dominante</th></tr></thead>
-          <tbody>{quality?.coders.map(row => <tr key={row.id}><td data-label="Codificador"><strong>{row.name}</strong><small>@{row.username}</small></td><td data-label="Decisiones">{row.decisions}</td><td data-label="Correcciones">{row.corrections}</td><td data-label="Revisadas">{row.reviewed}</td><td data-label="Error confirmado">{pct(row.errorRate)}</td><td data-label="Rama dominante">{row.dominantBranch ? `${row.dominantBranch} · ${pct(row.dominantShare)}` : '—'}</td></tr>)}</tbody>
-        </table>
-        {!quality?.coders.length && <p className="empty-state">Esta base todavía no tiene decisiones humanas.</p>}
-      </div>
-    </section>
-    <section className="panel comparison-panel">
-      <PanelHeading
-        eyebrow="Comparación de periodos"
-        title="Variaciones de códigos CIIU"
-        description="Selecciona otra versión para comparar distribuciones entre bases."
-      />
-      <DatasetWorkspaceSelector datasets={datasets.filter(item => String(item.id) !== String(datasetId))} selectedId={compareId} onChange={setCompareId} />
-      <button className="button button--primary" type="button" disabled={!compareId || loading} onClick={compare}>{loading ? 'Calculando…' : 'Comparar bases'}</button>
-      {comparison && <div className="comparison-results">
-        <div className="comparison-summary">
-          <article><span>{comparison.left.dataset.period}</span><strong>{comparison.left.totals.resolved}</strong><small>registros resueltos</small></article>
-          <article><span>{comparison.right.dataset.period}</span><strong>{comparison.right.totals.resolved}</strong><small>registros resueltos</small></article>
-        </div>
-        <div className="table-wrap" role="region" aria-label="Cambios por código CIIU" tabIndex={0}>
-          <table>
-            <thead><tr><th>Código</th><th>Descripción</th><th>{comparison.left.dataset.period}</th><th>{comparison.right.dataset.period}</th><th>Variación</th></tr></thead>
-            <tbody>{comparison.codeChanges.map(row => <tr key={row.code}><td data-label="Código"><strong>{row.code}</strong></td><td data-label="Descripción">{row.description}</td><td data-label={comparison.left.dataset.period}>{pct(row.leftShare)}</td><td data-label={comparison.right.dataset.period}>{pct(row.rightShare)}</td><td data-label="Variación" className={row.change > 0 ? 'change-positive' : row.change < 0 ? 'change-negative' : ''}>{row.change > 0 ? '+' : ''}{(row.change * 100).toFixed(1)} pp</td></tr>)}</tbody>
+
+      <DatasetWorkspaceSelector datasets={datasets} selectedId={datasetId} onChange={setDatasetId} />
+      {message && <Notice tone="error">{message}</Notice>}
+      {loading && <Notice>Calculando indicadores…</Notice>}
+
+      <section aria-label="Resumen de calidad" className="grid gap-4 sm:grid-cols-3">
+        <Stat label="Revisiones formales" value={totalReviewed} hint="Decisiones con adjudicación registrada" />
+        <Stat label="Errores confirmados" value={totalIncorrect} hint="No incluye simples desacuerdos" />
+        <Stat label="Tasa sobre revisados" value={totalReviewed ? pct(totalIncorrect / totalReviewed) : 'Sin muestra'} hint="Interpretar junto al tamaño de muestra" />
+      </section>
+
+      <Panel className="p-5">
+        <PanelHeading title="Codificadores" description="Las concentraciones por rama son alertas para muestreo, no evaluaciones automáticas de una persona." />
+        <div role="region" aria-label="Indicadores por codificador" tabIndex={0} className={t.wrap}>
+          <table className={t.table}>
+            <thead className={t.head}>
+              <tr>
+                <th scope="col" className={t.th}>Codificador</th>
+                <th scope="col" className={t.th}>Decisiones</th>
+                <th scope="col" className={t.th}>Correcciones</th>
+                <th scope="col" className={t.th}>Revisadas</th>
+                <th scope="col" className={t.th}>Error confirmado</th>
+                <th scope="col" className={t.th}>Rama dominante</th>
+              </tr>
+            </thead>
+            <tbody className={t.body}>
+              {quality?.coders.map(row => (
+                <tr key={row.id} className={t.row}>
+                  <td data-label="Codificador" className={t.cell}><strong className="block text-ink-strong">{row.name}</strong><small className="text-xs text-muted">@{row.username}</small></td>
+                  <td data-label="Decisiones" className={t.cell}>{row.decisions}</td>
+                  <td data-label="Correcciones" className={t.cell}>{row.corrections}</td>
+                  <td data-label="Revisadas" className={t.cell}>{row.reviewed}</td>
+                  <td data-label="Error confirmado" className={t.cell}>{pct(row.errorRate)}</td>
+                  <td data-label="Rama dominante" className={t.cell}>{row.dominantBranch ? `${row.dominantBranch} · ${pct(row.dominantShare)}` : '—'}</td>
+                </tr>
+              ))}
+            </tbody>
           </table>
+          {!quality?.coders.length && <p className="py-8 text-center text-sm text-muted">Esta base todavía no tiene decisiones humanas.</p>}
         </div>
-      </div>}
-    </section>
-  </div>;
+      </Panel>
+
+      <Panel className="grid gap-4 p-5">
+        <PanelHeading title="Variaciones de códigos CIIU" description="Selecciona otra versión para comparar distribuciones entre bases." />
+        <DatasetWorkspaceSelector datasets={datasets.filter(item => String(item.id) !== String(datasetId))} selectedId={compareId} onChange={setCompareId} />
+        <div>
+          <Button disabled={!compareId || loading} onClick={compare}>{loading ? 'Calculando…' : 'Comparar bases'}</Button>
+        </div>
+
+        {comparison && (
+          <div className="grid gap-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Stat label={comparison.left.dataset.period} value={comparison.left.totals.resolved} hint="registros resueltos" />
+              <Stat label={comparison.right.dataset.period} value={comparison.right.totals.resolved} hint="registros resueltos" />
+            </div>
+            <div role="region" aria-label="Cambios por código CIIU" tabIndex={0} className={t.wrap}>
+              <table className={t.table}>
+                <thead className={t.head}>
+                  <tr>
+                    <th scope="col" className={t.th}>Código</th>
+                    <th scope="col" className={t.th}>Descripción</th>
+                    <th scope="col" className={t.th}>{comparison.left.dataset.period}</th>
+                    <th scope="col" className={t.th}>{comparison.right.dataset.period}</th>
+                    <th scope="col" className={t.th}>Variación</th>
+                  </tr>
+                </thead>
+                <tbody className={t.body}>
+                  {comparison.codeChanges.map(row => (
+                    <tr key={row.code} className={t.row}>
+                      <td data-label="Código" className={t.cell}><strong className="text-ink-strong">{row.code}</strong></td>
+                      <td data-label="Descripción" className={t.cell}>{row.description}</td>
+                      <td data-label={comparison.left.dataset.period} className={t.cell}>{pct(row.leftShare)}</td>
+                      <td data-label={comparison.right.dataset.period} className={t.cell}>{pct(row.rightShare)}</td>
+                      <td data-label="Variación" className={[t.cell, changeTone(row.change)].join(' ')}>
+                        {row.change > 0 ? '+' : ''}{(row.change * 100).toFixed(1)} pp
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </Panel>
+    </div>
+  );
 }

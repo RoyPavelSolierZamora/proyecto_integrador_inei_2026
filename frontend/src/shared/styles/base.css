@@ -1,0 +1,92 @@
+/*
+ * Base mínima de la aplicación. Los estilos de cada componente viven en Tailwind
+ * (utilidades) y en los componentes de shared/ui; aquí solo hay reglas globales.
+ */
+:root {
+  font-family: Inter, "Segoe UI", Arial, sans-serif;
+  color: #172433;
+  background: #eef4ff;
+  color-scheme: light;
+  font-synthesis: none;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  max-width: 100%;
+  min-height: 100%;
+  overflow-x: clip;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+img,
+svg,
+canvas {
+  max-width: 100%;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  max-width: 100%;
+}
+
+button:not(:disabled),
+[role="button"],
+[role="tab"],
+[role="option"] {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+h1,
+h2,
+h3,
+p,
+dl,
+dd,
+ul,
+ol {
+  margin: 0;
+}
+
+ul,
+ol {
+  padding: 0;
+  list-style: none;
+}
+
+table {
+  border-collapse: collapse;
+  border-spacing: 0;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+:focus-visible {
+  outline: 2px solid #0759bb;
+  outline-offset: 2px;
+}

@@ -5,8 +5,9 @@ import PageHeader from '../../shared/ui/PageHeader.jsx';
 export default function AssistantPage() {
   const location = useLocation();
   const caseExternalId = new URLSearchParams(location.search).get('case');
+
   return (
-    <div className="page assistant-page">
+    <div className="grid gap-6">
       <PageHeader
         icon="layers"
         title="Asistente de análisis"
