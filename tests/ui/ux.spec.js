@@ -1,4 +1,4 @@
-﻿import { test, expect } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 
 // Fixtures exist only in this browser test. Every API request is intercepted.
@@ -19,6 +19,8 @@ async function setup(page, { role = 'admin', failList = false, emptyUsers = fals
   await page.context().addCookies([{name:'epen_ui_test',value:'fixture',url:'http://127.0.0.1:5178'}]);
   await page.route('**/api/**', async route => {
     const req=route.request(), url=new URL(req.url()), method=req.method(), pathname=url.pathname;
+    // Vite tambien sirve modulos desde /src/shared/api/: no son llamadas al backend.
+    if (!pathname.startsWith('/api/')) return route.fallback();
     calls.push({path:pathname, method, body:req.postData(), query:Object.fromEntries(url.searchParams), headers:req.headers()});
     const json = data => route.fulfill({json:data});
     if(pathname==='/api/auth/me')return json({user:{id:1,name:'Administrador de prueba',username:'admin.test',role,active:true},csrfToken:'csrf-test'});
@@ -66,48 +68,61 @@ test('casos: indicadores por base, independientes de la tabla y adaptados a móv
         dataset_id: id, id_registro: `REG-${index + 1}`, p309: 'Venta de alimentos', estado: 'pendiente',
       })),
       indicators: id === 1 ? {
+        global: { accuracy: .85, macroF1: .73, evaluated: 20, withReference: 25, withoutPrediction: 5, withoutReference: 1, coverage: .8 },
         r2: { accuracy: .8, automaticApproval: .6, macroF1: .7, evaluated: 10, threshold: .9 },
         r3: { accuracy: .75, automaticApproval: .5, macroF1: .65, evaluated: 4 },
       } : {
+        global: { accuracy: .4, macroF1: .3, evaluated: 5, withReference: 10, withoutPrediction: 5, withoutReference: 16, coverage: .5 },
         r2: { accuracy: null, automaticApproval: 0, macroF1: null, evaluated: 0 },
         r3: { accuracy: .4, automaticApproval: null, macroF1: .3, evaluated: 5 },
       },
     }),
   });
+  await page.route('**/api/datasets/*/coding-dashboard', route => route.fulfill({ json: { referenceVisible: true, coderSectionVisible: true } }));
   await page.goto('/casos');
-  const r2 = page.getByRole('region', { name: 'Clasificador automático' });
-  const r3 = page.getByRole('region', { name: 'Asistencia de IA' });
-  const values = chart => chart.locator('.indicator-bar strong');
-  await expect(values(r2)).toHaveText(['80 %', '60 %', '70 %']);
-  await expect(values(r3)).toHaveText(['75 %', '50 %', '65 %']);
-  await expect(r2).toContainText('≥ 90 %');
-  await expect(r3).toContainText('Registros evaluados: 4');
-  const left = await r2.boundingBox();
-  const right = await r3.boundingBox();
+  const chart = page.getByRole('region', { name: 'Comparación del clasificador y la IA' });
+  const bar = (metric, series) => chart.getByRole('img', { name: new RegExp(`^${metric}, ${series}:`) });
+  await expect(chart.getByRole('img')).toHaveCount(5);
+  await expect(bar('Accuracy', 'Clasificador automático')).toHaveAttribute('aria-label', /80/);
+  await expect(bar('Accuracy', 'Asistencia de IA')).toHaveAttribute('aria-label', /75/);
+  await expect(bar('Macro F1-score', 'Clasificador automático')).toHaveAttribute('aria-label', /70/);
+  await expect(bar('Macro F1-score', 'Asistencia de IA')).toHaveAttribute('aria-label', /65/);
+  await expect(bar('Aprobación automática', 'Clasificador automático')).toHaveAttribute('aria-label', /60/);
+  await expect(bar('Aprobación automática', 'Asistencia de IA')).toHaveCount(0);
+  await expect(page.getByText('Resumen de codificación con referencia', { exact: true })).toHaveCount(0);
+  const classifier = await bar('Accuracy', 'Clasificador automático').boundingBox();
+  const ai = await bar('Accuracy', 'Asistencia de IA').boundingBox();
+  expect(ai.x).toBeGreaterThan(classifier.x);
+  expect(Math.abs(ai.y + ai.height - classifier.y - classifier.height)).toBeLessThan(1);
+  expect(classifier.height).toBeGreaterThan(classifier.width);
+  const globalChart = page.getByRole('region', { name: 'Resultado global de la base seleccionada' });
+  await expect(globalChart.getByRole('img')).toHaveCount(2);
+  await expect(globalChart.getByRole('img', { name: /^Accuracy global:/ })).toHaveAttribute('aria-label', /85/);
+  await expect(globalChart.getByRole('img', { name: /^Macro F1-score global:/ })).toHaveAttribute('aria-label', /73/);
+  await expect(globalChart).toContainText('20 registros evaluados de 25');
+  const left = await chart.boundingBox();
+  const right = await globalChart.boundingBox();
   expect(right.x).toBeGreaterThanOrEqual(left.x + left.width);
   expect(right.y).toBe(left.y);
-
-  await page.getByRole('button', { name: 'Siguiente' }).click();
+  await chart.locator('..').screenshot({ path: '.runtime/comparacion-desktop.png', animations: 'disabled', timeout: 5000 });
+  await page.getByRole('button', { name: 'Siguiente' }).focus();
+  await page.keyboard.press('Enter');
   await expect(page.locator('tbody')).toContainText('REG-26');
-  await page.getByRole('searchbox', { name: 'Buscar' }).fill('sin coincidencias');
-  await page.getByRole('combobox', { name: 'Vista' }).selectOption('humano');
+  await page.getByRole('searchbox', { name: 'Buscar', exact: true }).fill('sin coincidencias');
   await expect(page.locator('tbody tr')).toHaveCount(0);
-  await expect(values(r2)).toHaveText(['80 %', '60 %', '70 %']);
-  await expect(values(r3)).toHaveText(['75 %', '50 %', '65 %']);
-
-  await page.locator('.workspace-picker__trigger').click();
+  await expect(bar('Accuracy', 'Clasificador automático')).toHaveAttribute('aria-label', /80/);
+  await page.getByRole('button', { name: /Base de prueba 1 ·/ }).click();
   await page.getByRole('option').filter({ hasText: 'Base de prueba 2' }).click();
-  await expect(values(r2)).toHaveText(['No disponible', '0 %', 'No disponible']);
-  await expect(values(r3)).toHaveText(['40 %', 'No disponible', '30 %']);
-  await expect(r3).toContainText('Registros evaluados: 5');
-  await expect(r2.getByText(/Umbral de confianza/)).toHaveCount(0);
-
+  await expect(bar('Accuracy', 'Clasificador automático')).toHaveAttribute('aria-label', /Sin muestra/);
+  await expect(bar('Aprobación automática', 'Clasificador automático')).toHaveAttribute('aria-label', /0/);
+  await expect(bar('Accuracy', 'Asistencia de IA')).toHaveAttribute('aria-label', /40/);
+  await expect(chart.getByLabel('Leyenda del gráfico')).toContainText('5 casos evaluados');
+  await expect(globalChart.getByRole('img', { name: /^Accuracy global:/ })).toHaveAttribute('aria-label', /40/);
+  await expect(globalChart).toContainText('5 registros evaluados de 10');
   await page.setViewportSize({ width: 360, height: 800 });
-  const top = await r2.boundingBox();
-  const bottom = await r3.boundingBox();
-  expect(bottom.y).toBeGreaterThanOrEqual(top.y + top.height);
-  expect(bottom.x).toBe(top.x);
-  expect(bottom.x + bottom.width).toBeLessThanOrEqual(360);
+  await expect(chart).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await chart.locator('..').screenshot({ path: '.runtime/comparacion-mobile.png', animations: 'disabled', timeout: 5000 });
   expect(errors).toEqual([]);
 });
 
@@ -266,4 +281,76 @@ for(const width of [1366,768,390]) test(`revisión visual y desbordamientos ${wi
    if(name==='criterios') {await page.getByRole('tab',{name:'Cambios al catálogo'}).click();await page.screenshot({path:testInfo.outputPath('catalogo.png'),fullPage:true});}
  }
  expect(errors).toEqual([]);
+});
+
+
+test('bases: umbral sugerido 0.92, advertencia y asistencia sin cierre de IA', async ({ page }) => {
+  const { calls, errors } = await setup(page);
+  await page.goto('/bases');
+  const threshold = page.getByLabel('Nivel mínimo de confianza (τ)', { exact: true });
+  await expect(threshold).toHaveValue('0.92');
+  await expect(page.getByText('Cambiaste el umbral sugerido', { exact: false })).toHaveCount(0);
+  await threshold.fill('0.90');
+  await expect(page.getByRole('alert')).toContainText('Cambiaste el umbral sugerido de 0.92');
+  await threshold.fill('0.92');
+  await expect(page.getByText('Cambiaste el umbral sugerido', { exact: false })).toHaveCount(0);
+  for (const text of ['Umbral de cierre por IA', 'Marcar como datos sintéticos de prueba', 'Corregir el tipo de datos de una versión', 'Importar salida del clasificador automático']) {
+    await expect(page.getByText(text, { exact: true })).toHaveCount(0);
+  }
+  await expect(page.getByText('Importar un resultado procesado fuera del sistema', { exact: true })).toBeVisible();
+  await page.getByLabel('Nombre de la encuesta', { exact: true }).fill('Prueba de configuración');
+  await page.locator('form').filter({ has: threshold }).getByLabel('Periodo', { exact: true }).fill('2026-11');
+  await page.getByLabel('CSV original', { exact: true }).setInputFiles({ name: 'prueba.csv', mimeType: 'text/csv', buffer: Buffer.from('id_registro,p309\nPRUEBA-1,Venta de fruta\n') });
+  await page.getByRole('button', { name: 'Iniciar clasificación automática', exact: true }).click();
+  await expect.poll(() => calls.filter(c => c.path === '/api/r2/jobs' && c.method === 'POST').length).toBe(1);
+  const request = calls.find(c => c.path === '/api/r2/jobs' && c.method === 'POST');
+  expect(request.query).toMatchObject({ threshold: '0.92', synthetic: 'false', qwenMode: 'automatic' });
+  expect(request.query).not.toHaveProperty('aiThreshold');
+  expect(errors).toEqual([]);
+});
+
+
+test('casos: prioridades por confianza combinadas con vista, búsqueda y paginación', async ({ page }) => {
+  const scores = [0, .2, .21, .4, .41, .6, .61, .8, .81, 1, null, ...Array(26).fill(.1)];
+  const { errors } = await setup(page, { workspaceFor: id => ({ cases: scores.map((score, index) => ({
+    id_registro: `CONF-${index}`, dataset_id: id, p309: 'Venta de alimentos', p308: 'Vendedor',
+    confianza_ml: score, estado: 'revision', origen_decision: index === 3 ? 'humano' : 'qwen',
+  })) }) });
+  await page.route('**/api/datasets/*/coding-dashboard', route => route.fulfill({ json: { referenceVisible: false } }));
+  await page.goto('/casos');
+  const priority = page.getByRole('combobox', { name: 'Prioridad de revisión' });
+  const table = page.getByRole('region', { name: 'Tabla de registros' });
+  await expect(priority).toHaveValue('todas');
+  await priority.selectOption('urgente');
+  await expect(page.getByText('28 resultados', { exact: true })).toBeVisible();
+  await expect(table.getByText('0 %', { exact: true })).toBeVisible();
+  await expect(table.getByText('20 %', { exact: true })).toBeVisible();
+  await expect(table.getByText('Revisión urgente', { exact: true })).toHaveCount(25);
+  await page.getByRole('button', { name: 'Siguiente', exact: true }).focus();
+  await page.keyboard.press('Enter');
+  await expect(table.locator('tbody tr')).toHaveCount(3);
+  await priority.selectOption('prioritaria');
+  await expect(table.locator('tbody tr')).toHaveCount(2);
+  await expect(page.getByRole('navigation', { name: 'Páginas de registros' })).toContainText('Página 1 de 1');
+  await page.getByRole('combobox', { name: 'Vista', exact: true }).selectOption('qwen');
+  await expect(table.locator('tbody tr')).toHaveCount(1);
+  await expect(table).toContainText('CONF-2');
+  await page.getByRole('searchbox', { name: 'Buscar', exact: true }).fill('no coincide');
+  await expect(table.locator('tbody tr')).toHaveCount(0);
+  await page.getByRole('searchbox', { name: 'Buscar', exact: true }).fill('');
+  await page.getByRole('combobox', { name: 'Vista', exact: true }).selectOption('todos');
+  for (const key of ['detallada', 'regular', 'final']) {
+    await priority.selectOption(key);
+    await expect(table.locator('tbody tr')).toHaveCount(2);
+    await expect(table.getByText('Revisión humana', { exact: true })).toHaveCount(2);
+  }
+  await priority.selectOption('sin_confianza');
+  await expect(table.locator('tbody tr')).toHaveCount(1);
+  await expect(table).toContainText('CONF-10');
+  await expect(table.getByText('Sin confianza disponible', { exact: true })).toBeVisible();
+  await expect(table.getByText('0 %', { exact: true })).toHaveCount(0);
+  await page.setViewportSize({ width: 360, height: 800 });
+  await expect(priority).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  expect(errors).toEqual([]);
 });

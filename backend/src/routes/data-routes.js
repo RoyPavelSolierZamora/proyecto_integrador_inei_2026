@@ -104,7 +104,7 @@ export function mapCase(row) {
     id: Number(row.id), dataset_id: Number(row.dataset_id), id_registro: row.external_id,
     p309: row.p309, p308: row.p308 || '', p308a: row.p308a || '',
     c309_1: row.c309_1 || '', c310: row.c310 || '', c311: row.c311 || '', c366: row.c366 || '',
-    candidatos: Array.isArray(row.candidates) ? row.candidates : [], confianza_ml: row.confianza_ml === null ? 0 : Number(row.confianza_ml),
+    candidatos: Array.isArray(row.candidates) ? row.candidates : [], confianza_ml: row.confianza_ml == null ? null : Number(row.confianza_ml),
     evidencia_r2: mapR2Evidence(row.r2_evidence),
     estado, codigo_final: row.final_code, qwen,
     origen_decision: row.latest_source === 'ml' ? 'r2' : row.latest_source === 'llm' ? 'qwen' : row.latest_source === 'human' ? 'humano' : 'pendiente',
@@ -279,13 +279,9 @@ export function createDataRouter(config) {
       const threshold = Number(req.query.threshold);
       const synthetic = String(req.query.synthetic || 'false') === 'true';
       const qwenMode = String(req.query.qwenMode || 'manual');
-      const rawAiThreshold = String(req.query.aiThreshold ?? '').trim();
-      // Si el codificador no indica un umbral de IA, el trabajo usa 0,95: la IA solo cierra casos con puntaje
-      // igual o superior, así que con este valor no cierra casos que el umbral del trabajo no haya cerrado.
-      const aiThreshold = rawAiThreshold === '' ? 0.95 : Number(rawAiThreshold);
+      const aiThreshold = null; // La IA solo sugiere; la decisión requiere revisión humana.
       if (!name || name.length > 160 || !period || period.length > 40) throw httpError(400, 'Nombre y periodo son obligatorios.');
       if (!Number.isFinite(threshold) || threshold < 0 || threshold > 1) throw httpError(400, 'El umbral R2 debe estar entre 0 y 1.');
-      if (aiThreshold !== null && (!Number.isFinite(aiThreshold) || aiThreshold < 0 || aiThreshold > 1)) throw httpError(400, 'El umbral de IA debe estar entre 0 y 1 o quedar vacío.');
       if (!['manual', 'automatic'].includes(qwenMode)) throw httpError(400, 'El modo Qwen debe ser manual o automático.');
       if (qwenMode === 'automatic' && config.qwenMode !== 'real') throw httpError(409, 'El procesamiento automático requiere Qwen real.');
       let records;

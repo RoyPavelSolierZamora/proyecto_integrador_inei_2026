@@ -22,3 +22,4 @@ motores/r3/datos/*.db
 
 # Modelo BETO y otros modelos locales: se copian aquí a mano y no se suben a Git.
 modelos/
+/modelo_beto_multivariado_final_v2/

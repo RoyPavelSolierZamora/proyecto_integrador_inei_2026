@@ -39,7 +39,7 @@ test('calcula variaciones comparables por proporción', () => {
 });
 
 test('la ayuda explica el umbral sin inventar métricas', () => {
-  assert.match(helpAnswer('¿Qué es el umbral 0,95?'), /prioriza precisión/i);
+  assert.match(helpAnswer('¿Qué es el umbral 0,92?'), /umbral sugerido es 0,92/i);
 });
 
 test('separa los temas de ayuda conocidos de las preguntas abiertas', async () => {

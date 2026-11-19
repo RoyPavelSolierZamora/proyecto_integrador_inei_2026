@@ -55,3 +55,11 @@ test('identifica Qwen como origen de la decisión más reciente', () => {
   assert.equal(item.origen_decision, 'qwen');
   assert.equal(item.estado, 'confirmado');
 });
+
+
+test('conserva la diferencia entre confianza cero y confianza sin calcular', () => {
+  const row = { id: 1, dataset_id: 1, external_id: 'P-1', updated_at: new Date() };
+  assert.equal(mapCase({ ...row, confianza_ml: null }).confianza_ml, null);
+  assert.equal(mapCase({ ...row, confianza_ml: '0' }).confianza_ml, 0);
+  assert.equal(mapCase(row).confianza_ml, null);
+});

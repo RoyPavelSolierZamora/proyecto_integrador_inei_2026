@@ -47,7 +47,22 @@ export function summarizeWorkspaceIndicators(rows, run = {}) {
     if (row.ml_automatic) automatic += 1;
   }
   const r3Queries = Number(run.r3_queries || 0);
+  // Una sola prediccion por registro: R2 si lo resolvio; IA si fue derivado.
+  // Nunca se usa el codigo humano como prediccion del sistema.
+  const combinedCode = row => row.ml_automatic
+    ? (row.ml_code || topCode(row.candidates))
+    : row.r3_code;
+  const combined = classification(rows, combinedCode);
+  const withReference = rows.filter(row => validCode(row.human_code)).length;
   return {
+    global: {
+      ...combined,
+      total: rows.length,
+      withReference,
+      withoutReference: rows.length - withReference,
+      withoutPrediction: withReference - combined.evaluated,
+      coverage: withReference ? combined.evaluated / withReference : null,
+    },
     r2: {
       ...classification(rows, row => topCode(row.candidates)),
       automaticApproval: processed ? automatic / processed : null,
@@ -64,7 +79,7 @@ export async function workspaceIndicators(db, datasetId) {
   const [evidence, runs] = await Promise.all([
     db.query(`
       SELECT c.candidates, COALESCE(ref.code, human.code) AS human_code, ref.code AS reference_code, llm.code AS r3_code,
-             ml.processed AS ml_decision, ml.automatic AS ml_automatic
+             ml.processed AS ml_decision, ml.automatic AS ml_automatic, ml.automatic_code AS ml_code
       FROM epen.survey_cases c
       LEFT JOIN LATERAL (
         SELECT code FROM epen.decisions
@@ -79,13 +94,15 @@ export async function workspaceIndicators(db, datasetId) {
         ORDER BY rc.id DESC LIMIT 1
       ) ref ON true
       LEFT JOIN LATERAL (
-        SELECT code FROM epen.decisions
-        WHERE case_id = c.id AND source = 'llm' AND decision = 'selection' AND code IS NOT NULL
+        SELECT CASE WHEN decision = 'selection' THEN code END AS code FROM epen.decisions
+        WHERE case_id = c.id AND source = 'llm'
         ORDER BY created_at DESC, id DESC LIMIT 1
       ) llm ON true
       LEFT JOIN LATERAL (
         SELECT count(*) > 0 AS processed,
-               bool_or(decision = 'automatic' AND code IS NOT NULL) AS automatic
+               bool_or(decision = 'automatic' AND code IS NOT NULL) AS automatic,
+               (array_agg(code ORDER BY created_at DESC, id DESC)
+                 FILTER (WHERE decision = 'automatic' AND code IS NOT NULL))[1] AS automatic_code
         FROM epen.decisions WHERE case_id = c.id AND source = 'ml'
       ) ml ON true
       WHERE c.dataset_id = $1

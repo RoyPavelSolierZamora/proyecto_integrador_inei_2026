@@ -25,7 +25,10 @@ archivo `.bat` fuera de la carpeta: usa rutas relativas a este repositorio.
 
 Si tienes el modelo BETO, copia la carpeta `modelo_beto_multivariado_final_v2` dentro de `modelos\`
 antes de ejecutar `instalar.bat`. El instalador detecta el modelo, instala sus librerías y activa
-BETO sin que edites `.env`. La carpeta `modelos\` no se sube a Git.
+BETO sin que edites `.env`. También se detecta si colocas `modelo_beto_multivariado_final_v2`
+directamente en la raíz del proyecto. Ambas ubicaciones están excluidas de Git.
+Las dependencias Python se instalan en `.runtime\venv` (reutilizando los paquetes ya disponibles
+del sistema), para evitar escrituras en la instalación global de Python.
 
 Después:
 
@@ -76,7 +79,7 @@ siendo el valor predeterminado.
 La versión 0.5 usa P309/P308/P308A, n-gramas de palabras y caracteres, LinearSVC y calibración
 isotónica sobre el último periodo cronológico. Entrenada hasta noviembre de 2025 y calibrada con
 diciembre de 2025 obtuvo 91,4 % Top-1 y 96,6 % Top-3 sobre enero-agosto de 2026. Con `tau=0,95`
-cubrió 68,0 % con 99,3 % de precisión. El umbral predeterminado del dashboard es 0,95, pero el
+cubrió 68,0 % con 99,3 % de precisión. El umbral predeterminado del dashboard es 0,92, pero el
 operador puede cambiarlo por trabajo. Se activa con `R2_MODE=advanced`; sus instrucciones están en
 [`motores/r2/avanzado/README.md`](motores/r2/avanzado/README.md).
 
@@ -91,7 +94,7 @@ ambigüedad, discrepancia o salida inválida se deriva a revisión humana.
 3. R2 devuelve candidatos CIIU Top-K y confianza.
 4. Los registros sobre τ se resuelven con R2; los difíciles pasan a Qwen manual o automático.
 5. Qwen solo puede seleccionar códigos suministrados por R2.
-6. Discrepancias, ambigüedades y fallos técnicos pasan a revisión humana.
+6. Las sugerencias de Qwen, discrepancias, ambigüedades y fallos técnicos pasan a revisión humana.
 7. El analista puede elegir cualquier clase del catálogo oficial cuando el Top-K no corresponda;
    debe justificar la corrección y el cambio queda auditado.
 8. Cada versión conserva trazabilidad y puede exportarse como CSV.

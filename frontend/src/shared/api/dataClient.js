@@ -25,8 +25,8 @@ export async function exportDatasetReal(datasetId) {
   return response.blob();
 }
 
-export const startR2JobReal = ({ name, period, fileName, threshold, aiThreshold = '', synthetic, qwenMode, csvText }) => {
-  const query = new URLSearchParams({ name, period, fileName, threshold: String(threshold), synthetic: String(synthetic), qwenMode, aiThreshold: String(aiThreshold ?? '') });
+export const startR2JobReal = ({ name, period, fileName, threshold, synthetic, qwenMode, csvText }) => {
+  const query = new URLSearchParams({ name, period, fileName, threshold: String(threshold), synthetic: String(synthetic), qwenMode });
   return apiRequest(`/api/r2/jobs?${query}`, {
     method: 'POST', mutation: true, rawBody: csvText, contentType: 'text/csv; charset=utf-8',
   });

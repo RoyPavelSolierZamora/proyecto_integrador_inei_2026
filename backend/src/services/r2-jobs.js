@@ -218,11 +218,7 @@ async function processR2Job(jobId, config) {
         activeQwenRequests.set(Number(jobId), qwenController);
         try {
           qwen = await classifyWithQwen(config, item, { signal: qwenController.signal });
-          policy = qwenResolutionPolicy(item.candidates, qwen, {
-            modelVersion: jobModelVersion,
-            confidence: item.confianza_ml,
-            aiThreshold: claimed.ai_threshold === null || claimed.ai_threshold === undefined ? null : Number(claimed.ai_threshold),
-          });
+          policy = qwenResolutionPolicy(item.candidates, qwen);
         } catch (cause) {
           if (cause.code === 'QWEN_CANCELLED' || await cancellationRequested(jobId)) {
             return cancelJob(jobId, claimed.dataset_id);

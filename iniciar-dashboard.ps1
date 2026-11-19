@@ -61,6 +61,8 @@ function Wait-Port([int]$Port, [int]$Attempts = 60) {
 }
 
 function Find-Python {
+    $localPython = Join-Path $runtimeRoot 'venv\Scripts\python.exe'
+    if (Test-Path -LiteralPath $localPython) { return $localPython }
     $command = Get-Command 'python.exe' -ErrorAction SilentlyContinue
     if ($command) { return $command.Source }
     $fallback = Join-Path $env:LOCALAPPDATA 'Programs\Python\Python312\python.exe'
@@ -177,9 +179,13 @@ try {
     }
 
     $r2Mode = Get-DotEnvValue 'R2_MODE'
-    # Sin R2_MODE, si el modelo BETO está en modelos\ se usa BETO; así no hace falta editar .env.
+    # Acepta el modelo en modelos\ o directamente en la raiz del proyecto.
+    $betoDetectado = 'modelos\modelo_beto_multivariado_final_v2'
+    if (-not (Test-Path -LiteralPath (Join-Path $projectRoot (Join-Path $betoDetectado 'model.safetensors')) -PathType Leaf)) {
+        $betoDetectado = 'modelo_beto_multivariado_final_v2'
+    }
     if (-not $r2Mode) {
-        $betoLocal = Join-Path $projectRoot 'modelos\modelo_beto_multivariado_final_v2\model.safetensors'
+        $betoLocal = Join-Path $projectRoot (Join-Path $betoDetectado 'model.safetensors')
         if (Test-Path -LiteralPath $betoLocal -PathType Leaf) { $r2Mode = 'beto' } else { $r2Mode = 'simulator' }
     }
     $r2Mode = $r2Mode.Trim().ToLowerInvariant()
@@ -268,7 +274,7 @@ try {
     }
     if ($r2Mode -eq 'beto') {
         $betoPath = Get-DotEnvValue 'R2_BETO_MODEL_PATH'
-        if (-not $betoPath) { $betoPath = 'modelos\modelo_beto_multivariado_final_v2' }
+        if (-not $betoPath) { $betoPath = $betoDetectado }
         if (-not [IO.Path]::IsPathRooted($betoPath)) { $betoPath = Join-Path $projectRoot $betoPath }
         if (-not (Test-Path -LiteralPath (Join-Path $betoPath 'model.safetensors') -PathType Leaf)) {
             throw 'No se encontro el modelo BETO. Copia la carpeta modelo_beto_multivariado_final_v2 dentro de modelos\ y vuelve a ejecutar.'
@@ -290,7 +296,7 @@ try {
         throw ('R2 no respondio correctamente. Revisa ' + (Join-Path $logsRoot 'r2.err.log'))
     }
     if ($r2Mode -eq 'beto') {
-        Write-Ok 'BETO experimental operativo; sin cierre automatico del clasificador'
+        Write-Ok 'BETO experimental operativo; el cierre automatico depende del umbral del trabajo'
     } elseif ($r2Mode -eq 'advanced') {
         Write-Ok ('R2 avanzado operativo con ' + $r2.casos_historicos + ' antecedentes y calibracion ' + $r2.calibracion)
     } elseif ($r2Mode -eq 'baseline') {

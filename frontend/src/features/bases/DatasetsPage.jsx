@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import ReferenceBasesManager from './ReferenceBasesManager.jsx';
-import { parseR2Csv, parseRawEpenCsv } from '../../shared/lib/csvImport.js';
+import { parseRawEpenCsv } from '../../shared/lib/csvImport.js';
 import { cancelR2JobReal, exportDatasetReal, listR2JobsReal, startR2JobReal } from '../../shared/api/dataClient.js';
 import { useAuth } from '../../app/state/AuthContext.jsx';
 import { useData } from '../../app/state/DataContext.jsx';
@@ -43,20 +43,16 @@ function jobTone(job) {
 
 export default function DatasetsPage() {
   const { user } = useAuth();
-  const { datasets, activeDataset, activateDataset, importDataset, updateDatasetSynthetic, reload, real } = useData();
-  const [processedFiles, setProcessedFiles] = useState([]);
-  const [synthetic, setSynthetic] = useState(false);
+  const { datasets, activeDataset, activateDataset, reload, real } = useData();
   const [message, setMessage] = useState(null);
   const [reading, setReading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [threshold, setThreshold] = useState(DEFAULT_R2_THRESHOLD);
-  const [aiThreshold, setAiThreshold] = useState('');
   const [rawName, setRawName] = useState('');
   const [rawPeriod, setRawPeriod] = useState('');
   const [rawFile, setRawFile] = useState(null);
   const [rawText, setRawText] = useState('');
   const [rawPreview, setRawPreview] = useState(null);
-  const [rawSynthetic, setRawSynthetic] = useState(false);
   const [qwenMode, setQwenMode] = useState('automatic');
   const [jobs, setJobs] = useState([]);
   const [exportingId, setExportingId] = useState(null);
@@ -66,7 +62,6 @@ export default function DatasetsPage() {
   const [datasetQuery, setDatasetQuery] = useState('');
   const [datasetStatus, setDatasetStatus] = useState('todos');
   const [datasetPage, setDatasetPage] = useState(1);
-  const [datasetTypeId, setDatasetTypeId] = useState('');
   const rawInput = useRef(null);
   const rawSubmitBusy = useRef(false);
   const admin = user.role === 'admin';
@@ -118,44 +113,15 @@ export default function DatasetsPage() {
     if (!rawName.trim() || !rawPeriod.trim()) return setMessage({ type: 'error', text: 'Completa el nombre y el periodo de la base original.' });
     if (!rawFile || !rawPreview?.rows.length || rawPreview.errors.length) return setMessage({ type: 'error', text: 'Selecciona un CSV original válido.' });
     if (!Number.isFinite(value) || value < 0 || value > 1) return setMessage({ type: 'error', text: 'El nivel mínimo de confianza debe estar entre 0 y 1.' });
-    const aiValue = aiThreshold.trim() === '' ? '' : Number(aiThreshold);
-    if (aiValue !== '' && (!Number.isFinite(aiValue) || aiValue < 0 || aiValue > 1)) return setMessage({ type: 'error', text: 'El umbral de IA debe estar entre 0 y 1, o quedar vacío.' });
     rawSubmitBusy.current = true;
     setSaving(true);
     try {
-      const result = await startR2JobReal({ name: rawName.trim(), period: rawPeriod.trim(), fileName: rawFile.name, threshold: value, aiThreshold: aiValue, synthetic: rawSynthetic, qwenMode, csvText: rawText });
+      const result = await startR2JobReal({ name: rawName.trim(), period: rawPeriod.trim(), fileName: rawFile.name, threshold: value, synthetic: false, qwenMode, csvText: rawText });
       setMessage({ type: 'success', text: `Trabajo #${result.jobId} creado con ${result.records} registros. Puedes seguir su avance abajo.` });
-      setRawName(''); setRawPeriod(''); setRawFile(null); setRawText(''); setRawPreview(null); setRawSynthetic(false); setQwenMode('automatic'); setAiThreshold('');
+      setRawName(''); setRawPeriod(''); setRawFile(null); setRawText(''); setRawPreview(null); setQwenMode('automatic');
       form.reset(); await refreshJobs();
     } catch (cause) { setMessage({ type: 'error', text: cause.message || 'No se pudo iniciar el procesamiento automático.' }); }
     finally { rawSubmitBusy.current = false; setSaving(false); }
-  }
-
-  async function selectFile(event) {
-    const selected = [...(event.target.files || [])];
-    setProcessedFiles([]); setMessage(null);
-    if (!selected.length) return;
-    if (selected.length > 12) return setMessage({ type: 'error', text: 'Importa hasta 12 archivos por lote para poder revisar cada resultado.' });
-    if (selected.some(item => item.size > 5 * 1024 * 1024)) return setMessage({ type: 'error', text: 'Cada archivo procesado puede pesar hasta 5 MB.' });
-    setReading(true);
-    try {
-      const rows = await Promise.all(selected.map(async item => {
-        const preview = parseR2Csv(await item.text());
-        const base = item.name.replace(/\.csv$/i, '').replace(/[_-]+/g, ' ').trim();
-        const periodMatch = item.name.match(/(20\d{2})[ _-]?(?:T|Q)?([1-4]|0?[1-9]|1[0-2])?/i);
-        const period = periodMatch ? `${periodMatch[1]}${periodMatch[2] ? `-${periodMatch[2]}` : ''}` : '';
-        return { key: `${item.name}-${item.lastModified}`, file: item, name: base, period, preview };
-      }));
-      setProcessedFiles(rows);
-      const invalid = rows.filter(item => !item.preview.rows.length || item.preview.errors.length);
-      if (invalid.length) setMessage({ type: 'error', text: `${invalid.length} archivo(s) requieren corrección antes de importar el lote.` });
-    } catch {
-      setMessage({ type: 'error', text: 'No se pudieron leer los archivos seleccionados.' });
-    } finally { setReading(false); }
-  }
-
-  function updateProcessedFile(key, field, value) {
-    setProcessedFiles(current => current.map(item => item.key === key ? { ...item, [field]: value } : item));
   }
 
   async function exportDataset(dataset) {
@@ -186,18 +152,6 @@ export default function DatasetsPage() {
     finally { setCancellingId(null); }
   }
 
-  async function toggleSynthetic(dataset) {
-    const nextSynthetic = !dataset.synthetic;
-    const target = nextSynthetic ? 'una base sintética de prueba' : 'una base con datos reales';
-    if (!window.confirm(`¿Marcar «${dataset.name}» como ${target}? Esta clasificación habilita o restringe las acciones de prueba.`)) return;
-    setSaving(true);
-    try {
-      await updateDatasetSynthetic(dataset.id, nextSynthetic);
-      setMessage({ type: 'success', text: nextSynthetic ? 'La base quedó marcada como sintética.' : 'La base quedó marcada como datos reales.' });
-    } catch (cause) { setMessage({ type: 'error', text: cause.message || 'No se pudo actualizar la clasificación de la base.' }); }
-    finally { setSaving(false); }
-  }
-
   const jobsPageCount = Math.max(1, Math.ceil(jobs.length / JOBS_PAGE_SIZE));
   const currentJobsPage = Math.min(jobsPage, jobsPageCount);
   const visibleJobs = showAllJobs
@@ -215,28 +169,6 @@ export default function DatasetsPage() {
 
   useEffect(() => { setDatasetPage(1); }, [datasetQuery, datasetStatus, datasets.length]);
   useEffect(() => { if (datasetPage > totalDatasetPages) setDatasetPage(totalDatasetPages); }, [datasetPage, totalDatasetPages]);
-
-  async function submit(event) {
-    event.preventDefault();
-    const form = event.currentTarget;
-    if (!processedFiles.length) return setMessage({ type: 'error', text: 'Selecciona al menos un CSV procesado.' });
-    if (processedFiles.some(item => !item.name.trim() || !item.period.trim())) return setMessage({ type: 'error', text: 'Completa el nombre y el periodo de cada archivo.' });
-    if (processedFiles.some(item => !item.preview?.rows.length || item.preview.errors.length)) return setMessage({ type: 'error', text: 'Corrige los archivos observados antes de importar el lote.' });
-    setSaving(true);
-    try {
-      let records = 0;
-      for (const item of processedFiles) {
-        await importDataset({ name: item.name.trim(), period: item.period.trim(), fileName: item.file.name, rows: item.preview.rows, synthetic }, user);
-        records += item.preview.rows.length;
-      }
-      setMessage({ type: 'success', text: `Se importaron ${processedFiles.length} archivo(s) y ${records.toLocaleString('es-PE')} registros. La última versión quedó en uso.` });
-      setProcessedFiles([]);
-      setSynthetic(false);
-      form.reset();
-    } catch (cause) {
-      setMessage({ type: 'error', text: cause.message || 'No se pudo importar la base.' });
-    } finally { setSaving(false); }
-  }
 
   const uploadBlocked = saving || reading || !rawPreview || rawPreview.errors.length > 0;
 
@@ -273,24 +205,21 @@ export default function DatasetsPage() {
               <Field id="base-periodo" label="Periodo">
                 <input id="base-periodo" className={inputClass} maxLength={40} value={rawPeriod} onChange={event => setRawPeriod(event.target.value)} placeholder="Ej. 2027-T2" required />
               </Field>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <Field id="base-tau" label="Nivel mínimo de confianza (τ)">
-                  <input id="base-tau" className={inputClass} type="number" min="0" max="1" step="0.01" value={threshold} onChange={event => setThreshold(event.target.value)} required aria-describedby="base-tau-ayuda" />
-                </Field>
-                <Field id="base-umbral-ia" label="Umbral de cierre por IA" hint="Si lo dejas vacío se usa 0,95. La IA solo cierra casos con puntaje igual o superior a este valor.">
-                  <input id="base-umbral-ia" className={inputClass} type="number" min="0" max="1" step="0.01" value={aiThreshold} onChange={event => setAiThreshold(event.target.value)} placeholder="0,95 por defecto" />
-                </Field>
-              </div>
+              <Field id="base-tau" label="Nivel mínimo de confianza (τ)">
+                <input id="base-tau" className={inputClass} type="number" min="0" max="1" step="0.01" value={threshold} onChange={event => setThreshold(event.target.value)} required aria-describedby={Number(threshold) !== Number(DEFAULT_R2_THRESHOLD) ? 'base-tau-aviso' : undefined} />
+              </Field>
+              {Number(threshold) !== Number(DEFAULT_R2_THRESHOLD) && (
+                <p id="base-tau-aviso" role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+                  Cambiaste el umbral sugerido de 0.92. Este cambio modifica qué registros se resuelven automáticamente y cuáles pasan a revisión.
+                </p>
+              )}
               <Field id="base-ia" label="Asistencia de IA">
                 <select id="base-ia" className={inputClass} value={qwenMode} onChange={event => setQwenMode(event.target.value)}>
                   <option value="automatic">Automática (segura)</option>
                   <option value="manual">Manual (a demanda)</option>
                 </select>
               </Field>
-              <label className="flex items-center gap-2 text-sm text-ink">
-                <input type="checkbox" className="size-4" checked={rawSynthetic} onChange={event => setRawSynthetic(event.target.checked)} />
-                <span>Marcar como datos sintéticos de prueba</span>
-              </label>
+              <p className="text-sm text-muted">La IA aporta sugerencias para revisión humana; no cierra casos automáticamente.</p>
               {rawPreview && (
                 <Notice tone={rawPreview.errors.length ? 'error' : 'success'} title={`${rawPreview.rows.length} registros detectados`}>
                   {rawPreview.errors.length ? `${rawPreview.errors.length} filas requieren corrección` : 'Archivo validado y listo para iniciar'}
@@ -341,7 +270,6 @@ export default function DatasetsPage() {
 
                   <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-3">
                     <div><dt className="text-xs text-muted">Umbral</dt><dd className="m-0 font-semibold text-ink-strong">{jobThreshold}</dd></div>
-                    <div><dt className="text-xs text-muted">Umbral de IA</dt><dd className="m-0 font-semibold text-ink-strong">{job.aiThreshold === null || job.aiThreshold === undefined ? 'Sin cierre por IA' : Number(job.aiThreshold).toFixed(2).replace('.', ',')}</dd></div>
                     <div><dt className="text-xs text-muted">Asistencia de IA</dt><dd className="m-0 font-semibold text-ink-strong">{job.qwenMode === 'automatic' ? 'Automática' : 'Manual'}</dd></div>
                   </dl>
 
@@ -452,71 +380,6 @@ export default function DatasetsPage() {
             <div className="mt-4"><ReferenceBasesManager /></div>
           </details>
 
-          <details className="rounded-lg border border-line p-4">
-            <summary className="cursor-pointer font-semibold text-ink-strong">Corregir el tipo de datos de una versión</summary>
-            <div className="mt-4 grid gap-3 text-sm text-muted">
-              <p>“Datos de prueba” habilita simulaciones y evita confundir resultados sintéticos con información real.</p>
-              <Field id="tipo-version" label="Versión">
-                <select id="tipo-version" className={inputClass} value={datasetTypeId} onChange={event => setDatasetTypeId(event.target.value)}>
-                  <option value="">Seleccionar base</option>
-                  {datasets.map(dataset => <option key={dataset.id} value={dataset.id}>{dataset.name} · {dataset.period} · {dataset.synthetic ? 'Prueba' : 'Real'}</option>)}
-                </select>
-              </Field>
-              {datasetTypeId && (() => {
-                const selected = datasets.find(dataset => String(dataset.id) === String(datasetTypeId));
-                return selected ? (
-                  <div><Button variant="secondary" disabled={saving} onClick={() => toggleSynthetic(selected)}>{selected.synthetic ? 'Marcar como datos reales' : 'Marcar como datos de prueba'}</Button></div>
-                ) : null;
-              })()}
-            </div>
-          </details>
-
-          <details className="rounded-lg border border-line p-4">
-            <summary className="cursor-pointer font-semibold text-ink-strong">Importar salida del clasificador automático</summary>
-            <div className="mt-4 grid gap-4">
-              <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted">
-                <p>Utiliza esta opción únicamente para migraciones o integraciones externas.</p>
-                <a className="font-semibold text-brand hover:underline" href={`${import.meta.env.BASE_URL}plantilla_importacion.csv`} download>Descargar plantilla avanzada</a>
-              </div>
-              <form className="grid grid-cols-1 gap-4" onSubmit={submit}>
-                <Field id="lote-archivos" label="Archivos CSV procesados">
-                  <input id="lote-archivos" type="file" multiple accept=".csv,text/csv" onChange={selectFile} className="text-sm" />
-                </Field>
-                {reading && <p className="text-sm text-muted">Validando archivo…</p>}
-                {processedFiles.length > 0 && (
-                  <div className="grid grid-cols-1 gap-3">
-                    {processedFiles.map(item => (
-                      <article key={item.key} className={['grid gap-3 rounded-lg border p-3', item.preview.errors.length ? 'border-[#efc8c4] bg-danger-soft/40' : 'border-line bg-surface'].join(' ')}>
-                        <header className="flex flex-wrap items-center justify-between gap-2 text-sm">
-                          <strong className="truncate text-ink-strong">{item.file.name}</strong>
-                          <span className="text-muted">{item.preview.rows.length.toLocaleString('es-PE')} registros</span>
-                        </header>
-                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                          <Field id={`lote-${item.key}-nombre`} label="Nombre de la base">
-                            <input id={`lote-${item.key}-nombre`} className={inputClass} value={item.name} onChange={event => updateProcessedFile(item.key, 'name', event.target.value)} required />
-                          </Field>
-                          <Field id={`lote-${item.key}-periodo`} label="Periodo">
-                            <input id={`lote-${item.key}-periodo`} className={inputClass} value={item.period} onChange={event => updateProcessedFile(item.key, 'period', event.target.value)} placeholder="Ej. 2027-T1" required />
-                          </Field>
-                        </div>
-                        {item.preview.errors.length > 0 && <small className="text-xs text-danger">{item.preview.errors.length} observación(es): {item.preview.errors.slice(0, 2).join(' ')}</small>}
-                      </article>
-                    ))}
-                  </div>
-                )}
-                <label className="flex items-center gap-2 text-sm text-ink">
-                  <input type="checkbox" className="size-4" checked={synthetic} onChange={event => setSynthetic(event.target.checked)} />
-                  <span>Marcar todo este lote como datos de prueba</span>
-                </label>
-                <p className="text-sm text-muted">Cada archivo crea una versión independiente. Se importan en orden y la última queda en uso.</p>
-                <div>
-                  <Button type="submit" disabled={reading || saving || !processedFiles.length || processedFiles.some(item => item.preview.errors.length > 0)}>
-                    {saving ? 'Importando lote…' : `Importar ${processedFiles.length || ''} archivo${processedFiles.length === 1 ? '' : 's'}`}
-                  </Button>
-                </div>
-              </form>
-            </div>
-          </details>
         </Panel>
       )}
     </div>

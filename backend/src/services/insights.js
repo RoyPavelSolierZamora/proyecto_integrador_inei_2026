@@ -1,7 +1,7 @@
 // Temas de ayuda de uso. Las palabras se comparan completas: "ia" no debe encontrarse dentro de "francia".
 const HELP_TOPICS = [
   { terms: ['importar', 'cargar', 'csv'], answer: 'Para cargar una base abre “Bases de datos”, indica nombre y periodo, selecciona el CSV original y configura el nivel mínimo de confianza. El sistema valida el archivo antes de iniciar.' },
-  { terms: ['umbral', 'confianza', '0.95', '0,95'], answer: 'El nivel mínimo de confianza determina qué casos puede cerrar el clasificador automático. 0,95 prioriza precisión; 0,90 aumenta cobertura y debe validarse con el periodo correspondiente.' },
+  { terms: ['umbral', 'confianza', '0.92', '0,92'], answer: 'El nivel mínimo de confianza determina qué casos puede cerrar el clasificador automático. El umbral sugerido es 0,92; cambiarlo modifica la cobertura automática y los registros que pasan a revisión. La IA únicamente sugiere y requiere confirmación humana.' },
   { terms: ['exportar', 'descargar', 'resultado'], answer: 'En “Bases de datos” localiza la versión procesada y usa “Exportar”. Los casos pendientes conservan vacío el código final para no confundirlos con resultados validados.' },
   { terms: ['revision', 'revisión', 'codificar', 'confirmar'], answer: 'En “Codificación y revisión” selecciona una base, abre un registro, compara candidatos, antecedentes e IA y confirma un código oficial. Si ninguno corresponde, busca en todo el catálogo CIIU.' },
   { terms: ['asistente', 'qwen'], answer: 'El asistente de IA apoya casos difíciles, pero no reemplaza la decisión humana ni puede inventar códigos fuera de las propuestas recibidas durante la clasificación automática.' },

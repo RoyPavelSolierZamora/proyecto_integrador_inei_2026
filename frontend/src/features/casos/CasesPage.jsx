@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import DatasetWorkspaceSelector from '../../shared/components/DatasetWorkspaceSelector.jsx';
 import WorkspaceIndicators from '../../shared/components/WorkspaceIndicators.jsx';
-import CodingDashboard, { referenceIsVisible } from '../metricas/CodingDashboard.jsx';
+import { referenceIsVisible } from '../metricas/CodingDashboard.jsx';
 import { getCodingDashboardReal } from '../../shared/api/dataClient.js';
 import StatusBadge from '../../shared/ui/StatusBadge.jsx';
 import PageHeader from '../../shared/ui/PageHeader.jsx';
@@ -11,6 +11,7 @@ import Button, { buttonClass } from '../../shared/ui/Button.jsx';
 import Notice from '../../shared/ui/Notice.jsx';
 import Field, { inputClass } from '../../shared/ui/Field.jsx';
 import { tableClasses as t } from '../../shared/ui/tableClasses.js';
+import { REVIEW_PRIORITIES, confidencePercent, reviewPriority } from '../../shared/lib/reviewPriority.js';
 import useDatasetWorkspace from '../../shared/hooks/useDatasetWorkspace.js';
 import { useData } from '../../app/state/DataContext.jsx';
 
@@ -37,8 +38,9 @@ export default function CasesPage() {
   const { selectedDataset, cases, indicators, loading, error } = useDatasetWorkspace(requestedDatasetId);
   const [query, setQuery] = useState('');
   const [view, setView] = useState('atencion');
+  const [priority, setPriority] = useState('todas');
   const [page, setPage] = useState(1);
-  // Una sola consulta al tablero de codificación: decide si los indicadores se muestran y alimenta el resumen.
+  // Consulta la referencia activa para decidir si se muestran las métricas comparativas.
   const [coding, setCoding] = useState(null);
   const [codingError, setCodingError] = useState('');
   const selectedId = selectedDataset?.id;
@@ -61,13 +63,14 @@ export default function CasesPage() {
       || (view === 'qwen' && caseOrigin(item) === 'qwen')
       || (view === 'humano' && caseOrigin(item) === 'humano');
     const haystack = `${item.id_registro} ${item.p309} ${item.p308}`.toLowerCase();
-    return matchView && haystack.includes(query.trim().toLowerCase());
-  }), [cases, query, view]);
+    const matchPriority = priority === 'todas' || reviewPriority(item.confianza_ml).key === priority;
+    return matchView && matchPriority && haystack.includes(query.trim().toLowerCase());
+  }), [cases, query, view, priority]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const visible = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  useEffect(() => setPage(1), [query, view, cases.length, selectedDataset?.id]);
+  useEffect(() => setPage(1), [query, view, priority, cases.length, selectedDataset?.id]);
   useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
 
   const selectDataset = datasetId => {
@@ -87,31 +90,25 @@ export default function CasesPage() {
       <DatasetWorkspaceSelector datasets={datasets} selectedId={selectedDataset?.id} onChange={selectDataset} />
       {/* Sin base codificada activa no sale nada de la comparación: solo aparece con la base activa o con un codificador que completó la base. */}
       {selectedDataset && referenceActive && <WorkspaceIndicators indicators={indicators} loading={loading} />}
-      {selectedDataset && coding?.coderSectionVisible && (
-        <details className="group rounded-2xl border border-line bg-surface p-4 shadow-sm">
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold text-ink-strong">
-            Resumen de codificación con referencia
-            <span className="text-xs font-normal text-muted group-open:hidden">Ver</span>
-            <span className="hidden text-xs font-normal text-muted group-open:inline">Ocultar</span>
-          </summary>
-          <div className="mt-4 grid gap-3">
-            <CodingDashboard data={coding} compact quiet />
-          </div>
-        </details>
-      )}
       {location.state?.notice && <Notice tone="success">{location.state.notice}</Notice>}
       {loading && <Notice>Cargando la base seleccionada…</Notice>}
       {error && <Notice tone="error">{error}</Notice>}
       {codingError && <Notice tone="error">{codingError}</Notice>}
 
 
-      <Panel className="grid grid-cols-1 gap-3 p-4 md:grid-cols-[minmax(0,1fr)_260px_auto] md:items-end">
+      <Panel className="grid grid-cols-1 gap-3 p-4 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_220px_290px_auto] md:items-end">
         <Field id="casos-buscar" label="Buscar">
           <input id="casos-buscar" type="search" className={inputClass} value={query} onChange={event => setQuery(event.target.value)} placeholder="ID, actividad u ocupación" />
         </Field>
         <Field id="casos-vista" label="Vista">
           <select id="casos-vista" className={inputClass} value={view} onChange={event => setView(event.target.value)}>
             {views.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+          </select>
+        </Field>
+        <Field id="casos-prioridad" label="Prioridad de revisión">
+          <select id="casos-prioridad" className={inputClass} value={priority} onChange={event => setPriority(event.target.value)}>
+            <option value="todas">Todas las prioridades</option>
+            {REVIEW_PRIORITIES.map(item => <option key={item.key} value={item.key}>{item.label}</option>)}
           </select>
         </Field>
         <p aria-live="polite" className="pb-2 text-sm text-muted">{filtered.length} resultado{filtered.length === 1 ? '' : 's'}</p>
@@ -124,7 +121,7 @@ export default function CasesPage() {
               <th scope="col" className={t.th}>Registro</th>
               <th scope="col" className={t.th}>Actividad económica (P309)</th>
               <th scope="col" className={t.th}>Origen y responsable</th>
-              <th scope="col" className={t.th}>Nivel de confianza</th>
+              <th scope="col" className={`${t.th} text-center`}>Nivel de confianza</th>
               <th scope="col" className={t.th}>Estado</th>
               <th scope="col" className={t.th}><span className="sr-only">Acción</span></th>
             </tr>
@@ -138,7 +135,12 @@ export default function CasesPage() {
                   <span className="block font-semibold text-ink-strong">{originLabel[caseOrigin(item)] || 'Sin decisión'}</span>
                   {item.responsable_decision && !GENERIC_ACTORS.has(item.responsable_decision) && <small className="text-xs text-muted">{item.responsable_decision}</small>}
                 </td>
-                <td data-label="Nivel de confianza" className={t.cell}>{item.confianza_ml ? `${Math.round(item.confianza_ml * 100)} %` : '—'}</td>
+                <td data-label="Nivel de confianza" className={t.cell}>
+                  <span className="grid justify-items-center gap-1.5 text-center">
+                    <span>{confidencePercent(item.confianza_ml) === null ? '—' : `${confidencePercent(item.confianza_ml)} %`}</span>
+                    <span className={['inline-flex rounded-full px-2 py-1 text-xs font-semibold', reviewPriority(item.confianza_ml).tone].join(' ')}>{reviewPriority(item.confianza_ml).label}</span>
+                  </span>
+                </td>
                 <td data-label="Estado" className={t.cell}><StatusBadge status={item.estado} /></td>
                 <td data-label="Acción" className={`${t.cell} whitespace-nowrap`}>
                   <Link

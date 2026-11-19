@@ -41,6 +41,9 @@ $projectRoot = $PSScriptRoot
 $envPath = Join-Path $projectRoot '.env'
 # Carpeta donde el usuario copia el modelo BETO (no viene en Git). Si existe, BETO se activa sin editar .env.
 $betoRelativo = 'modelos\modelo_beto_multivariado_final_v2'
+if (-not (Test-Path -LiteralPath (Join-Path $projectRoot (Join-Path $betoRelativo 'model.safetensors')) -PathType Leaf)) {
+    $betoRelativo = 'modelo_beto_multivariado_final_v2'
+}
 $betoDisponible = Test-Path -LiteralPath (Join-Path $projectRoot (Join-Path $betoRelativo 'model.safetensors')) -PathType Leaf
 $runtimeRoot = Join-Path $projectRoot '.runtime'
 $credentialPath = Join-Path $runtimeRoot 'postgres.credential'
@@ -234,6 +237,15 @@ try {
         if (-not $python) { throw 'Python se instalo pero no se encontro. Abre una terminal nueva y repite.' }
     }
     Write-Ok ('Python ' + (& $python -c "import sys;print('.'.join(map(str,sys.version_info[:3])))"))
+
+    # Dependencias locales: evita escribir en C:\Python y requerir elevacion.
+    $venvRoot = Join-Path $runtimeRoot 'venv'
+    $venvPython = Join-Path $venvRoot 'Scripts\python.exe'
+    if (-not (Test-Path -LiteralPath $venvPython)) {
+        & $python -m venv --system-site-packages $venvRoot
+        if ($LASTEXITCODE -ne 0) { throw 'No se pudo crear el entorno Python local.' }
+    }
+    $python = $venvPython
 
     # BETO corre en esta computadora: si el modelo está en modelos\, se instalan sus librerías automáticamente.
     if ($betoDisponible) {
