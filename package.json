@@ -13,6 +13,8 @@
     "db:create-admin": "node backend/scripts/create-admin.js",
     "db:seed-synthetic": "node backend/scripts/seed-synthetic.js --si-vacio",
     "build": "vite build",
+    "build:demo": "node scripts/build-demo.mjs",
+    "generar:demo": "node scripts/generar-demo.mjs",
     "preview": "vite preview --host 127.0.0.1",
     "test": "node --test",
     "test:ui": "playwright test --config epen.playwright.config.js"
