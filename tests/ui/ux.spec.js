@@ -61,7 +61,7 @@ async function setup(page, { role = 'admin', failList = false, emptyUsers = fals
   return {calls,errors};
 }
 
-test('casos: indicadores por base, independientes de la tabla y adaptados a móvil', async ({ page }) => {
+test('casos: indicadores por base, independientes de la tabla y adaptados a móvil', async ({ page }, testInfo) => {
   const { errors } = await setup(page, {
     workspaceFor: id => ({
       cases: Array.from({ length: 26 }, (_, index) => ({
@@ -104,7 +104,7 @@ test('casos: indicadores por base, independientes de la tabla y adaptados a móv
   const right = await globalChart.boundingBox();
   expect(right.x).toBeGreaterThanOrEqual(left.x + left.width);
   expect(right.y).toBe(left.y);
-  await chart.locator('..').screenshot({ path: '.runtime/comparacion-desktop.png', animations: 'disabled', timeout: 5000 });
+  await chart.locator('..').screenshot({ path: testInfo.outputPath('comparacion-desktop.png'), animations: 'disabled', timeout: 5000 });
   await page.getByRole('button', { name: 'Siguiente' }).focus();
   await page.keyboard.press('Enter');
   await expect(page.locator('tbody')).toContainText('REG-26');
@@ -122,7 +122,7 @@ test('casos: indicadores por base, independientes de la tabla y adaptados a móv
   await page.setViewportSize({ width: 360, height: 800 });
   await expect(chart).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await chart.locator('..').screenshot({ path: '.runtime/comparacion-mobile.png', animations: 'disabled', timeout: 5000 });
+  await chart.locator('..').screenshot({ path: testInfo.outputPath('comparacion-mobile.png'), animations: 'disabled', timeout: 5000 });
   expect(errors).toEqual([]);
 });
 
@@ -245,8 +245,8 @@ test('métricas informa si el servicio está desactualizado sin dejar la pantall
  const { errors } = await setup(page);
  await page.route('**/api/analytics/datasets/*/summary', route => route.fulfill({json:{dataset:{period:'2026-T4'},totals:{total:2},topCodes:[]}}));
  await page.goto('/metricas');
- await expect(page.getByRole('heading',{name:'Métricas'})).toBeVisible();
- await expect(page.getByRole('alert')).toContainText('Reinicia el sistema');
+ await expect(page.getByRole('heading',{name:'Métricas y calidad'})).toBeVisible();
+ await expect(page.getByRole('alert').filter({hasText:'indicadores incompletos'})).toBeVisible();
  expect(errors).toEqual([]);
 });
 

@@ -1,15 +1,16 @@
 import { useEffect, useState } from 'react';
 import Panel from '../../shared/ui/Panel.jsx';
 import PanelHeading from '../../shared/ui/PanelHeading.jsx';
+import { tableClasses as t } from '../../shared/ui/tableClasses.js';
 import Stat from '../../shared/ui/Stat.jsx';
 import Notice from '../../shared/ui/Notice.jsx';
 import { getReferenceComparisonReal, listReferenceDatasetsReal } from '../../shared/api/dataClient.js';
 
 // Tablas compactas: sin ancho mínimo fijo para evitar desplazamiento lateral; los códigos no se cortan.
-const TABLE = 'w-full text-left text-sm';
+const TABLE = 'w-full text-left text-xs sm:text-sm';
 const HEAD = 'bg-[#f5f8fd] text-muted';
-const CELL = 'px-3 py-2.5 align-middle';
-const CODE = 'whitespace-nowrap px-3 py-2.5 align-middle font-semibold text-ink-strong';
+const CELL = 'px-2 py-1.5 align-middle sm:px-3';
+const CODE = 'px-2 py-1.5 align-middle font-semibold text-ink-strong sm:px-3';
 
 const percent = value => value === null || value === undefined ? 'Sin muestra' : `${(Number(value) * 100).toFixed(1)} %`;
 const interval = range => range ? `${(range.low * 100).toFixed(1)} a ${(range.high * 100).toFixed(1)} %` : '—';
@@ -17,7 +18,7 @@ const ORIGIN_LABELS = { ml: 'Clasificador automático', llm: 'Asistente de IA', 
 const BAND_ORDER = ['>=0.99', '0.97-0.99', '0.95-0.97', '<0.95', 'sin_puntaje'];
 
 // Comparación de la base seleccionada con la referencia activa. La gestión (importar y activar) está en Bases.
-export default function ReferenceComparisonPanel({ datasetId, datasetName }) {
+export default function ReferenceComparisonPanel({ datasetId, datasetName, hideSummary = false }) {
   const [active, setActive] = useState(null);
   const [comparison, setComparison] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -35,6 +36,8 @@ export default function ReferenceComparisonPanel({ datasetId, datasetName }) {
     if (!datasetId || !active) { setComparison(null); return undefined; }
     let cancelled = false;
     setLoading(true);
+    setComparison(null);
+    setMessage(null);
     getReferenceComparisonReal(datasetId, active.id)
       .then(data => { if (!cancelled) setComparison(data); })
       .catch(error => { if (!cancelled) setMessage(error.message); })
@@ -48,14 +51,14 @@ export default function ReferenceComparisonPanel({ datasetId, datasetName }) {
   const origins = comparison ? Object.entries(comparison.byOrigin) : [];
 
   return (
-    <Panel className="grid content-start gap-5 p-5">
+    <Panel className="mx-auto grid w-full max-w-[1050px] content-start gap-3 p-4">
       <PanelHeading
         title="Comparación con la base codificada"
         description="Compara la base que revisas con la referencia activa. Una diferencia indica que no coinciden; no prueba cuál tiene razón."
       />
       {message && <Notice tone="error">{message}</Notice>}
 
-      <section aria-label="Referencia activa" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-[#f8fbff] px-4 py-3">
+      <section aria-label="Referencia activa" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-[#f8fbff] px-3 py-2">
         {active ? (
           <>
             <div className="grid gap-0.5">
@@ -78,34 +81,35 @@ export default function ReferenceComparisonPanel({ datasetId, datasetName }) {
 
       {comparison && active && comparison.matched > 0 && (
         <>
-          <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+          {!hideSummary && <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
             <Stat label="Comparados" value={comparison.compared} hint={`${comparison.pending} sin código del sistema`} />
-            <Stat label="Coinciden" value={comparison.overall.correct} hint={`Precisión ${percent(comparison.overall.accuracy)}`} />
+            <Stat label="Coinciden" value={comparison.overall.correct} hint={`Coincidencia ${percent(comparison.overall.accuracy)}`} />
             <Stat label="No coinciden" value={comparison.overall.incorrect} hint={`IC 95 %: ${interval(comparison.overall.interval)}`} />
-            <Stat label="Precisión" value={percent(comparison.overall.accuracy)} hint={comparison.overall.verified ? 'Sobre casos comparados' : 'Sin casos comparados'} />
-          </div>
+            <Stat label="Coincidencia" value={percent(comparison.overall.accuracy)} hint={comparison.overall.verified ? 'Sobre casos comparados' : 'Sin casos comparados'} />
+          </div>}
 
-          <div className="overflow-hidden rounded-xl border border-line">
-            <table className={TABLE}>
-              <thead className={HEAD}>
+          <div className={t.wrap}>
+            <table className={`${t.table} md:table-fixed`}>
+              <colgroup className="max-md:hidden"><col style={{width: "30%"}} /><col style={{width: "13%"}} /><col style={{width: "11%"}} /><col style={{width: "15%"}} /><col style={{width: "14%"}} /><col style={{width: "17%"}} /></colgroup>
+              <thead className={t.head}>
                 <tr>
-                  <th scope="col" className="px-3 py-2.5 font-semibold">Analista</th>
-                  <th scope="col" className="px-3 py-2.5 font-semibold">Comparados</th>
-                  <th scope="col" className="px-3 py-2.5 font-semibold">Coinciden</th>
-                  <th scope="col" className="px-3 py-2.5 font-semibold">No coinciden</th>
-                  <th scope="col" className="px-3 py-2.5 font-semibold">Precisión</th>
-                  <th scope="col" className="px-3 py-2.5 font-semibold">IC 95 %</th>
+                  <th scope="col" className={`${t.th} md:py-1.5`}>Analista</th>
+                  <th scope="col" className={`${t.th} md:py-1.5`}>Comparados</th>
+                  <th scope="col" className={`${t.th} md:py-1.5`}>Coinciden</th>
+                  <th scope="col" className={`${t.th} md:py-1.5`}>No coinciden</th>
+                  <th scope="col" className={`${t.th} md:py-1.5`}>Coincidencia</th>
+                  <th scope="col" className={`${t.th} md:py-1.5`}>IC 95 %</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className={t.body}>
                 {analysts.map(([analyst, summary]) => (
-                  <tr key={analyst} className="border-t border-line">
-                    <td className={CODE}>{analyst}</td>
-                    <td className={CELL}>{summary.verified}</td>
-                    <td className={CELL}>{summary.correct}</td>
-                    <td className={CELL}>{summary.incorrect}</td>
-                    <td className={CELL}>{percent(summary.accuracy)}</td>
-                    <td className={CELL}>{interval(summary.interval)}</td>
+                  <tr key={analyst} className={t.row}>
+                    <td data-label="Analista" className={`${t.cell} md:py-1.5`}>{analyst}</td>
+                    <td data-label="Comparados" className={`${t.cell} md:py-1.5`}>{summary.verified}</td>
+                    <td data-label="Coinciden" className={`${t.cell} md:py-1.5`}>{summary.correct}</td>
+                    <td data-label="No coinciden" className={`${t.cell} md:py-1.5`}>{summary.incorrect}</td>
+                    <td data-label="Coincidencia" className={`${t.cell} md:py-1.5`}>{percent(summary.accuracy)}</td>
+                    <td data-label="IC 95 %" className={`${t.cell} md:py-1.5`}>{interval(summary.interval)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -114,16 +118,16 @@ export default function ReferenceComparisonPanel({ datasetId, datasetName }) {
           </div>
 
           <details className="group rounded-xl border border-line">
-            <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold text-ink-strong">Ver por confianza, origen y diferencias</summary>
-            <div className="grid gap-5 p-4">
-              <div className="grid gap-5 lg:grid-cols-2">
-                <div className="overflow-hidden rounded-xl border border-line">
+            <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold text-ink-strong">Ver desgloses por confianza y origen</summary>
+            <div className="grid gap-2 p-2">
+              <div className="grid gap-2 lg:grid-cols-2">
+                <div className="overflow-x-auto rounded-xl border border-line">
                   <table className={TABLE}>
                     <thead className={HEAD}>
                       <tr>
-                        <th scope="col" className="px-3 py-2.5 font-semibold">Confianza</th>
-                        <th scope="col" className="px-3 py-2.5 font-semibold">Comparados</th>
-                        <th scope="col" className="px-3 py-2.5 font-semibold">Precisión</th>
+                        <th scope="col" className="px-2 py-1.5 font-semibold sm:px-3">Confianza</th>
+                        <th scope="col" className="px-2 py-1.5 font-semibold sm:px-3">Comparados</th>
+                        <th scope="col" className="px-2 py-1.5 font-semibold sm:px-3">Coincidencia</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -137,13 +141,13 @@ export default function ReferenceComparisonPanel({ datasetId, datasetName }) {
                     </tbody>
                   </table>
                 </div>
-                <div className="overflow-hidden rounded-xl border border-line">
+                <div className="overflow-x-auto rounded-xl border border-line">
                   <table className={TABLE}>
                     <thead className={HEAD}>
                       <tr>
-                        <th scope="col" className="px-3 py-2.5 font-semibold">Origen</th>
-                        <th scope="col" className="px-3 py-2.5 font-semibold">Comparados</th>
-                        <th scope="col" className="px-3 py-2.5 font-semibold">Precisión</th>
+                        <th scope="col" className="px-2 py-1.5 font-semibold sm:px-3">Origen</th>
+                        <th scope="col" className="px-2 py-1.5 font-semibold sm:px-3">Comparados</th>
+                        <th scope="col" className="px-2 py-1.5 font-semibold sm:px-3">Coincidencia</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -157,34 +161,6 @@ export default function ReferenceComparisonPanel({ datasetId, datasetName }) {
                     </tbody>
                   </table>
                 </div>
-              </div>
-              <div className="overflow-hidden rounded-xl border border-line">
-                <table className={TABLE}>
-                  <thead className={HEAD}>
-                    <tr>
-                      <th scope="col" className="px-3 py-2.5 font-semibold">Registro</th>
-                      <th scope="col" className="px-3 py-2.5 font-semibold">Actividad (P309)</th>
-                      <th scope="col" className="px-3 py-2.5 font-semibold">Sistema</th>
-                      <th scope="col" className="px-3 py-2.5 font-semibold">Referencia</th>
-                      <th scope="col" className="px-3 py-2.5 font-semibold">Analista</th>
-                      <th scope="col" className="px-3 py-2.5 font-semibold">Origen</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {comparison.discrepancies.slice(0, 50).map(item => (
-                      <tr key={item.externalId} className="border-t border-line">
-                        <td className={CODE}>{item.externalId}</td>
-                        <td className={CELL}>{item.p309}</td>
-                        <td className={CODE}>{item.systemCode}</td>
-                        <td className={CODE}>{item.referenceCode}</td>
-                        <td className={CODE}>{item.analyst}</td>
-                        <td className={CELL}>{ORIGIN_LABELS[item.origin] || item.origin}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {!comparison.discrepancies.length && <p className="py-6 text-center text-sm text-muted">No hay diferencias en los casos comparados.</p>}
-                {comparison.discrepancies.length > 50 && <p className="px-4 py-3 text-xs text-muted">Mostrando 50 de {comparison.discrepancies.length} diferencias.</p>}
               </div>
             </div>
           </details>

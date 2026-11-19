@@ -1,218 +1,134 @@
-import { useEffect, useState } from 'react';
-import DatasetWorkspaceSelector from '../../shared/components/DatasetWorkspaceSelector.jsx';
-import CodingDashboard from './CodingDashboard.jsx';
-import PageHeader from '../../shared/ui/PageHeader.jsx';
-import PanelHeading from '../../shared/ui/PanelHeading.jsx';
-import Panel from '../../shared/ui/Panel.jsx';
-import Notice from '../../shared/ui/Notice.jsx';
-import { Donut, VerticalBars, chartColors, formatNumber, formatPercent } from '../../shared/ui/Charts.jsx';
-import { getCodingDashboardReal, getDatasetSummaryReal } from '../../shared/api/dataClient.js';
+﻿import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useData } from '../../app/state/DataContext.jsx';
+import DatasetWorkspaceSelector from '../../shared/components/DatasetWorkspaceSelector.jsx';
+import PageHeader from '../../shared/ui/PageHeader.jsx';
+import Notice from '../../shared/ui/Notice.jsx';
+import { getCodingDashboardReal, getDatasetSummaryReal } from '../../shared/api/dataClient.js';
+import CodingDashboard from './CodingDashboard.jsx';
+import OperationalMetrics from './OperationalMetrics.jsx';
+import QualityPage from '../calidad/QualityPage.jsx';
+import SummaryCards from './SummaryCards.jsx';
 
-const pct = value => value === null || value === undefined ? 'Sin muestra' : `${(Number(value) * 100).toFixed(1)} %`;
-const number = value => Number(value || 0).toLocaleString('es-PE');
+const TABS = [
+  ['resumen', 'Resumen'],
+  ['desempeno', 'Desempeño'],
+  ['comparaciones', 'Comparaciones'],
+  ['complementario', 'Análisis complementario'],
+];
 
-const share = (value, total) => (total ? Math.min(1, Number(value) / Number(total)) : 0);
-
-// Métricas de una base: operación, calidad de entrada y desempeño evaluado.
-// La cobertura y la exactitud se leen juntas; la confianza sola no prueba corrección.
 export default function MetricsPage() {
   const { datasets, activeDataset } = useData();
-  const [datasetId, setDatasetId] = useState(activeDataset?.id || null);
-  const [summary, setSummary] = useState(null);
-  const [message, setMessage] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [params, setParams] = useSearchParams();
+  const requested = params.get('datasetId') || params.get('dataset');
+  const datasetId = datasets.find(item => String(item.id) === requested)?.id || activeDataset?.id || null;
+  const view = TABS.some(([id]) => id === params.get('vista')) ? params.get('vista') : 'resumen';
 
-  useEffect(() => {
-    if (!datasetId) return undefined;
-    let current = true;
-    setLoading(true);
-    setMessage('');
-    setSummary(null);
-    getDatasetSummaryReal(datasetId)
-      .then(data => {
-        if (!current) return;
-        if (!data?.dataset || !data?.totals || !data?.rates || !data?.totals?.confidenceBands || !Array.isArray(data?.topCodes)) {
-          setMessage('El servicio de métricas necesita actualizarse. Reinicia el sistema para cargar la versión actual.');
-          return;
-        }
-        setSummary(data);
-      })
-      .catch(error => { if (current) setMessage(error.message); })
-      .finally(() => { if (current) setLoading(false); });
-    return () => { current = false; };
-  }, [datasetId]);
+  function change(name, value) {
+    setParams(previous => {
+      const next = new URLSearchParams(previous);
+      next.set(name, value);
+      return next;
+    });
+  }
 
-  // El tablero de codificación se carga aparte. Si hay base codificada activa, pasa a primer plano.
-  const [coding, setCoding] = useState(null);
-  useEffect(() => {
-    if (!datasetId) return undefined;
-    let current = true;
-    setCoding(null);
-    getCodingDashboardReal(datasetId).then(data => { if (current) setCoding(data); }).catch(() => { if (current) setCoding(null); });
-    return () => { current = false; };
-  }, [datasetId]);
-  const codingFirst = Boolean(coding?.coderSectionVisible);
-
-  const t = summary?.totals;
-  const r2 = summary?.indicators?.r2;
-  const r3 = summary?.indicators?.r3;
-  const evaluated = Number(r2?.evaluated || 0);
-  const sourceTotal = t ? t.automatic + t.ai + t.human : 0;
-  const codePalette = [chartColors.primary, chartColors.secondary, chartColors.positive, '#5b6b82', '#9fb4cf'];
-  const topFive = summary?.topCodes?.slice(0, 5) || [];
-  const topFiveTotal = topFive.reduce((acc, row) => acc + row.count, 0);
-  const otherCodes = Math.max(0, (t?.resolved || 0) - topFiveTotal);
-  const codeSegments = [
-    ...topFive.map((row, index) => ({ label: `${row.code} · ${row.description}`, value: row.count, color: codePalette[index] })),
-    ...(otherCodes > 0 ? [{ label: 'Otros códigos', value: otherCodes, color: chartColors.faint }] : []),
-  ];
+  function navigateTabs(event, index) {
+    let next;
+    if (event.key === 'ArrowRight') next = (index + 1) % TABS.length;
+    if (event.key === 'ArrowLeft') next = (index + TABS.length - 1) % TABS.length;
+    if (event.key === 'Home') next = 0;
+    if (event.key === 'End') next = TABS.length - 1;
+    if (next === undefined) return;
+    event.preventDefault();
+    change('vista', TABS[next][0]);
+    document.getElementById(`tab-${TABS[next][0]}`)?.focus();
+  }
 
   return (
-    <div className="grid grid-cols-1 gap-6">
-      <PageHeader icon="bar-chart" title="Métricas" description="Operación, calidad de datos y desempeño evaluado de una base." />
-
-      <DatasetWorkspaceSelector datasets={datasets} selectedId={datasetId} onChange={setDatasetId} />
-      {message && <Notice tone="error">{message}</Notice>}
-      {loading && <Notice>Calculando indicadores…</Notice>}
-      {summary?.indicators?.reference?.hasActiveReference && summary.indicators.reference.matched === 0 && (
-        <Notice tone="error" title="La base activa no comparte registros con la referencia activa.">
-          Ninguno de los {summary.indicators.reference.total} registros de esta base está en la base codificada activa, así que la exactitud no se puede calcular. Activa la base que codificaste.
-        </Notice>
-      )}
-
-      {coding && <CodingDashboard data={coding} />}
-      {summary && (
-        <details open={!codingFirst} className="group rounded-2xl border border-line bg-surface shadow-sm">
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4">
-            <span className="text-base font-bold text-ink-strong">Detalle operativo y calidad de entrada</span>
-            <span className="text-sm text-muted group-open:hidden">Ver</span>
-            <span className="hidden text-sm text-muted group-open:inline">Ocultar</span>
-          </summary>
-        <div className="grid gap-4 border-t border-line p-5">
-        <>
-          <section aria-label="Indicadores principales" className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {[
-              { label: 'Registros', value: number(t.total), hint: `${summary.dataset.period} · versión ${summary.dataset.version}` },
-              { label: 'Cobertura resuelta', value: pct(summary.rates.resolved), hint: `${number(t.resolved)} con código final` },
-              { label: 'Cobertura automática', value: pct(summary.rates.automatic), hint: 'Clasificador e IA sobre el total' },
-              { label: 'Necesitan revisión', value: pct(summary.rates.review), hint: `${number(t.review)} registros` },
-            ].map(item => (
-              <Panel key={item.label} className="grid content-start gap-1 p-5">
-                <span className="text-sm font-semibold text-muted">{item.label}</span>
-                <strong className="text-3xl font-bold text-ink-strong">{item.value}</strong>
-                <small className="text-xs text-muted">{item.hint}</small>
-              </Panel>
-            ))}
-          </section>
-
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <Panel className="grid content-start gap-4 p-5">
-              <PanelHeading title="Estado del procesamiento" description="Distribución de todos los registros de esta versión." />
-              <VerticalBars
-                ariaLabel="Estado de los registros"
-                footnote={`total n = ${formatNumber(t.total)}`}
-                items={[
-                  { label: 'Resueltos', value: t.resolved, color: chartColors.primary },
-                  { label: 'En revisión', value: t.review, color: chartColors.secondary },
-                  { label: 'Pendientes', value: t.pending, color: chartColors.neutral },
-                ].map(item => ({ label: item.label, color: item.color, height: share(item.value, t.total), display: formatNumber(item.value), detail: formatPercent(share(item.value, t.total)) }))}
-              />
-            </Panel>
-
-            <Panel className="grid content-start gap-4 p-5">
-              <PanelHeading title="Cómo se resolvió" description="Origen de la última decisión registrada." />
-              <VerticalBars
-                ariaLabel="Origen de las decisiones"
-                footnote={`total n = ${formatNumber(sourceTotal)}`}
-                items={[
-                  { label: 'Clasificador', value: t.automatic, color: chartColors.primary },
-                  { label: 'IA', value: t.ai, color: chartColors.secondary },
-                  { label: 'Persona', value: t.human, color: chartColors.positive },
-                ].map(item => ({ label: item.label, color: item.color, height: share(item.value, sourceTotal), display: formatNumber(item.value), detail: formatPercent(share(item.value, sourceTotal)) }))}
-              />
-              {!sourceTotal && <p className="text-sm text-muted">Todavía no hay decisiones registradas.</p>}
-            </Panel>
-          </div>
-
-          <Panel className="grid grid-cols-1 gap-4 p-5">
-            <PanelHeading title="Calidad de entrada" description="Campos necesarios antes de interpretar el desempeño." />
-            <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              {[
-                { term: 'P309 completo', value: pct(summary.rates.completeness), hint: `${number(t.missingP309)} vacíos` },
-                { term: 'Contexto incompleto', value: number(t.missingContext), hint: 'P308 o P308A vacío' },
-                { term: 'Clases observadas', value: number(t.uniqueCodes), hint: 'Con código final' },
-                { term: 'Concentración top 5', value: pct(summary.rates.topFiveConcentration), hint: 'Participación de 5 códigos' },
-              ].map(item => (
-                <div key={item.term} className="grid grid-cols-1 gap-0.5 rounded-lg border border-line bg-[#f8fbff] p-4">
-                  <dt className="text-xs font-semibold text-muted">{item.term}</dt>
-                  <dd className="m-0 text-2xl font-bold text-ink-strong">{item.value}</dd>
-                  <small className="text-xs text-muted">{item.hint}</small>
-                </div>
-              ))}
-            </dl>
-          </Panel>
-
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <Panel className="grid content-start gap-4 p-5">
-              <PanelHeading title="Confianza del clasificador" description="Distribución operativa; no equivale a exactitud." />
-              <VerticalBars
-                ariaLabel="Distribución de la confianza del clasificador"
-                footnote={`total n = ${formatNumber(t.total)}`}
-                items={[
-                  { label: '≥ 0,95', value: t.confidenceBands.high, color: chartColors.primary },
-                  { label: '0,90–0,94', value: t.confidenceBands.medium, color: chartColors.secondary },
-                  { label: '< 0,90', value: t.confidenceBands.low, color: chartColors.neutral },
-                  ...(t.confidenceBands.missing > 0 ? [{ label: 'Sin dato', value: t.confidenceBands.missing, color: chartColors.neutral }] : []),
-                ].map(item => ({ label: item.label, color: item.color, height: share(item.value, t.total), display: formatPercent(share(item.value, t.total)), detail: `${formatNumber(item.value)} reg.` }))}
-              />
-            </Panel>
-
-            <Panel className="grid grid-rows-[auto_1fr] gap-4 p-5">
-              <PanelHeading title="Códigos más frecuentes" description="Distribución entre registros resueltos." />
-              <div className="grid place-items-center">
-                <Donut
-                  ariaLabel="Códigos más frecuentes"
-                  centerLabel="resueltos"
-                  total={t?.resolved || 0}
-                  segments={codeSegments}
-                />
-              </div>
-              {!summary.topCodes.length && <p className="text-sm text-muted">Aún no hay códigos finales.</p>}
-            </Panel>
-          </div>
-
-          <Panel className="grid grid-cols-1 gap-4 p-5">
-            <PanelHeading title="Calidad evaluada" description="Solo usa registros que también tienen una decisión humana de referencia." />
-            {evaluated ? (
-              <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                {[
-                  { term: 'Casos evaluados', value: number(evaluated), hint: 'Tamaño real de la muestra' },
-                  { term: 'Exactitud del clasificador', value: pct(r2.accuracy), hint: 'Top 1 frente a humano' },
-                  { term: 'F1 macro del clasificador', value: pct(r2.macroF1), hint: 'Da igual peso a cada clase' },
-                  { term: 'Exactitud de la IA', value: r3?.evaluated ? pct(r3.accuracy) : 'Sin muestra', hint: `${number(r3?.evaluated)} casos evaluados` },
-                ].map(item => (
-                  <div key={item.term} className="grid grid-cols-1 gap-0.5 rounded-lg border border-line bg-[#f8fbff] p-4">
-                    <dt className="text-xs font-semibold text-muted">{item.term}</dt>
-                    <dd className="m-0 text-2xl font-bold text-ink-strong">{item.value}</dd>
-                    <small className="text-xs text-muted">{item.hint}</small>
-                  </div>
-                ))}
-              </dl>
-            ) : (
-              <p className="text-sm text-muted">
-                Aún no existe una muestra humana suficiente. La cobertura describe cuánto automatiza el sistema, pero no permite afirmar qué tan correcto es.
-              </p>
-            )}
-          </Panel>
-
-          <p className="text-sm text-muted">
-            Lectura recomendada: cobertura y exactitud deben analizarse juntas. Una confianza alta solo es útil si su calibración se valida en un periodo independiente.
-          </p>
-        </>
-        </div>
-        </details>
-      )}
+    <div className="grid min-w-0 gap-4">
+      <PageHeader dense icon="bar-chart" title="Métricas y calidad" description="Seguimiento de la codificación, evaluación de resultados y verificación de calidad." />
+      <DatasetWorkspaceSelector datasets={datasets} selectedId={datasetId} onChange={id => change('datasetId', id)} />
+      <div role="tablist" aria-label="Apartados de métricas y calidad" className="flex flex-wrap gap-1 rounded-xl border border-line bg-white p-1.5">
+        {TABS.map(([id, label], index) => (
+          <button
+            key={id}
+            id={`tab-${id}`}
+            type="button"
+            role="tab"
+            aria-selected={view === id}
+            aria-controls="metrics-panel"
+            tabIndex={view === id ? 0 : -1}
+            className={[
+              'min-h-11 cursor-pointer appearance-none border-0 rounded-lg px-3 py-2 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand',
+              view === id ? 'bg-brand text-white shadow-sm' : 'bg-transparent text-ink hover:bg-brand-soft',
+            ].join(' ')}
+            onClick={() => change('vista', id)}
+            onKeyDown={event => navigateTabs(event, index)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {datasetId
+        ? <Workspace key={datasetId} datasetId={datasetId} view={view} />
+        : <Notice>Selecciona una base de datos para consultar sus resultados.</Notice>}
     </div>
+  );
+}
+
+// One dataset workspace owns the read requests. Tab changes preserve local controls and
+// the blind queue; a dataset change remounts it, so old responses cannot replace new data.
+function Workspace({ datasetId, view }) {
+  const [summary, setSummary] = useState(null);
+  const [coding, setCoding] = useState(null);
+  const [errors, setErrors] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    const capture = error => {
+      if (active) setErrors(list => [...list, error.message]);
+    };
+    Promise.allSettled([
+      getDatasetSummaryReal(datasetId).then(data => {
+        if (!data?.dataset || !data?.totals?.confidenceBands || !Array.isArray(data.topCodes) || !data.rates) {
+          throw new Error('El servicio devolvió indicadores incompletos.');
+        }
+        if (active) setSummary(data);
+      }).catch(capture),
+      getCodingDashboardReal(datasetId).then(data => {
+        if (active) setCoding(data);
+      }).catch(capture),
+    ]).then(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [datasetId]);
+
+  return (
+    <section id="metrics-panel" role="tabpanel" aria-labelledby={`tab-${view}`} tabIndex={0}>
+      <div className="grid gap-4">
+        {(loading || errors.length > 0) && (
+          <div aria-live="polite">
+            {loading && <Notice>Calculando indicadores…</Notice>}
+            {errors.map((message, index) => <Notice key={index} tone="error">{message}</Notice>)}
+          </div>
+        )}
+        {summary?.indicators?.reference?.hasActiveReference && summary.indicators.reference.matched === 0 && (
+          <Notice>La base no comparte identificadores con la referencia activa. No se puede calcular la coincidencia.</Notice>
+        )}
+        {['resumen', 'desempeno', 'comparaciones', 'complementario'].map(id => (
+          <div key={id} hidden={view !== id}>
+            <div className="grid min-w-0 gap-4">
+              {id === 'desempeno' && summary && <OperationalMetrics summary={summary} view={id} hasCoding={Boolean(coding?.coderSectionVisible)} />}
+              {id === 'resumen' && summary && <SummaryCards summary={summary} coding={coding} />}
+              {id !== 'resumen' && id !== 'complementario' && coding && <CodingDashboard data={coding} view={id} summary={summary} />}
+              {summary && id !== 'comparaciones' && id !== 'desempeno' && (
+                <OperationalMetrics summary={summary} view={id} hasCoding={Boolean(coding?.coderSectionVisible)} />
+              )}
+            </div>
+          </div>
+        ))}
+        <QualityPage datasetId={datasetId} view={view} hasCoding={Boolean(coding?.referenceVisible)} />
+      </div>
+    </section>
   );
 }

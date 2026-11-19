@@ -33,7 +33,7 @@ export default function SystemPage() {
   ];
 
   return (
-    <div className="grid grid-cols-1 gap-6">
+    <div className="grid grid-cols-1 gap-4">
       <PageHeader
         icon="gear"
         title="Estado del sistema"

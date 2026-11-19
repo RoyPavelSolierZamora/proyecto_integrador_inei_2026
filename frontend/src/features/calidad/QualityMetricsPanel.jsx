@@ -22,6 +22,7 @@ export default function QualityMetricsPanel({ datasetId, refreshKey = 0 }) {
     let active = true;
     setLoading(true);
     setError('');
+    setMetrics(null);
     getQualityMetricsReal(datasetId)
       .then(data => { if (active) setMetrics(data); })
       .catch(cause => { if (active) setError(cause.message); })

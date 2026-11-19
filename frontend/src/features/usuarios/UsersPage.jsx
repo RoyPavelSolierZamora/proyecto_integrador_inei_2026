@@ -226,7 +226,7 @@ export default function UsersPage() {
   const isOwn = item => item.username === user.username;
 
   return (
-    <div className="grid grid-cols-1 gap-6">
+    <div className="grid grid-cols-1 gap-4">
       <PageHeader
         icon="people"
         title="Usuarios y credenciales"

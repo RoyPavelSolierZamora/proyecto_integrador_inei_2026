@@ -173,7 +173,7 @@ export default function DatasetsPage() {
   const uploadBlocked = saving || reading || !rawPreview || rawPreview.errors.length > 0;
 
   return (
-    <div className="grid grid-cols-1 gap-6">
+    <div className="grid grid-cols-1 gap-4">
       <PageHeader
         icon="database"
         title="Bases de datos"

@@ -88,15 +88,31 @@ export function VerticalBars({ items, ariaLabel, threshold, thresholdLabel, axis
   );
 }
 
+export function CompositionLegend({ items, total, label = 'Origen' }) {
+  const grid = 'grid grid-cols-[minmax(0,1fr)_5rem_4rem] items-center gap-x-2';
+  return (
+    <div className="mx-auto w-full max-w-sm text-sm">
+      <div className={`${grid} border-b border-line pb-2 text-xs font-semibold text-muted`}><span>{label}</span><span className="text-right">Registros</span><span className="text-right">%</span></div>
+      <ul className="m-0 grid gap-2 pt-2">
+        {items.map(item => <li key={item.label} className={`${grid} text-ink`}>
+          <span className="flex min-w-0 items-center gap-2"><i aria-hidden="true" className="size-2.5 shrink-0 rounded-full" style={{ background: item.color }} /><span className="break-words">{item.label}</span></span>
+          <strong className="text-right tabular-nums text-ink-strong">{formatNumber(item.value)}</strong>
+          <span className="text-right font-normal tabular-nums text-muted">{total ? formatPercent(item.value / total) : 'Sin muestra'}</span>
+        </li>)}
+      </ul>
+    </div>
+  );
+}
+
 // Anillo de composición con leyenda. Muestra el total al centro.
 // segments: [{ label, value, color }]
-export function Donut({ segments, total, centerLabel, ariaLabel }) {
+export function Donut({ segments, total, centerLabel, ariaLabel, detailedLegend = false }) {
   const sum = total || segments.reduce((acc, item) => acc + item.value, 0);
   const radius = 40;
   const circumference = 2 * Math.PI * radius;
   let offset = 0;
   return (
-    <div className="grid items-center gap-5 sm:grid-cols-[168px_minmax(0,1fr)]">
+    <div className={detailedLegend ? "mx-auto grid w-full max-w-sm justify-items-center gap-4" : "grid items-center gap-5 sm:grid-cols-[168px_minmax(0,1fr)]"}>
       <div className="relative mx-auto size-40">
         <svg viewBox="0 0 100 100" className="size-full -rotate-90" role="img" aria-label={ariaLabel}>
           <circle cx="50" cy="50" r={radius} fill="none" stroke="#eef2f7" strokeWidth="12" />
@@ -126,6 +142,7 @@ export function Donut({ segments, total, centerLabel, ariaLabel }) {
           <span className="text-[11px] text-muted">{centerLabel}</span>
         </div>
       </div>
+      {detailedLegend ? <CompositionLegend items={segments} total={sum} /> : (
       <ul className="grid gap-2">
         {segments.map(segment => (
           <li key={segment.label} className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 text-sm">
@@ -138,6 +155,7 @@ export function Donut({ segments, total, centerLabel, ariaLabel }) {
           </li>
         ))}
       </ul>
+      )}
     </div>
   );
 }

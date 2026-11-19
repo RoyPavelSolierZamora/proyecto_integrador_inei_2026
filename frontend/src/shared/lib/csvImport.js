@@ -45,7 +45,7 @@ export function parseR2Csv(text) {
   const required = ['id_registro', 'p309', 'candidatos'];
   const missing = required.filter(name => !headers.includes(name));
   if (missing.length && (headers.includes('c309_cod') || headers.includes('analista'))) {
-    return { rows: [], errors: ['Este archivo es una base codificada con código final. Súbelo en Control de calidad, en la sección Base codificada de referencia. Este importador es solo para resultados del clasificador automático.'] };
+    return { rows: [], errors: ['Este archivo es una base codificada con código final. Súbelo en Bases, en Herramientas avanzadas, como base codificada de referencia. Este importador es solo para resultados del clasificador automático.'] };
   }
   if (missing.length) return { rows: [], errors: [`Faltan columnas obligatorias: ${missing.join(', ')}.`] };
 

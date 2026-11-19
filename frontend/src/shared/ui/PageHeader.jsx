@@ -3,7 +3,7 @@ import EpenIcon from './EpenIcon.jsx';
 // Encabezado de cada pantalla: icono, título, descripción y acciones.
 // Se apila en móvil y se separa en escritorio; las acciones nunca se salen de la pantalla.
 // dense: versión compacta para pantallas que necesitan todo el alto (p. ej. el asistente).
-export default function PageHeader({ icon, title, description, meta, actions, dense = false }) {
+export default function PageHeader({ icon, title, description, meta, actions, dense = true }) {
   return (
     <header className={['flex flex-col gap-4 md:flex-row md:items-center md:justify-between', dense ? 'mb-0' : 'mb-6'].join(' ')}>
       <div className="flex min-w-0 items-start gap-4">

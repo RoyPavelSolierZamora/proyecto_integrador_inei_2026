@@ -62,7 +62,7 @@ export default function HistoryPage() {
   const chooseDataset = datasetId => setSearchParams({ dataset: String(datasetId) });
 
   return (
-    <div className="grid grid-cols-1 gap-6">
+    <div className="grid grid-cols-1 gap-4">
       <PageHeader
         icon="clock-history"
         title="Auditoría de decisiones"

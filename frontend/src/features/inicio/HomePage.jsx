@@ -26,7 +26,7 @@ export default function HomePage() {
   else if (canLoad) primaryAction = <Link className={buttonClass()} to="/bases">Procesar nueva base</Link>;
 
   return (
-    <div className="grid grid-cols-1 gap-6">
+    <div className="grid grid-cols-1 gap-4">
       <PageHeader
         icon="house-door"
         title={`Buenos días, ${firstName}`}

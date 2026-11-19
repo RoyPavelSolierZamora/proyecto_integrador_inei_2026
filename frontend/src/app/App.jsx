@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import AppShell from './AppShell.jsx';
 import ProtectedRoute from './ProtectedRoute.jsx';
 import LoginPage from '../features/auth/LoginPage.jsx';
@@ -10,7 +10,7 @@ import MetricsPage from '../features/metricas/MetricsPage.jsx';
 import SystemPage from '../features/sistema/SystemPage.jsx';
 import UsersPage from '../features/usuarios/UsersPage.jsx';
 import DatasetsPage from '../features/bases/DatasetsPage.jsx';
-import QualityPage from '../features/calidad/QualityPage.jsx';
+function QualityRedirect(){const location=useLocation();const params=new URLSearchParams(location.search);params.set('vista','resumen');return <Navigate to={'/metricas?'+params.toString()} replace/>;}
 import CriteriaPage from '../features/criterios/CriteriaPage.jsx';
 import AssistantPage from '../features/asistente/AssistantPage.jsx';
 
@@ -29,7 +29,7 @@ export default function App() {
           <Route element={<ProtectedRoute roles={['supervisor', 'auditor', 'admin']} />}>
             <Route path="historial" element={<HistoryPage />} />
             <Route path="metricas" element={<MetricsPage />} />
-            <Route path="calidad" element={<QualityPage />} />
+            <Route path="calidad" element={<QualityRedirect />} />
             <Route path="criterios" element={<CriteriaPage />} />
           </Route>
           <Route path="asistente" element={<AssistantPage />} />

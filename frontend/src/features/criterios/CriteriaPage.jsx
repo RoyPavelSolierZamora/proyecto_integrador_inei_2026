@@ -29,8 +29,8 @@ const inputMono = `${inputClass} font-mono tracking-widest`;
 const tabs = [['rules', 'Criterios de decisión'], ['catalog', 'Cambios al catálogo']];
 
 const tabClass = active => [
-  'min-h-10 border-b-2 px-3 text-sm font-semibold',
-  active ? 'border-brand text-brand' : 'border-transparent text-muted hover:text-ink-strong',
+  'min-h-11 cursor-pointer appearance-none border-0 rounded-lg px-3 py-2 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand',
+  active ? 'bg-brand text-white shadow-sm' : 'bg-transparent text-ink hover:bg-brand-soft',
 ].join(' ');
 
 const Badge = ({ status }) => (
@@ -161,10 +161,10 @@ export default function CriteriaPage() {
   const messageIsSuccess = /guardado|actualizado|enviada|aplicado/i.test(message);
 
   return (
-    <div className="grid grid-cols-1 gap-6">
+    <div className="grid grid-cols-1 gap-4">
       <PageHeader icon="journal-check" title="Catálogo y criterios" description="Gobierna códigos y reglas sin alterar silenciosamente decisiones anteriores." />
 
-      <div role="tablist" aria-label="Gobierno de clasificación" className="flex gap-1 border-b border-line">
+      <div role="tablist" aria-label="Gobierno de clasificación" className="flex flex-wrap gap-1 rounded-xl border border-line bg-white p-1.5">
         {tabs.map(([value, label]) => (
           <button key={value} type="button" role="tab" aria-selected={tab === value} onClick={() => setTab(value)} className={tabClass(tab === value)}>
             {label}

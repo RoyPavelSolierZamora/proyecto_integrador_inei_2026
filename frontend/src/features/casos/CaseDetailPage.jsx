@@ -4,7 +4,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import ContextHelp from '../../shared/ui/ContextHelp.jsx';
 import Panel from '../../shared/ui/Panel.jsx';
 import PanelHeading from '../../shared/ui/PanelHeading.jsx';
-import Button from '../../shared/ui/Button.jsx';
+import Button, { buttonClass } from '../../shared/ui/Button.jsx';
 import Notice from '../../shared/ui/Notice.jsx';
 import Field, { inputClass } from '../../shared/ui/Field.jsx';
 import StatusBadge from '../../shared/ui/StatusBadge.jsx';
@@ -124,7 +124,7 @@ export default function CaseDetailPage() {
       <div className="grid grid-cols-1 gap-3">
         <h1 className="text-2xl font-bold text-ink-strong">Registro no encontrado</h1>
         <p className="text-sm text-muted">{workspaceError || 'El registro no pertenece a la base seleccionada.'}</p>
-        <Link to={backTarget} className="text-sm font-semibold text-brand hover:underline">Volver a la bandeja</Link>
+        <Link to={backTarget} className={buttonClass({ variant: 'secondary', size: 'sm', className: 'justify-self-start' })}><span aria-hidden="true">←</span>Volver a la bandeja</Link>
       </div>
     );
   }
@@ -180,7 +180,7 @@ export default function CaseDetailPage() {
   return (
     <div className="grid grid-cols-1 gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <button type="button" className="text-sm font-semibold text-brand hover:underline" onClick={() => navigate(backTarget)}>← Volver a codificación</button>
+        <Button variant="secondary" size="sm" onClick={() => navigate(backTarget)}><span aria-hidden="true">←</span>Volver a codificación</Button>
         <StatusBadge status={item.estado} />
       </div>
 
