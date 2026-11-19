@@ -13,7 +13,7 @@ import AssistantDock from '../features/asistente/AssistantDock.jsx';
 const navItems = [
   { group: 'Trabajo', to: '/', label: 'Inicio', icon: 'house-door', end: true, roles: ['operador', 'analista', 'supervisor', 'auditor', 'admin'] },
   { group: 'Trabajo', to: '/casos', label: 'Codificación', icon: 'clipboard-check', roles: ['analista', 'supervisor', 'auditor', 'admin'] },
-  { group: 'Trabajo', to: '/mis-lotes', label: 'Mis lotes', icon: 'clipboard-check', roles: ['analista', 'supervisor', 'admin'] },
+  { group: 'Trabajo', to: '/mis-lotes', label: 'Mis lotes', icon: 'clipboard-check', roles: ['analista'] },
   { group: 'Trabajo', to: '/bases', label: 'Bases', icon: 'database', roles: ['operador', 'admin'] },
   { group: 'Supervisión', to: '/metricas', label: 'Métricas y calidad', icon: 'bar-chart', roles: ['supervisor', 'auditor', 'admin'] },
   { group: 'Supervisión', to: '/calidad-codificacion', label: 'Calidad de codificación', icon: 'layers', roles: ['supervisor', 'admin'] },

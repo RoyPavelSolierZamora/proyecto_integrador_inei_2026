@@ -275,6 +275,37 @@ function resumenMetricas(datasetId) {
   };
 }
 
+// Historial de decisiones con la forma que lee la página de Auditoría (rows, total, summary).
+function historialDemo(datasetId, params) {
+  const limite = Number(params.get('limit') || 30);
+  const desplazamiento = Number(params.get('offset') || 0);
+  const q = String(params.get('q') || '').trim().toLowerCase();
+  const origen = params.get('source') || 'all';
+  const eventos = [];
+  let id = 1;
+  for (const c of casosDe(datasetId)) {
+    const at = c.decidedAt || c.updated_at;
+    if (c.qwen) eventos.push({ id: id++, caseId: c.id_registro, action: 'consulta de IA', code: c.qwen.codigo, user: 'Sistema', at, source: 'ai' });
+    if (c.decidedBy) {
+      eventos.push({ id: id++, caseId: c.id_registro, action: c.tipo_decision === 'correction' ? 'corrección' : 'confirmación', code: c.codigo_final, user: c.responsable_decision || 'Persona', at, source: 'human' });
+    } else if (c.estado === 'confirmado' && c.origen_decision === 'r2') {
+      eventos.push({ id: id++, caseId: c.id_registro, action: 'codificación automática', code: c.codigo_final, user: 'Sistema', at, source: 'automatic' });
+    }
+  }
+  eventos.sort((a, b) => String(b.at).localeCompare(String(a.at)));
+  const filtrados = eventos.filter(e => (origen === 'all' || e.source === origen)
+    && (!q || e.caseId.toLowerCase().includes(q) || String(e.code || '').includes(q) || e.user.toLowerCase().includes(q)));
+  return {
+    rows: filtrados.slice(desplazamiento, desplazamiento + limite),
+    total: filtrados.length,
+    summary: {
+      events: eventos.length,
+      cases: new Set(eventos.map(e => e.caseId)).size,
+      human: eventos.filter(e => e.source === 'human').length,
+    },
+  };
+}
+
 // ----- rutas --------------------------------------------------------------------
 
 function sesion() {
@@ -319,7 +350,7 @@ function responder(method, path, params, body) {
       return json({ dataset, cases: casosVisibles(datasetId, usuario), events: [], indicators: indicadores(datasetId) });
     }
     if (partes[3] === 'history') {
-      return json({ dataset, events: [], total: 0, limit: 30, offset: 0 });
+      return json(historialDemo(datasetId, params));
     }
     if (partes[3] === 'cases' && partes[5] === 'decision' && method === 'POST') {
       const caso = casoPorId(datasetId, partes[4]);

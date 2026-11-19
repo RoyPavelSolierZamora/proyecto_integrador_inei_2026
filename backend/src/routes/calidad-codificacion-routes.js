@@ -395,7 +395,7 @@ export function createCalidadCodificacionRouter() {
   });
 
   // Lotes asignados a la persona que consulta. Sirve para avisar y para la pantalla «Mis lotes».
-  router.get('/api/mis-lotes', requireRole('analista', 'supervisor', 'admin'), async (req, res) => {
+  router.get('/api/mis-lotes', requireRole('analista'), async (req, res) => {
     // El identificador llega como texto desde PostgreSQL; se compara siempre como número.
     const me = Number(req.auth.user.id);
     const result = await getPool().query(`
@@ -429,8 +429,8 @@ export function createCalidadCodificacionRouter() {
     res.json({ lots, pending: lots.filter(lot => lot.remaining > 0).length });
   });
 
-  // Casos de un lote. Un codificador solo ve sus propios lotes; supervisor y administrador ven cualquiera.
-  router.get('/api/mis-lotes/:lote/casos', requireRole('analista', 'supervisor', 'admin'), async (req, res) => {
+  // Casos de un lote. Solo el codificador asignado puede verlos: supervisor y administrador no codifican.
+  router.get('/api/mis-lotes/:lote/casos', requireRole('analista'), async (req, res) => {
     const loteId = validId(req.params.lote);
     if (!loteId) throw httpError(400, 'Lote no válido.');
     const me = Number(req.auth.user.id);
@@ -441,9 +441,8 @@ export function createCalidadCodificacionRouter() {
     `, [loteId]);
     if (!lot.rowCount) throw httpError(404, 'Lote no encontrado.');
     const row = lot.rows[0];
-    const privileged = ['supervisor', 'admin'].includes(req.auth.user.role);
-    if (!privileged && Number(row.assignee_id) !== me) throw httpError(403, 'Este lote no está asignado a tu usuario.');
-    if (!privileged && row.active !== true) throw httpError(403, 'Este lote está desactivado. Consulta con tu supervisor.');
+    if (Number(row.assignee_id) !== me) throw httpError(403, 'Este lote no está asignado a tu usuario.');
+    if (row.active !== true) throw httpError(403, 'Este lote está desactivado. Consulta con tu supervisor.');
     const cases = await getPool().query(`
       SELECT c.external_id, c.p309, c.p308, c.final_code, c.status,
         EXISTS (

@@ -25,12 +25,12 @@ export default function HomePage() {
   const firstName = user.name.split(' ')[0];
   const [assigned, setAssigned] = useState(null);
   useEffect(() => {
-    if (!canCode) return undefined;
+    if (user.role !== 'analista') return undefined;
     const load = () => getMisLotesReal().then(data => setAssigned(data)).catch(() => setAssigned(null));
     load();
     window.addEventListener('focus', load);
     return () => window.removeEventListener('focus', load);
-  }, [canCode]);
+  }, [user.role]);
 
   let primaryAction = null;
   if (canCode) primaryAction = <Link className={buttonClass()} to="/casos">Continuar codificando</Link>;

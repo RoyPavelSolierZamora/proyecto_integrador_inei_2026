@@ -70,6 +70,9 @@ export default function LoginPage() {
             {submitting ? 'Validando…' : 'Ingresar'}
           </Button>
           <p className="text-center text-xs text-muted">Usa la credencial asignada por el administrador.</p>
+          {import.meta.env.VITE_DEMO === 'true' && (
+            <p className="text-center text-xs text-muted">Demostración: usuario <strong>admin</strong> y clave <strong>demo</strong>.</p>
+          )}
         </form>
       </Panel>
     </main>

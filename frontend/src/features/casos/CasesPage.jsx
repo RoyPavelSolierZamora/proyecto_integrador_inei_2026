@@ -122,7 +122,7 @@ export default function CasesPage() {
               <th scope="col" className={t.th}>Actividad económica (P309)</th>
               <th scope="col" className={t.th}>Origen y responsable</th>
               <th scope="col" className={`${t.th} text-center`}>Nivel de confianza</th>
-              <th scope="col" className={t.th}>Estado</th>
+              <th scope="col" className={`${t.th} md:text-center`}>Estado</th>
               <th scope="col" className={t.th}><span className="sr-only">Acción</span></th>
             </tr>
           </thead>
@@ -141,7 +141,7 @@ export default function CasesPage() {
                     <span className={['inline-flex rounded-full px-2 py-1 text-xs font-semibold', reviewPriority(item.confianza_ml).tone].join(' ')}>{reviewPriority(item.confianza_ml).label}</span>
                   </span>
                 </td>
-                <td data-label="Estado" className={t.cell}><StatusBadge status={item.estado} /></td>
+                <td data-label="Estado" className={`${t.cell} md:text-center`}><StatusBadge status={item.estado} /></td>
                 <td data-label="Acción" className={`${t.cell} whitespace-nowrap`}>
                   <Link
                     className={buttonClass({ variant: 'secondary', size: 'sm' })}

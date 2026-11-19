@@ -36,7 +36,7 @@ export default function App() {
             <Route path="criterios" element={<CriteriaPage />} />
           </Route>
           <Route path="asistente" element={<AssistantPage />} />
-          <Route element={<ProtectedRoute roles={['analista', 'supervisor', 'admin']} />}>
+          <Route element={<ProtectedRoute roles={['analista']} />}>
             <Route path="mis-lotes" element={<MisLotesPage />} />
             <Route path="mis-lotes/:lote" element={<MisLotesPage />} />
           </Route>
