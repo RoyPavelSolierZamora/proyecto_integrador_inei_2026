@@ -19,8 +19,8 @@ const formatDate = value => value && !Number.isNaN(Date.parse(value))
 
 const tabs = [['list', 'Lista de usuarios'], ['create', 'Crear usuario']];
 const tabClass = active => [
-  'min-h-10 border-b-2 px-3 text-sm font-semibold',
-  active ? 'border-brand text-brand' : 'border-transparent text-muted hover:text-ink-strong',
+  'min-h-11 cursor-pointer appearance-none border-0 rounded-lg px-3 py-2 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand',
+  active ? 'bg-brand text-white shadow-sm' : 'bg-transparent text-ink hover:bg-brand-soft',
 ].join(' ');
 
 // Lista de requisitos de la clave. Se muestra igual en cambio de clave y en alta de usuario.
@@ -233,7 +233,7 @@ export default function UsersPage() {
         description="Consulta las cuentas, administra sus accesos o crea un nuevo usuario."
       />
 
-      <div role="tablist" aria-label="Gestión de usuarios" ref={tabList} onKeyDown={tabKey} className="flex gap-1 border-b border-line">
+      <div role="tablist" aria-label="Gestión de usuarios" ref={tabList} onKeyDown={tabKey} className="flex flex-wrap gap-1 rounded-xl border border-line bg-white p-1.5">
         {tabs.map(([value, label]) => (
           <button
             key={value}
