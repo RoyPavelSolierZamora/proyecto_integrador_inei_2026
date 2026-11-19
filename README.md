@@ -87,6 +87,25 @@ R3 usa el contrato 1.1 y el prompt versionado `prompt_v5_contexto_historico.txt`
 contexto P308/P308A, rango y puntaje R2, y hasta tres antecedentes validados. Qwen sigue limitado al Top-K y cualquier
 ambigüedad, discrepancia o salida inválida se deriva a revisión humana.
 
+### Ajuste de Qwen 2.5 7B (QLoRA)
+
+El adaptador de Qwen se entrenó con QLoRA sobre `unsloth/Qwen2.5-7B-Instruct-bnb-4bit`, cargado en
+4 bits, y se usa en Colab mediante `PeftModel`. El adaptador no está en el repositorio.
+
+- **Configuración LoRA:** r = 16, alpha = 32, dropout = 0,05, bias = none, tarea CAUSAL_LM. Módulos:
+  q, k, v, o, gate, up y down proj. Parámetros entrenables: 40 370 176 de 7 655 986 688 (0,53 %).
+- **Datos:** base histórica EPEN 2022–2026 con las variables C309, C309_1, C308, C308A, C310, C311 y
+  C366. Se eliminaron duplicados por texto y código CIIU, y se limitó a 80 patrones por clase: 17 487
+  registros de 381 clases. Partición 95 % entrenamiento y 5 % validación, con semilla 42.
+- **Entrenamiento:** lote 16 con 2 pasos de acumulación (32 efectivo), tasa de aprendizaje 2e-4,
+  2 épocas, 50 pasos de calentamiento, programador coseno, optimizador `paged_adamw_8bit`, precisión
+  fp16 o bf16 según la GPU.
+- **Pérdida:** época 1, entrenamiento 0,0311 y validación 0,0324; época 2, entrenamiento 0,0190 y
+  validación 0,0265. La pérdida no equivale a exactitud de clasificación.
+- **Límites:** la validación es aleatoria. El histórico no incluye septiembre de 2026, así que la
+  evaluación de ese mes es fuera de muestra. El tiempo de entrenamiento y el modelo de GPU no quedaron
+  registrados.
+
 ## Flujo operativo
 
 1. Un operador carga un CSV original con `id_registro,p309,p308,p308a`.

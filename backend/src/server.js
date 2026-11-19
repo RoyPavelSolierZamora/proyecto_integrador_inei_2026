@@ -10,6 +10,7 @@ import { createDataRouter } from './routes/data-routes.js';
 import { createGovernanceRouter } from './routes/governance-routes.js';
 import { createReferenceRouter } from './routes/reference-routes.js';
 import { createInsightsRouter } from './routes/insights-routes.js';
+import { createCalidadCodificacionRouter } from './routes/calidad-codificacion-routes.js';
 import { resumeR2Jobs } from './services/r2-jobs.js';
 
 const config = getConfig();
@@ -242,6 +243,7 @@ app.use(createDataRouter(config));
 app.use(createGovernanceRouter());
 app.use(createReferenceRouter());
 app.use(createInsightsRouter());
+app.use(createCalidadCodificacionRouter());
 
 app.use((req, res) => res.status(404).json({ error: 'Ruta no encontrada.' }));
 app.use((err, req, res, _next) => {

@@ -8,6 +8,7 @@ import { parseRawEpenCsv } from '../services/raw-csv.js';
 import { classifyWithQwen } from '../clients/qwen-client.js';
 import { buildCsv, RESULT_HEADERS } from '../services/csv-export.js';
 import { workspaceIndicators } from '../services/workspace-indicators.js';
+import { canTouchCase, visibleCaseIds } from '../services/acceso-lotes.js';
 
 const CASE_SELECT = `
   SELECT c.id, c.dataset_id, c.external_id, c.p309, c.p308, c.p308a, c.c309_1, c.c310, c.c311, c.c366,
@@ -314,13 +315,16 @@ export function createDataRouter(config) {
       res.status(202).json(created);
     });
 
-  router.get('/api/data/bootstrap', requireAuth, async (_req, res) => {
+  router.get('/api/data/bootstrap', requireAuth, async (req, res) => {
     const pool = getPool();
     const active = await activeDataset(pool);
+    // Un codificador con lotes en la base activa solo recibe los casos de sus lotes.
+    const visible = active ? await visibleCaseIds(pool, active.id, req.auth.user) : null;
+    const allCases = active ? await casesForDataset(pool, active.id) : [];
     res.json({
       datasets: await datasets(pool),
       activeDataset: active,
-      cases: active ? await casesForDataset(pool, active.id) : [],
+      cases: visible ? allCases.filter(item => visible.has(String(item.id_registro))) : allCases,
       events: [],
       indicators: active ? await workspaceIndicators(pool, active.id) : null,
     });
@@ -332,9 +336,11 @@ export function createDataRouter(config) {
     const pool = getPool();
     const dataset = await datasetById(pool, datasetId);
     if (!dataset) throw httpError(404, 'Base no encontrada.');
+    const visible = await visibleCaseIds(pool, datasetId, req.auth.user);
+    const cases = await casesForDataset(pool, datasetId);
     res.json({
       dataset,
-      cases: await casesForDataset(pool, datasetId),
+      cases: visible ? cases.filter(item => visible.has(String(item.id_registro))) : cases,
       events: [],
       indicators: await workspaceIndicators(pool, datasetId),
     });
@@ -426,6 +432,9 @@ export function createDataRouter(config) {
       if (!target) throw httpError(409, requestedId ? 'La base solicitada no existe.' : 'No existe una base activa.');
       const current = await client.query('SELECT id, candidates FROM epen.survey_cases WHERE dataset_id = $1 AND external_id = $2 FOR UPDATE', [target.id, req.params.externalId]);
       if (!current.rowCount) throw httpError(404, 'Registro no encontrado.');
+      if (!(await canTouchCase(client, target.id, req.params.externalId, req.auth.user))) {
+        throw httpError(403, 'Este caso no está en tus lotes asignados.');
+      }
       const caseId = current.rows[0].id;
       let storedDecision = decision;
       let storedJustification = justification;
@@ -453,6 +462,9 @@ export function createDataRouter(config) {
     const raw = await pool.query('SELECT * FROM epen.survey_cases WHERE dataset_id = $1 AND external_id = $2', [target.id, req.params.externalId]);
     if (!raw.rowCount) throw httpError(404, 'Registro no encontrado.');
     const item = raw.rows[0];
+    if (!(await canTouchCase(pool, target.id, req.params.externalId, req.auth.user))) {
+      throw httpError(403, 'Este caso no está en tus lotes asignados.');
+    }
     const { result, review, code } = await classifyWithQwen(config, item);
     await transaction(async client => {
       // decided_by identifica a la persona que pidió la consulta; sin él el historial mostraría "Sistema".

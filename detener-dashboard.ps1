@@ -39,5 +39,22 @@ else {
     Remove-Item -LiteralPath $statePath -Force -ErrorAction SilentlyContinue
 }
 
+# Respaldo: un backend o frontend iniciado fuera del registro sigue ocupando su puerto y bloquea
+# la siguiente ejecución. Solo se cierran procesos de este proyecto (la ruta del proyecto debe aparecer
+# en la línea de comandos), nunca otros programas que usen el mismo puerto.
+$projectMarker = [IO.Path]::GetFullPath($PSScriptRoot).ToLowerInvariant()
+foreach ($port in 5174, 8080, 8100, 8000) {
+    $owners = @(Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique)
+    foreach ($ownerId in $owners) {
+        $info = Get-CimInstance Win32_Process -Filter "ProcessId = $ownerId" -ErrorAction SilentlyContinue
+        if (-not $info) { continue }
+        $commandLine = [string]$info.CommandLine
+        if ($commandLine.ToLowerInvariant().Contains($projectMarker) -or $commandLine -match 'backend[\\/]src[\\/]server\.js|vite\.js') {
+            Stop-Process -Id $ownerId -Force -ErrorAction SilentlyContinue
+            Write-Host ('   detenido proceso del proyecto en el puerto ' + $port + ' (PID ' + $ownerId + ')') -ForegroundColor DarkGray
+        }
+    }
+}
+
 Write-Host '   Listo. Ollama se mantiene activo.' -ForegroundColor Green
 Write-Host ''

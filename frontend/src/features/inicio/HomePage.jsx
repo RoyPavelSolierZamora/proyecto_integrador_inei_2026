@@ -1,4 +1,7 @@
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import Notice from '../../shared/ui/Notice.jsx';
+import { getMisLotesReal } from '../calidad-codificacion/calidadClient.js';
 import StatusBadge from '../../shared/ui/StatusBadge.jsx';
 import PageHeader from '../../shared/ui/PageHeader.jsx';
 import PanelHeading from '../../shared/ui/PanelHeading.jsx';
@@ -20,6 +23,14 @@ export default function HomePage() {
   const canCode = ['analista', 'supervisor', 'admin'].includes(user.role);
   const canLoad = ['operador', 'admin'].includes(user.role);
   const firstName = user.name.split(' ')[0];
+  const [assigned, setAssigned] = useState(null);
+  useEffect(() => {
+    if (!canCode) return undefined;
+    const load = () => getMisLotesReal().then(data => setAssigned(data)).catch(() => setAssigned(null));
+    load();
+    window.addEventListener('focus', load);
+    return () => window.removeEventListener('focus', load);
+  }, [canCode]);
 
   let primaryAction = null;
   if (canCode) primaryAction = <Link className={buttonClass()} to="/casos">Continuar codificando</Link>;
@@ -27,6 +38,11 @@ export default function HomePage() {
 
   return (
     <div className="grid grid-cols-1 gap-4">
+      {assigned?.pending > 0 && (
+        <Notice tone="info" title={`Te asignaron ${assigned.pending} ${assigned.pending === 1 ? 'lote' : 'lotes'} para codificar`} actions={<Link className={buttonClass({ size: 'sm' })} to="/mis-lotes">Ir a mis lotes</Link>}>
+          Abre tus lotes y codifica los casos pendientes.
+        </Notice>
+      )}
       <PageHeader
         icon="house-door"
         title={`Buenos días, ${firstName}`}
